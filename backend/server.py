@@ -457,6 +457,9 @@ async def get_proposals(request: Request, status: Optional[str] = None, search: 
     result = []
     for p in proposals:
         creator = await db.users.find_one({"_id": ObjectId(p["created_by"])})
+        if not creator:
+            # Handle deleted user
+            creator = {"_id": p["created_by"], "name": "Deleted User", "role": "Unknown"}
         result.append({
             "id": str(p["_id"]),
             "title": p["title"],
@@ -481,6 +484,8 @@ async def get_proposal(proposal_id: str, request: Request):
         raise HTTPException(status_code=404, detail="Proposal not found")
     
     creator = await db.users.find_one({"_id": ObjectId(proposal["created_by"])})
+    if not creator:
+        creator = {"_id": proposal["created_by"], "name": "Deleted User", "role": "Unknown"}
     
     return {
         "id": str(proposal["_id"]),
