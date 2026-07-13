@@ -1,0 +1,127 @@
+{
+  "theme": "light_dark_toggle",
+  "typography": {
+    "headings": "Cabinet Grotesk",
+    "body": "IBM Plex Sans",
+    "fallback_headings": "system-ui, sans-serif",
+    "fallback_body": "system-ui, sans-serif",
+    "rules": [
+      "Use 'Cabinet Grotesk' for all headings with tracking-tight (-0.02em to -0.04em).",
+      "Use 'IBM Plex Sans' for body and tabular data. It gives a sharp, corporate tech feel.",
+      "Never use Inter for headings.",
+      "Use tracking-[0.2em] uppercase for overlines and small labels."
+    ]
+  },
+  "colors": {
+    "archetype": "Archetype 4: SWISS & HIGH-CONTRAST (Authority, Clarity, Truth)",
+    "light": {
+      "background": "#F4F4F5",
+      "surface": "#FFFFFF",
+      "border": "#E4E4E7",
+      "text_primary": "#09090B",
+      "text_secondary": "#71717A",
+      "brand_primary": "#0F172A",
+      "status": {
+        "approved": "#10B981",
+        "pending": "#F59E0B",
+        "rejected": "#EF4444",
+        "active_step": "#3B82F6"
+      }
+    },
+    "dark": {
+      "background": "#09090B",
+      "surface": "#18181B",
+      "border": "#27272A",
+      "text_primary": "#FAFAFA",
+      "text_secondary": "#A1A1AA",
+      "brand_primary": "#FAFAFA",
+      "status": {
+        "approved": "#34D399",
+        "pending": "#FBBF24",
+        "rejected": "#F87171",
+        "active_step": "#60A5FA"
+      }
+    },
+    "rules": [
+      "No generic full-screen gradients.",
+      "Use stark white/black contrasts. 95% of UI should be monochrome, with color existing only to guide action.",
+      "Use status colors specifically for badges, workflow nodes, and critical buttons."
+    ]
+  },
+  "visual_enhancers": {
+    "surface_strategy": "Grid Borders (Technical Look) & Neumorphism for cards. Expose the skeleton. Dashboards should use 1px solid borders and subtle shadow-sm. No muddy gray transparencies.",
+    "icons": "Phosphor Icons (@phosphor-icons/react) - great for dense dashboards and corporate tech look.",
+    "hover_states": "Slight lift (-translate-y-0.5) and border color darkens/lightens. Always explicitly set text color on hover."
+  },
+  "layouts": {
+    "dashboard_grid": "Bento Grid Mode B (High Density). Base Grid: grid-cols-1 md:grid-cols-3 lg:grid-cols-4. Tight gaps (gap-4 or gap-6).",
+    "navigation": "Collapsible left-sidebar for modular scaling. Keep it dark or highly contrasted from the main background.",
+    "spacing": "Generous Spacing Philosophy. Use p-6 or p-8 inside cards to avoid text collision.",
+    "patterns": [
+      "Modified F-pattern: Top-left for 'Pending Approvals Count'.",
+      "Workflow Routing Logic: Use a horizontal or vertical stepper (Sales -> CGO -> Finance -> Legal -> CFO) to visualize the proposal route.",
+      "Split View: Left side list of proposals, right side details panel (Risk & Impact, Audit Trail/Comments)."
+    ]
+  },
+  "components": {
+    "workflow_stepper": "A custom horizontal or vertical stepper showing the 5 stages. Use solid filled circles for completed, blinking/glowing circle (tracing beam effect) for active stage, and empty circles for pending.",
+    "audit_trail": "A timeline widget showing who approved/rejected, with timestamps and comments.",
+    "data_table": "Shadcn UI table but customized to remove default Vercel-look. Add sharp 1px borders. Use badges for status.",
+    "action_panel": "A sticky bottom or top-right panel in the proposal detail view with primary CTA (Approve) and secondary (Reject/Send back to Sales)."
+  },
+  "motion": {
+    "rules": [
+      "Minimalist animations.",
+      "Staggered entrance for list items in the proposal feed.",
+      "Micro-interactions on action buttons (Approve/Reject).",
+      "Smooth layout transitions when switching tabs (Pending vs Approved)."
+    ]
+  },
+  "accessibility": {
+    "rules": [
+      "All interactive and key informational elements MUST include a data-testid attribute.",
+      "Normal text min 4.5:1 contrast, large text min 3:1.",
+      "Support prefers-reduced-motion."
+    ]
+  },
+  "media": {
+    "image_urls": {
+      "avatar_sales": "https://images.unsplash.com/photo-1600878459138-e1123b37cb30?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1Nzd8MHwxfHNlYXJjaHw0fHxwcm9mZXNzaW9uYWwlMjBjb3Jwb3JhdGUlMjBoZWFkc2hvdHxlbnwwfHx8fDE3ODM5NjYwNDd8MA&ixlib=rb-4.1.0&q=85",
+      "avatar_cgo": "https://images.unsplash.com/photo-1701096374092-bb70915fdc5c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1Nzd8MHwxfHNlYXJjaHwzfHxwcm9mZXNzaW9uYWwlMjBjb3Jwb3JhdGUlMjBoZWFkc2hvdHxlbnwwfHx8fDE3ODM5NjYwNDd8MA&ixlib=rb-4.1.0&q=85",
+      "avatar_finance": "https://images.unsplash.com/photo-1685760259914-ee8d2c92d2e0?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1Nzd8MHwxfHNlYXJjaHwyfHxwcm9mZXNzaW9uYWwlMjBjb3Jwb3JhdGUlMjBoZWFkc2hvdHxlbnwwfHx8fDE3ODM5NjYwNDd8MA&ixlib=rb-4.1.0&q=85",
+      "avatar_legal": "https://images.pexels.com/photos/11655430/pexels-photo-11655430.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "avatar_cfo": "https://images.pexels.com/photos/37148308/pexels-photo-37148308.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "login_bg": "https://images.unsplash.com/photo-1589362281138-e3f7ebe47f1a?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NzF8MHwxfHNlYXJjaHwxfHxtaW5pbWFsaXN0JTIwb2ZmaWNlJTIwZGVzayUyMGNsZWFufGVufDB8fHx8MTc4Mzk2NjA0N3ww&ixlib=rb-4.1.0&q=85"
+    }
+  },
+  "instructions_to_main_agent": [
+    "Build a React dashboard app with multiple roles: Sales, CGO, CFO, Finance, Legal.",
+    "Implement a mock login screen to switch between these roles.",
+    "Dashboard should have a Sidebar (Dashboard, Pending Approvals, Approved, Users - Finance only).",
+    "Finance user is Super Admin and can see the 'Users' tab to manage accounts.",
+    "Create a 'New Proposal' modal/page available only to the Sales role.",
+    "Implement the multi-stage approval workflow: Sales -> CGO -> Finance -> Legal -> CFO.",
+    "In the Proposal Details view, show the document info, the 5-step visual stepper, and the Action Panel (Approve/Reject with comments) if it's the current user's turn.",
+    "A rejection ('Send back to Sales') resets the workflow or puts it in a 'Needs Revision' state for Sales.",
+    "Once CFO approves, move it to the 'Approved' folder.",
+    "Ensure all components use Shadcn UI primitives but styled with the 'Swiss & High-Contrast' monochrome aesthetic.",
+    "DO NOT use Inter font for headings; stick to the specified typography.",
+    "Include data-testid attributes on all interactive elements (buttons, inputs, tabs)."
+  ],
+  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
+    "You tend to converge toward generic, 'on distribution' outputs. In frontend design, this creates what users call the 'AI slop' aesthetic. Avoid this: make creative, distinctive frontends that surprise and delight.",
+    "Dark colors look good when used independently without gradients. DO NOT use dark colors as gradients.",
+    "Don't make generic centered layouts, simplistic gradients, and uniform styling.",
+    "Create depth through layered design elements with z-index hierarchy.",
+    "Use glass-morphism effects with backdrop filters (12-24px blur) only for fixed headers/nav, otherwise use flat crisp panels.",
+    "You MUST NOT apply universal transition. Eg: transition: all. This results in breaking transforms. Always add transitions for specific interactive elements.",
+    "You MUST NOT center align the app container.",
+    "Always use modern button styles like sharp or slightly rounded corners with interaction animations & color relevant to the app style.",
+    "NEVER use AI assistant Emoji characters like robot, brain, lightbulb, etc for icons. Use Phosphor Icons.",
+    "Every interaction needs micro-animations - hover states, transitions, entrance animations. Static = dead.",
+    "Use 2-3x more spacing than feels comfortable. Cramped designs look cheap.",
+    "Use sonner for toasts, located in /app/src/components/ui/sonner.js",
+    "Prioritize using pre-existing components from src/components/ui when applicable.",
+    "All interactive and key informational elements MUST include a data-testid attribute to facilitate robust automated testing."
+  ]
+}
