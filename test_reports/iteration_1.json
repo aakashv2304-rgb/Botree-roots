@@ -1,0 +1,40 @@
+{
+  "summary": "First-finish smoke testing. Backend auth & user listing work. Frontend loads, login flow works for Sales user and reaches dashboard. HOWEVER a critical bug in backend blocks the entire proposal workflow: get_current_user() returns a user dict with key '_id' (stringified), but nearly every proposal endpoint (upload, create, approve, reject, history) references current_user['id'] which does not exist -> KeyError 500. Because the workflow cannot progress past step 1 (Sales file upload / proposal creation), none of the multi-stage approval flow items in the review request could be exercised end-to-end.",
+  "tested_scope": ["backend", "frontend", "auth", "integration"],
+  "passed": [
+    "POST /api/auth/login for finance and sales -> 200 with JWT cookie",
+    "GET /api/auth/me -> 200 with user info",
+    "GET /api/users (Finance) -> 200, returns all 5 seeded users (Finance/Sales/CGO/Legal/CFO)",
+    "GET /api/proposals -> 200 (empty list)",
+    "Frontend /login page renders with correct data-testid inputs",
+    "Sales user login through UI redirects to /dashboard and shows Total/Pending/Approved stat cards, sidebar with Dashboard/Pending/Approved/New Proposal/Sign Out"
+  ],
+  "failed": [
+    {
+      "area": "backend / file upload",
+      "issue": "POST /api/proposals/upload returns 500 Internal Server Error. KeyError: 'id' at server.py:309 -> path = f\"{APP_NAME}/proposals/{current_user['id']}/...\". get_current_user (server.py:88) stores the user id under key '_id' (string), never 'id'. This blocks Sales from uploading any file.",
+      "evidence": "curl POST /api/proposals/upload with valid Sales cookie returns 'Internal Server Error'. Backend log: File \"/app/backend/server.py\", line 309, in upload_proposal_file ... KeyError: 'id'",
+      "priority": "HIGH"
+    },
+    {
+      "area": "backend / proposal lifecycle (systemic)",
+      "issue": "The same current_user['id'] mismatch exists throughout server.py at lines 320 (upload uploaded_by), 362 (create created_by), 371 (create history), 460 (approve history), 504 (reject history). Even if upload is fixed on line 309, create/approve/reject will also raise KeyError. Recommended fix: in get_current_user set user['id'] = str(user['_id']) (or replace all current_user['id'] with current_user['_id']).",
+      "evidence": "grep 'current_user\\[' /app/backend/server.py shows 8+ usages of current_user['id']; get_current_user only sets user['_id']. /api/proposals POST (fallback attempt with dummy file_id) returned 'File not found' because upload never succeeded.",
+      "priority": "HIGH"
+    },
+    {
+      "area": "docs / config drift",
+      "issue": "Review request states public URL is emerald-antonie-emergentai-5a6bb62f.preview.emergentagent.com but frontend/.env has proposal-tracker-app.preview.emergentagent.com. Used the .env value (correct approach) and the app was reachable there.",
+      "evidence": "cat /app/frontend/.env -> REACT_APP_BACKEND_URL=https://proposal-tracker-app.preview.emergentagent.com",
+      "priority": "LOW"
+    }
+  ],
+  "action_items": [
+    "In /app/backend/server.py get_current_user (line ~88), after user['_id'] = str(user['_id']) also set user['id'] = user['_id']  (or refactor). This will unblock upload, create proposal, approve, reject, and history writes.",
+    "Re-run end-to-end workflow test after the fix: Sales upload+create -> CGO approve -> Finance approve -> Legal approve -> CFO approve -> Approved tab. Also verify reject path resets stage to 0 and status='needs_revision'.",
+    "Optional: align REACT_APP_BACKEND_URL / preview URL in problem statement with the actual .env value to avoid confusion."
+  ],
+  "success_rate": {"backend": "50%", "frontend": "100% (login + dashboard load only; workflow untested due to backend blocker)"},
+  "retest_needed": true,
+  "full_testing_deferred": true
+}
