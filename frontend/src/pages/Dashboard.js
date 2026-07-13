@@ -8,6 +8,7 @@ import ApprovedProposals from './ApprovedProposals';
 import UserManagement from './UserManagement';
 import ProposalDetail from './ProposalDetail';
 import NewProposal from './NewProposal';
+import EditProposal from './EditProposal';
 
 const Dashboard = () => {
   const { user } = useAuth();
@@ -24,6 +25,7 @@ const Dashboard = () => {
           <Route path="/approved" element={<ApprovedProposals />} />
           <Route path="/users" element={<UserManagement />} />
           <Route path="/proposal/:id" element={<ProposalDetail />} />
+          <Route path="/proposal/:id/edit" element={<EditProposal />} />
           <Route path="/new" element={<NewProposal />} />
         </Routes>
       </div>

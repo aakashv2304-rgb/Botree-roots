@@ -97,10 +97,13 @@ const ProposalDetail = () => {
   const canTakeAction = () => {
     if (!proposal) return false;
     if (proposal.status === 'approved') return false;
-    if (proposal.status === 'needs_revision' && user.role === 'Sales') return false;
     
     const currentStage = WORKFLOW_STAGES[proposal.current_stage];
     return currentStage && currentStage.role === user.role;
+  };
+
+  const canEdit = () => {
+    return user.role === 'Sales' && proposal.status === 'needs_revision' && proposal.created_by.id === user.id;
   };
 
   if (loading) {
@@ -144,18 +147,29 @@ const ProposalDetail = () => {
         <div className="lg:col-span-2 space-y-6">
           <div className="bg-white border border-[#E4E4E7] p-8 shadow-sm">
             <div className="flex items-start justify-between mb-6">
-              <div>
-                <h1 className="text-3xl font-bold tracking-tight mb-2" style={{ fontFamily: 'Cabinet Grotesk, system-ui, sans-serif' }} data-testid="proposal-title">
+              <div className="flex-1">
+                <h1 className="text-3xl font-bold tracking-tight mb-2" data-testid="proposal-title">
                   {proposal.title}
                 </h1>
-                <p className="text-[#71717A]">{proposal.description}</p>
+                <p className="text-gray-600">{proposal.description}</p>
               </div>
-              <Badge
-                className={proposal.status === 'approved' ? 'bg-[#10B981] text-white' : proposal.status === 'needs_revision' ? 'bg-[#EF4444] text-white' : 'bg-[#F59E0B] text-white'}
-                data-testid="proposal-status-badge"
-              >
-                {proposal.status === 'approved' ? 'Approved' : proposal.status === 'needs_revision' ? 'Needs Revision' : 'Pending'}
-              </Badge>
+              <div className="flex items-center gap-3">
+                <Badge
+                  className={proposal.status === 'approved' ? 'bg-green-500 text-white' : proposal.status === 'needs_revision' ? 'bg-red-500 text-white' : 'bg-amber-500 text-white'}
+                  data-testid="proposal-status-badge"
+                >
+                  {proposal.status === 'approved' ? 'Approved' : proposal.status === 'needs_revision' ? 'Needs Revision' : 'Pending'}
+                </Badge>
+                {canEdit() && (
+                  <Button
+                    onClick={() => navigate(`/dashboard/proposal/${id}/edit`)}
+                    className="bg-[#0066CC] hover:bg-[#0052A3] text-white"
+                    data-testid="edit-proposal-button"
+                  >
+                    Edit & Resubmit
+                  </Button>
+                )}
+              </div>
             </div>
 
             <div className="space-y-4 text-sm">

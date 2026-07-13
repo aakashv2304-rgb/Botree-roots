@@ -191,16 +191,17 @@ async def startup():
         logger.error(f"Storage initialization failed: {e}")
 
 async def seed_users():
-    # Finance (super admin)
-    finance_email = os.environ.get("ADMIN_EMAIL", "finance@company.com")
-    finance_password = os.environ.get("ADMIN_PASSWORD", "Finance@123")
+    # Admin (super admin)
+    admin_email = os.environ.get("ADMIN_EMAIL", "admin@botree.com")
+    admin_password = os.environ.get("ADMIN_PASSWORD", "Admin@123")
     
     users_to_seed = [
-        {"email": finance_email, "password": finance_password, "name": "Finance Admin", "role": "Finance"},
-        {"email": "sales@company.com", "password": "Sales@123", "name": "Sales User", "role": "Sales"},
-        {"email": "cgo@company.com", "password": "CGO@123", "name": "CGO User", "role": "CGO"},
-        {"email": "legal@company.com", "password": "Legal@123", "name": "Legal User", "role": "Legal"},
-        {"email": "cfo@company.com", "password": "CFO@123", "name": "CFO User", "role": "CFO"},
+        {"email": admin_email, "password": admin_password, "name": "System Admin", "role": "Admin"},
+        {"email": "finance@botree.com", "password": "Finance@123", "name": "Finance User", "role": "Finance"},
+        {"email": "sales@botree.com", "password": "Sales@123", "name": "Sales User", "role": "Sales"},
+        {"email": "cgo@botree.com", "password": "CGO@123", "name": "CGO User", "role": "CGO"},
+        {"email": "legal@botree.com", "password": "Legal@123", "name": "Legal User", "role": "Legal"},
+        {"email": "cfo@botree.com", "password": "CFO@123", "name": "CFO User", "role": "CFO"},
     ]
     
     for user_data in users_to_seed:
@@ -263,12 +264,12 @@ async def get_me(request: Request):
     user = await get_current_user(request)
     return user
 
-# User management (Finance only)
+# User management (Admin only)
 @api_router.get("/users")
 async def get_users(request: Request):
     current_user = await get_current_user(request)
-    if current_user["role"] != "Finance":
-        raise HTTPException(status_code=403, detail="Only Finance can manage users")
+    if current_user["role"] != "Admin":
+        raise HTTPException(status_code=403, detail="Only Admin can manage users")
     
     users = await db.users.find({}, {"password_hash": 0}).to_list(1000)
     return [{"id": str(u["_id"]), "email": u["email"], "name": u["name"], "role": u["role"], "created_at": u["created_at"]} for u in users]
@@ -276,8 +277,8 @@ async def get_users(request: Request):
 @api_router.post("/users")
 async def create_user(user_data: UserCreate, request: Request):
     current_user = await get_current_user(request)
-    if current_user["role"] != "Finance":
-        raise HTTPException(status_code=403, detail="Only Finance can create users")
+    if current_user["role"] != "Admin":
+        raise HTTPException(status_code=403, detail="Only Admin can create users")
     
     existing = await db.users.find_one({"email": user_data.email.lower()})
     if existing:
@@ -300,6 +301,46 @@ async def create_user(user_data: UserCreate, request: Request):
         "role": new_user["role"],
         "created_at": new_user["created_at"]
     }
+
+@api_router.delete("/users/{user_id}")
+async def delete_user(user_id: str, request: Request):
+    current_user = await get_current_user(request)
+    if current_user["role"] != "Admin":
+        raise HTTPException(status_code=403, detail="Only Admin can delete users")
+    
+    # Prevent deleting yourself
+    if user_id == current_user["id"]:
+        raise HTTPException(status_code=400, detail="Cannot delete your own account")
+    
+    result = await db.users.delete_one({"_id": ObjectId(user_id)})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    return {"message": "User deleted successfully"}
+
+@api_router.put("/users/{user_id}/role")
+async def update_user_role(user_id: str, role: str, request: Request):
+    current_user = await get_current_user(request)
+    if current_user["role"] != "Admin":
+        raise HTTPException(status_code=403, detail="Only Admin can update roles")
+    
+    # Prevent changing your own role
+    if user_id == current_user["id"]:
+        raise HTTPException(status_code=400, detail="Cannot change your own role")
+    
+    valid_roles = ["Admin", "Finance", "Sales", "CGO", "Legal", "CFO"]
+    if role not in valid_roles:
+        raise HTTPException(status_code=400, detail=f"Invalid role. Must be one of: {', '.join(valid_roles)}")
+    
+    result = await db.users.update_one(
+        {"_id": ObjectId(user_id)},
+        {"$set": {"role": role}}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    return {"message": "Role updated successfully"}
 
 # File upload
 @api_router.post("/proposals/upload")
@@ -453,6 +494,61 @@ async def get_proposal(proposal_id: str, request: Request):
         "created_at": proposal["created_at"],
         "updated_at": proposal["updated_at"]
     }
+
+@api_router.put("/proposals/{proposal_id}")
+async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: Request):
+    current_user = await get_current_user(request)
+    
+    if current_user["role"] != "Sales":
+        raise HTTPException(status_code=403, detail="Only Sales can edit proposals")
+    
+    existing_proposal = await db.proposals.find_one({"_id": ObjectId(proposal_id)})
+    if not existing_proposal:
+        raise HTTPException(status_code=404, detail="Proposal not found")
+    
+    # Only allow editing if proposal is rejected (needs_revision) and created by this user
+    if existing_proposal["created_by"] != current_user["id"]:
+        raise HTTPException(status_code=403, detail="You can only edit your own proposals")
+    
+    if existing_proposal["status"] != "needs_revision":
+        raise HTTPException(status_code=400, detail="Can only edit rejected proposals")
+    
+    # Verify new file if provided
+    file_doc = await db.files.find_one({"id": proposal.file_id, "is_deleted": False})
+    if not file_doc:
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    history_entry = {
+        "action": "updated",
+        "by": {"id": current_user["id"], "name": current_user["name"], "role": current_user["role"]},
+        "comment": "Proposal updated and resubmitted",
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+    
+    # Update proposal and reset to first stage
+    await db.proposals.update_one(
+        {"_id": ObjectId(proposal_id)},
+        {
+            "$set": {
+                "title": proposal.title,
+                "description": proposal.description,
+                "status": "sales_submitted",
+                "current_stage": 1,
+                "file_info": {
+                    "id": file_doc["id"],
+                    "filename": file_doc["original_filename"],
+                    "size": file_doc["size"],
+                    "storage_path": file_doc["storage_path"]
+                },
+                "updated_at": datetime.now(timezone.utc).isoformat()
+            },
+            "$push": {"history": history_entry}
+        }
+    )
+    
+    logger.info(f"[EMAIL] Proposal '{proposal.title}' updated and resubmitted by {current_user['name']} - CGO should be notified")
+    
+    return {"message": "Proposal updated and resubmitted successfully"}
 
 @api_router.post("/proposals/{proposal_id}/approve")
 async def approve_proposal(proposal_id: str, action: ProposalAction, request: Request):

@@ -20,16 +20,16 @@ const Sidebar = () => {
     { path: '/dashboard/approved', icon: CheckCircle, label: 'Approved', testId: 'nav-approved' },
   ];
 
-  if (user?.role === 'Finance') {
+  if (user?.role === 'Admin') {
     navItems.push({ path: '/dashboard/users', icon: Users, label: 'Users', testId: 'nav-users' });
   }
 
   return (
-    <div className="w-64 bg-[#0F172A] text-white flex flex-col border-r border-[#1E293B]">
-      <div className="p-6 border-b border-[#1E293B]">
-        <h1 className="text-xl font-bold tracking-tight" style={{ fontFamily: 'Cabinet Grotesk, system-ui, sans-serif' }} data-testid="app-title">Proposal Tracker</h1>
-        <p className="text-[#94A3B8] text-sm mt-1">{user?.name}</p>
-        <p className="text-[#64748B] text-xs uppercase tracking-[0.2em] mt-1">{user?.role}</p>
+    <div className="w-64 bg-[#0066CC] text-white flex flex-col border-r border-[#0052A3]">
+      <div className="p-6 border-b border-[#0052A3]">
+        <h1 className="text-xl font-bold tracking-tight" data-testid="app-title">Botree Software</h1>
+        <p className="text-blue-100 text-sm mt-1">{user?.name}</p>
+        <p className="text-blue-200 text-xs uppercase tracking-wider mt-1">{user?.role}</p>
       </div>
 
       <nav className="flex-1 p-4 space-y-2">
@@ -42,8 +42,8 @@ const Sidebar = () => {
             className={({ isActive }) =>
               `flex items-center gap-3 px-4 py-3 transition-colors ${
                 isActive
-                  ? 'bg-white/10 text-white border-l-2 border-white'
-                  : 'text-[#94A3B8] hover:bg-white/5 hover:text-white'
+                  ? 'bg-white/20 text-white border-l-2 border-white'
+                  : 'text-blue-100 hover:bg-white/10 hover:text-white'
               }`
             }
           >
@@ -64,12 +64,12 @@ const Sidebar = () => {
         )}
       </nav>
 
-      <div className="p-4 border-t border-[#1E293B]">
+      <div className="p-4 border-t border-[#0052A3]">
         <Button
           onClick={handleLogout}
           data-testid="logout-button"
           variant="ghost"
-          className="w-full justify-start gap-3 text-[#94A3B8] hover:bg-white/5 hover:text-white"
+          className="w-full justify-start gap-3 text-blue-100 hover:bg-white/10 hover:text-white"
         >
           <SignOut size={20} weight="regular" />
           <span>Sign Out</span>
