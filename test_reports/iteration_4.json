@@ -1,0 +1,38 @@
+{
+  "summary": "Retest after UserManagement icon fix (PencilSimple/Trash) and @company.com user cleanup. Login, auth, user CRUD, gradient theme, and Users page all working. BLOCKER: GET /api/proposals returns HTTP 500 for ALL users due to orphan proposals whose creator (@company.com user) was deleted — server.py:466 dereferences None creator. This breaks Dashboard, Pending, Approved pages and blocks end-to-end workflow testing (Sales create → CGO → Finance → Legal → CFO, plus reject/resubmit).",
+  "tested_scope": ["backend", "frontend", "auth", "integration"],
+  "passed": [
+    "POST /api/auth/login (Admin, Sales) → 200",
+    "GET /api/auth/me → 200 with correct role",
+    "GET /api/users → 200, returns only 6 botree.com users (no legacy @company.com users)",
+    "POST /api/users → 200 (created tempuser@botree.com successfully)",
+    "DELETE /api/users/{id} → 200",
+    "Login UI renders with pink/purple gradient (BOTREE SOFTWARE branding, gradient Sign In button)",
+    "Admin login flow succeeds, redirects to /dashboard, no webpack overlay (previous icon-import bug fix confirmed)",
+    "Sidebar shows pink→purple gradient with Dashboard/Pending/Approved/Users nav",
+    "Users page loads at /dashboard/users showing 6 users with PencilSimple (edit) and Trash (delete) icon buttons rendering correctly — previous icon import blocker resolved",
+    "No legacy @company.com users visible anywhere in UI or API"
+  ],
+  "failed": [
+    {
+      "area": "backend / GET /api/proposals",
+      "issue": "Endpoint returns HTTP 500 Internal Server Error for every authenticated user (Admin, Sales verified). Root cause in /app/backend/server.py line 459-466: `creator = await db.users.find_one({\"_id\": ObjectId(p[\"created_by\"])})` can return None when the creator user was deleted (as happened during @company.com cleanup), then line 466 does `creator[\"_id\"]` → TypeError: 'NoneType' object is not subscriptable.",
+      "evidence": "curl GET /api/proposals with admin & sales cookies → 500. Backend log: File \"/app/backend/server.py\", line 466, in get_proposals -> TypeError: 'NoneType' object is not subscriptable. Frontend console: 'Error fetching proposals: AxiosError: Request failed with status code 500'. Dashboard renders '0 / No proposals found' silently.",
+      "priority": "HIGH"
+    },
+    {
+      "area": "workflow / end-to-end",
+      "issue": "Cannot test Sales create proposal → CGO/Finance/Legal/CFO approvals, reject/resubmit flow, workflow stepper, or audit trail because /api/proposals list endpoint is broken and existing orphan proposals in DB cannot be loaded or acted upon.",
+      "evidence": "Blocked by HIGH bug above; also proposal detail page depends on same data.",
+      "priority": "HIGH"
+    }
+  ],
+  "action_items": [
+    "Fix /app/backend/server.py get_proposals (~line 458-471): guard against None creator, e.g. `creator = await db.users.find_one(...) or {\"_id\": p[\"created_by\"], \"name\": \"Deleted User\", \"role\": \"Unknown\"}` — and apply same fix to any other endpoint that dereferences creator (get_proposal at line 475+, history entries, etc.).",
+    "Additionally, clean up orphan proposals in DB whose created_by no longer resolves, OR seed a fresh set of proposals owned by the current botree.com Sales user so the full workflow can be regression tested.",
+    "After fix, re-run: full proposal creation → 4-stage approval → reject → edit/resubmit → workflow stepper & audit trail verification."
+  ],
+  "success_rate": {"backend": "71% (5/7 critical checks; proposals list + workflow blocked)", "frontend": "60% (login + users page pass; dashboard/proposals pages blocked by backend 500)"},
+  "retest_needed": true,
+  "full_testing_deferred": true
+}

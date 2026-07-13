@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../components/ui/alert-dialog';
 import { toast } from 'sonner';
-import { Plus, Trash2, Edit } from '@phosphor-icons/react';
+import { Plus, Trash, PencilSimple } from '@phosphor-icons/react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -204,7 +204,7 @@ const UserManagement = () => {
                         data-testid={`edit-role-${u.id}`}
                         className="border-gray-300 text-gray-700 hover:bg-gray-100"
                       >
-                        <Edit size={16} />
+                        <PencilSimple size={16} />
                       </Button>
                       {u.id !== user.id && (
                         <AlertDialog>
@@ -215,7 +215,7 @@ const UserManagement = () => {
                               data-testid={`delete-user-${u.id}`}
                               className="border-red-300 text-red-600 hover:bg-red-50"
                             >
-                              <Trash2 size={16} />
+                              <Trash size={16} />
                             </Button>
                           </AlertDialogTrigger>
                           <AlertDialogContent>
