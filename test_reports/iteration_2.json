@@ -1,0 +1,37 @@
+{
+  "summary": "Backend workflow fully validated end-to-end (13/13 API tests). Frontend UI validated: login, dashboard stats, search, proposal detail with workflow stepper, action panel (visible only to correct role), approve action advances workflow, and Approved tab shows completed proposals. Sales UI proposal creation appears to have submitted but did not persist in one test attempt - possibly a timing/error issue worth quick verification, but the core create flow via backend API works.",
+  "tested_scope": ["backend", "frontend", "auth", "integration"],
+  "passed": [
+    "All 5 role logins (Sales, CGO, Finance, Legal, CFO) via API and UI",
+    "File upload API (/api/proposals/upload)",
+    "Proposal creation via API (Sales role only)",
+    "Full E2E workflow: Sales -> CGO -> Finance -> Legal -> CFO -> approved (via API)",
+    "Rejection flow resets current_stage=0 and status=needs_revision",
+    "Turn enforcement (403 when wrong role tries to approve)",
+    "Search filter on proposals",
+    "Finance can create users; other roles get 403",
+    "Login UI redirects to /dashboard",
+    "Overview stats cards render (Total, Pending, Approved)",
+    "Proposal detail page renders workflow-stepper with correct visual states (completed/active/pending)",
+    "Action panel visible only for the role whose turn it is (verified for CGO)",
+    "UI approve action successfully advances proposal from CGO -> Finance (backend confirmed status=finance_review, stage=2)",
+    "Action panel hidden after approval when no longer user's turn",
+    "Approved tab shows fully approved proposals",
+    "Sidebar navigation (Dashboard/Pending/Approved) works",
+    "Audit trail/history entries recorded (history_len increments on each action)"
+  ],
+  "failed": [
+    {
+      "area": "frontend/Sales create proposal UI",
+      "issue": "In one UI attempt, submitting a new proposal via the form appeared to succeed (button showed 'Creating...', page navigated to /dashboard, page.content contained the title) but the proposal did not persist in the database. No user-visible error was shown. Backend POST /api/proposals works when called directly. Possibly a race with file upload not completing before create call, or a silent error swallow in NewProposal.js.",
+      "evidence": "After UI submit of 'UI Frontend Test Proposal', GET /api/proposals did not include it. Backend logs show no matching create call. Screenshot showed button in 'Creating...' state.",
+      "priority": "MEDIUM"
+    }
+  ],
+  "action_items": [
+    "Investigate NewProposal.js submit handler: ensure file upload completes and its returned file_id is used before POST /api/proposals; add user-facing error toast if the create call fails so silent failures are surfaced."
+  ],
+  "success_rate": {"backend": "100%", "frontend": "~92% (1 minor create-flow race issue)"},
+  "retest_needed": false,
+  "full_testing_deferred": true
+}

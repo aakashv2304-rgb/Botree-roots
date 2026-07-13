@@ -86,6 +86,7 @@ async def get_current_user(request: Request) -> dict:
         if not user:
             raise HTTPException(status_code=401, detail="User not found")
         user["_id"] = str(user["_id"])
+        user["id"] = user["_id"]
         user.pop("password_hash", None)
         return user
     except jwt.ExpiredSignatureError:
@@ -379,7 +380,19 @@ async def create_proposal(proposal: ProposalCreate, request: Request):
     result = await db.proposals.insert_one(new_proposal)
     logger.info(f"[EMAIL] New proposal '{proposal.title}' created by {current_user['name']} - CGO should be notified")
     
-    return {"id": str(result.inserted_id), **new_proposal}
+    response_proposal = {
+        "id": str(result.inserted_id),
+        "title": new_proposal["title"],
+        "description": new_proposal["description"],
+        "status": new_proposal["status"],
+        "current_stage": new_proposal["current_stage"],
+        "created_by": current_user,
+        "file_info": new_proposal["file_info"],
+        "history": new_proposal["history"],
+        "created_at": new_proposal["created_at"],
+        "updated_at": new_proposal["updated_at"]
+    }
+    return response_proposal
 
 @api_router.get("/proposals")
 async def get_proposals(request: Request, status: Optional[str] = None, search: Optional[str] = None):
