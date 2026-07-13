@@ -25,11 +25,11 @@ const Sidebar = () => {
   }
 
   return (
-    <div className="w-64 bg-[#0066CC] text-white flex flex-col border-r border-[#0052A3]">
-      <div className="p-6 border-b border-[#0052A3]">
-        <h1 className="text-xl font-bold tracking-tight" data-testid="app-title">Botree Software</h1>
-        <p className="text-blue-100 text-sm mt-1">{user?.name}</p>
-        <p className="text-blue-200 text-xs uppercase tracking-wider mt-1">{user?.role}</p>
+    <div className="w-64 text-white flex flex-col" style={{background: 'linear-gradient(180deg, #F72585 0%, #7209B7 100%)'}}>
+      <div className="p-6 border-b border-white/20">
+        <h1 className="text-xl font-bold tracking-tight" data-testid="app-title">BOTREE SOFTWARE</h1>
+        <p className="text-white/90 text-sm mt-1">{user?.name}</p>
+        <p className="text-white/70 text-xs uppercase tracking-wider mt-1 font-semibold">{user?.role}</p>
       </div>
 
       <nav className="flex-1 p-4 space-y-2">
@@ -40,10 +40,10 @@ const Sidebar = () => {
             end={item.path === '/dashboard'}
             data-testid={item.testId}
             className={({ isActive }) =>
-              `flex items-center gap-3 px-4 py-3 transition-colors ${
+              `flex items-center gap-3 px-4 py-3 transition-all ${
                 isActive
-                  ? 'bg-white/20 text-white border-l-2 border-white'
-                  : 'text-blue-100 hover:bg-white/10 hover:text-white'
+                  ? 'bg-white/25 text-white border-l-4 border-white font-semibold shadow-lg'
+                  : 'text-white/80 hover:bg-white/15 hover:text-white'
               }`
             }
           >
@@ -56,7 +56,7 @@ const Sidebar = () => {
           <Button
             onClick={() => navigate('/dashboard/new')}
             data-testid="new-proposal-button"
-            className="w-full justify-start gap-3 bg-white/10 hover:bg-white/20 text-white mt-4"
+            className="w-full justify-start gap-3 bg-white/20 hover:bg-white/30 text-white mt-4 font-semibold shadow-md"
           >
             <Plus size={20} weight="regular" />
             <span>New Proposal</span>
@@ -64,12 +64,12 @@ const Sidebar = () => {
         )}
       </nav>
 
-      <div className="p-4 border-t border-[#0052A3]">
+      <div className="p-4 border-t border-white/20">
         <Button
           onClick={handleLogout}
           data-testid="logout-button"
           variant="ghost"
-          className="w-full justify-start gap-3 text-blue-100 hover:bg-white/10 hover:text-white"
+          className="w-full justify-start gap-3 text-white/80 hover:bg-white/15 hover:text-white"
         >
           <SignOut size={20} weight="regular" />
           <span>Sign Out</span>

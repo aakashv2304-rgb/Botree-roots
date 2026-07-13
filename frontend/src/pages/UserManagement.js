@@ -102,7 +102,7 @@ const UserManagement = () => {
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button data-testid="add-user-button" className="bg-[#0066CC] hover:bg-[#0052A3] text-white">
+            <Button data-testid="add-user-button" className="text-white font-semibold shadow-lg" style={{background: 'linear-gradient(135deg, #F72585 0%, #7209B7 100%)'}}>
               <Plus size={20} className="mr-2" />
               Add User
             </Button>
@@ -160,7 +160,7 @@ const UserManagement = () => {
                   </SelectContent>
                 </Select>
               </div>
-              <Button type="submit" data-testid="submit-user-button" className="w-full bg-[#0066CC] hover:bg-[#0052A3] text-white">
+              <Button type="submit" data-testid="submit-user-button" className="w-full text-white font-semibold shadow-lg" style={{background: 'linear-gradient(135deg, #F72585 0%, #7209B7 100%)'}}>
                 Create User
               </Button>
             </form>
@@ -186,7 +186,7 @@ const UserManagement = () => {
                   <td className="p-4 font-medium text-gray-900">{u.name}</td>
                   <td className="p-4 text-gray-600">{u.email}</td>
                   <td className="p-4">
-                    <span className="inline-block px-3 py-1 text-xs font-medium bg-blue-50 text-[#0066CC] border border-blue-200 rounded-full">
+                    <span className="inline-block px-3 py-1 text-xs font-medium text-white rounded-full" style={{background: 'linear-gradient(135deg, #F72585 0%, #7209B7 100%)'}}>
                       {u.role}
                     </span>
                   </td>
@@ -276,7 +276,7 @@ const UserManagement = () => {
               <Button variant="outline" onClick={() => setEditRoleOpen(false)} className="flex-1">
                 Cancel
               </Button>
-              <Button onClick={handleRoleChange} className="flex-1 bg-[#0066CC] hover:bg-[#0052A3]">
+              <Button onClick={handleRoleChange} className="flex-1 text-white font-semibold shadow-lg" style={{background: 'linear-gradient(135deg, #F72585 0%, #7209B7 100%)'}}>
                 Update Role
               </Button>
             </div>

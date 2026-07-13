@@ -163,7 +163,8 @@ const ProposalDetail = () => {
                 {canEdit() && (
                   <Button
                     onClick={() => navigate(`/dashboard/proposal/${id}/edit`)}
-                    className="bg-[#0066CC] hover:bg-[#0052A3] text-white"
+                    className="text-white font-semibold shadow-lg"
+                    style={{background: 'linear-gradient(135deg, #F72585 0%, #7209B7 100%)'}}
                     data-testid="edit-proposal-button"
                   >
                     Edit & Resubmit

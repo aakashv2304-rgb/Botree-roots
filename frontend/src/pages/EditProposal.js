@@ -178,7 +178,8 @@ const EditProposal = () => {
                 type="submit"
                 disabled={loading}
                 data-testid="submit-proposal-button"
-                className="bg-[#0066CC] hover:bg-[#0052A3] text-white"
+                className="text-white font-semibold shadow-lg"
+                style={{background: 'linear-gradient(135deg, #F72585 0%, #7209B7 100%)'}}
               >
                 {loading ? 'Updating...' : 'Update & Resubmit'}
               </Button>

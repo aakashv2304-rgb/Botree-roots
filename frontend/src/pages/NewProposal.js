@@ -150,7 +150,8 @@ const NewProposal = () => {
                 type="submit"
                 disabled={loading}
                 data-testid="submit-proposal-button"
-                className="bg-[#0F172A] hover:bg-[#1E293B] text-white"
+                className="text-white font-semibold shadow-lg"
+                style={{background: 'linear-gradient(135deg, #F72585 0%, #7209B7 100%)'}}
               >
                 {loading ? 'Creating...' : 'Submit Proposal'}
               </Button>
