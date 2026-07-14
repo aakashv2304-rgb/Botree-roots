@@ -7,7 +7,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { toast } from 'sonner';
-import { Upload, ArrowLeft, FileText, DollarSign, Users as UsersIcon, Package, Building, MessageSquare } from '@phosphor-icons/react';
+import { Upload, ArrowLeft, FileText, CurrencyDollar, Users as UsersIcon, Package, Building, MessageSquare } from '@phosphor-icons/react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -210,13 +210,13 @@ const NewProposal = () => {
             {/* Pricing Details */}
             <div className="pb-6 border-b border-gray-200">
               <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-                <DollarSign size={24} className="text-green-600" />
+                <CurrencyDollar size={24} className="text-green-600" />
                 Pricing Details
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="one_time" className="text-gray-700 font-semibold flex items-center gap-2">
-                    <DollarSign size={16} />
+                    <CurrencyDollar size={16} />
                     One Time Cost
                   </Label>
                   <Input
@@ -230,7 +230,7 @@ const NewProposal = () => {
 
                 <div className="space-y-2">
                   <Label htmlFor="rate" className="text-gray-700 font-semibold flex items-center gap-2">
-                    <DollarSign size={16} />
+                    <CurrencyDollar size={16} />
                     Rate (per user/month)
                   </Label>
                   <Input

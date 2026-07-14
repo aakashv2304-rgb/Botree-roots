@@ -1,0 +1,34 @@
+{
+  "summary": "Backend fully verified end-to-end (login, upload, create proposal with all 7 new extended fields, retrieve with fields persisted, CGO approval). Frontend BLOCKED by a NEW webpack compilation error of the same class as the previous DollarSign bug: 'MessageSquare' is not a valid @phosphor-icons/react export. The dev-server error overlay intercepts all pointer events on the login page, so Sign In button cannot be clicked and no UI flow is testable.",
+  "tested_scope": ["backend", "frontend", "auth", "integration"],
+  "passed": [
+    "POST /api/auth/login (Sales, CGO) returns 200 with user object",
+    "POST /api/proposals/upload returns file_id",
+    "POST /api/proposals accepts and persists new fields (customer_name, industry, product, users, rate, one_time, comments) - note: users/rate/one_time are STRING type in schema",
+    "GET /api/proposals/{id} returns all 7 extended fields with correct values",
+    "GET /api/proposals list includes new field keys (null for legacy rows)",
+    "POST /api/proposals/{id}/approve as CGO transitions status sales_submitted -> finance_review"
+  ],
+  "failed": [
+    {
+      "area": "frontend / build",
+      "issue": "Webpack compile error: export 'MessageSquare' (imported as 'MessageSquare') was not found in '@phosphor-icons/react'",
+      "evidence": "/app/frontend/src/pages/NewProposal.js line 10 (import) and line 250 (<MessageSquare size={24} .../>). Browser shows red 'Compiled with problems:' overlay (iframe#webpack-dev-server-client-overlay) which intercepts pointer events on Sign In button. Screenshot: /app/test_reports/login.png",
+      "priority": "HIGH"
+    },
+    {
+      "area": "frontend / UI",
+      "issue": "Login page not interactive due to error overlay - could not verify dashboard, sidebar logo, new proposal form fields, or $ CurrencyDollar icons",
+      "evidence": "Playwright click on Sign In timed out; overlay iframe intercepts pointer events",
+      "priority": "HIGH"
+    }
+  ],
+  "action_items": [
+    "In /app/frontend/src/pages/NewProposal.js: replace 'MessageSquare' with a valid phosphor-icons export such as 'ChatCircle', 'ChatText', or 'ChatCenteredText' in BOTH the import (line 10) and the JSX usage (line 250)",
+    "After fix, run a grep for any other non-existent phosphor icons before re-testing to avoid a third iteration of the same class of bug (e.g., verify every icon imported from '@phosphor-icons/react' exists)",
+    "Re-run frontend E2E: login -> dashboard -> New Proposal -> fill 7 fields + upload -> submit -> CGO approve"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "0% (blocked by compile error overlay)"},
+  "retest_needed": true,
+  "full_testing_deferred": true
+}
