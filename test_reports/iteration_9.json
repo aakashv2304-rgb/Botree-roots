@@ -1,0 +1,31 @@
+{
+  "summary": "T1 latency-sensitive verification of Operations Center dashboard + deal_value INR integration. All 7 new analytics endpoints return 200 with valid data. Backend proposal creation with deal_value=1000000 persisted correctly (retrieved as 1000000.0) and deal-value-summary incremented from 2,500,000 to 3,500,000 (delta = 1,000,000 confirmed). Frontend dashboard loads after /login, renders dark-mode Operations Center with 4 KPI widgets, Master Proposal Queue with ID/Client/Deal Value/Owner/Modified/Status columns, INR lakhs formatting (T1 DealValue Test shows ₹10.0L, Pipeline Value ₹35.0L), Live System Activity, Bottleneck Alerts, System Health (Approval Rate 14.3%), search bar and status filter in utility bar. End-to-end create-then-view flow verified.",
+  "tested_scope": ["backend", "frontend", "auth", "integration"],
+  "passed": [
+    "POST /api/auth/login (cookie-based) works for admin & sales",
+    "GET /api/analytics/stage-counts -> 200 with by_stage breakdown",
+    "GET /api/analytics/approval-rate -> 200 (6 total, 1 approved, 16.7%)",
+    "GET /api/analytics/deal-value-summary -> 200 (active_pipeline_value, approved_value, total_value)",
+    "GET /api/analytics/bottlenecks -> 200",
+    "GET /api/analytics/activity-feed -> 200 with recent actions and user info",
+    "GET /api/analytics/throughput -> 200 with 30-day sparkline array",
+    "GET /api/analytics/sla-health -> 200 (100% health, 5 active)",
+    "POST /api/proposals with deal_value=1000000 (INR) persists and returns 200; GET proposal shows deal_value=1000000.0",
+    "deal-value-summary correctly increased by exactly 1,000,000 after creation (2.5M -> 3.5M)",
+    "Login flow at /login redirects to /dashboard on success",
+    "Operations Center dashboard renders dark theme with 4 KPI widgets (Active Pipeline, SLA Health, Pipeline Value ₹35.0L, 30-Day Velocity)",
+    "Master Proposal Queue table renders with all required columns and 7 rows",
+    "Newly-created T1 DealValue Test proposal appears at #001 with ₹10.0L INR-lakhs formatting",
+    "Right panel shows Live System Activity, Bottleneck Alerts, and System Health (Approval Rate 14.3%)",
+    "Sidebar navigation (Dashboard/Pending/Approved/New Proposal/Sign Out) present",
+    "Search bar and status filter dropdown visible in utility bar"
+  ],
+  "failed": [],
+  "action_items": [
+    "Minor: Dashboard KPI cards, queue rows, and filter controls lack data-testid attributes; text-based selectors currently work but future tests would be more robust with data-testid.",
+    "Minor: Frontend Approval Rate shows 14.3% (1 of 7) while backend /api/analytics/approval-rate returns 16.7% (1 of 6). Possible off-by-one: backend may filter out drafts while frontend counts all proposals. Not blocking, but worth reconciling."
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "retest_needed": false,
+  "full_testing_deferred": true
+}

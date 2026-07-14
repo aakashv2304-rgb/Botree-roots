@@ -199,10 +199,16 @@ const ProposalDetail = () => {
             </div>
 
             {/* Extended Fields */}
-            {(proposal.customer_name || proposal.industry || proposal.product || proposal.users || proposal.rate || proposal.one_time || proposal.comments) && (
+            {(proposal.customer_name || proposal.industry || proposal.product || proposal.users || proposal.rate || proposal.one_time || proposal.deal_value || proposal.comments) && (
               <div className="border-t border-gray-200 pt-4 mt-4">
                 <h3 className="text-sm font-heading font-bold text-gray-900 mb-3">Proposal Details</h3>
                 <div className="grid grid-cols-2 gap-3 text-xs">
+                  {proposal.deal_value && (
+                    <div className="bg-emerald-50 p-2 rounded border border-emerald-200">
+                      <span className="text-emerald-700 font-medium block mb-1">Deal Value</span>
+                      <span className="text-emerald-900 font-bold text-base">₹{proposal.deal_value.toLocaleString('en-IN')}</span>
+                    </div>
+                  )}
                   {proposal.customer_name && (
                     <div className="bg-gray-50 p-2 rounded">
                       <span className="text-gray-500 font-medium block mb-1">Customer</span>

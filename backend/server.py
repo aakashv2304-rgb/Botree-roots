@@ -163,6 +163,7 @@ class ProposalCreate(BaseModel):
     customer_name: Optional[str] = None
     industry: Optional[str] = None
     comments: Optional[str] = None
+    deal_value: Optional[float] = None
 
 class ProposalAction(BaseModel):
     comment: Optional[str] = None
@@ -422,6 +423,7 @@ async def create_proposal(proposal: ProposalCreate, request: Request):
         "customer_name": proposal.customer_name,
         "industry": proposal.industry,
         "comments": proposal.comments,
+        "deal_value": proposal.deal_value,
         "history": [{
             "action": "created",
             "by": {"id": current_user["id"], "name": current_user["name"], "role": current_user["role"]},
@@ -489,6 +491,7 @@ async def get_proposals(request: Request, status: Optional[str] = None, search: 
             "customer_name": p.get("customer_name"),
             "industry": p.get("industry"),
             "comments": p.get("comments"),
+            "deal_value": p.get("deal_value"),
             "history": p["history"],
             "created_at": p["created_at"],
             "updated_at": p["updated_at"]
@@ -523,6 +526,7 @@ async def get_proposal(proposal_id: str, request: Request):
         "customer_name": proposal.get("customer_name"),
         "industry": proposal.get("industry"),
         "comments": proposal.get("comments"),
+        "deal_value": proposal.get("deal_value"),
         "history": proposal["history"],
         "created_at": proposal["created_at"],
         "updated_at": proposal["updated_at"]
@@ -580,6 +584,7 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
                 "customer_name": proposal.customer_name,
                 "industry": proposal.industry,
                 "comments": proposal.comments,
+                "deal_value": proposal.deal_value,
                 "updated_at": datetime.now(timezone.utc).isoformat()
             },
             "$push": {"history": history_entry}
@@ -688,6 +693,207 @@ async def download_proposal_file(proposal_id: str, request: Request):
         media_type=content_type,
         headers={"Content-Disposition": f"attachment; filename={file_info['filename']}"}
     )
+
+# Analytics endpoints
+@api_router.get("/analytics/stage-counts")
+async def get_stage_counts(request: Request):
+    await get_current_user(request)
+    
+    # Count proposals by stage
+    pipeline = [
+        {"$group": {"_id": "$status", "count": {"$sum": 1}}}
+    ]
+    results = await db.proposals.aggregate(pipeline).to_list(None)
+    
+    # Map to readable counts
+    counts = {
+        "draft": 0,
+        "sales_submitted": 0,
+        "cgo_review": 0,
+        "finance_review": 0,
+        "legal_review": 0,
+        "cfo_review": 0,
+        "approved": 0,
+        "needs_revision": 0
+    }
+    
+    for r in results:
+        if r["_id"] in counts:
+            counts[r["_id"]] = r["count"]
+    
+    # Calculate active (non-approved, non-revision)
+    active_count = sum(counts[key] for key in ["sales_submitted", "cgo_review", "finance_review", "legal_review", "cfo_review"])
+    
+    return {
+        "draft": counts["draft"],
+        "under_review": active_count,
+        "approved": counts["approved"],
+        "needs_revision": counts["needs_revision"],
+        "by_stage": counts
+    }
+
+@api_router.get("/analytics/approval-rate")
+async def get_approval_rate(request: Request):
+    await get_current_user(request)
+    
+    total = await db.proposals.count_documents({})
+    approved = await db.proposals.count_documents({"status": "approved"})
+    
+    approval_percentage = (approved / total * 100) if total > 0 else 0
+    
+    return {
+        "total_proposals": total,
+        "approved_count": approved,
+        "approval_percentage": round(approval_percentage, 1)
+    }
+
+@api_router.get("/analytics/bottlenecks")
+async def get_bottlenecks(request: Request):
+    await get_current_user(request)
+    
+    # Find proposals that have been in the same stage for > 7 days
+    seven_days_ago = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    
+    bottleneck_proposals = await db.proposals.find({
+        "status": {"$nin": ["approved", "needs_revision"]},
+        "updated_at": {"$lt": seven_days_ago}
+    }).to_list(100)
+    
+    bottlenecks = []
+    for p in bottleneck_proposals:
+        creator = await db.users.find_one({"_id": ObjectId(p["created_by"])})
+        if not creator:
+            creator = {"name": "Unknown", "role": "Unknown"}
+        
+        # Calculate days stuck
+        updated = datetime.fromisoformat(p["updated_at"].replace("Z", "+00:00"))
+        days_stuck = (datetime.now(timezone.utc) - updated).days
+        
+        bottlenecks.append({
+            "id": str(p["_id"]),
+            "title": p["title"],
+            "status": p["status"],
+            "current_stage": p["current_stage"],
+            "created_by": creator["name"],
+            "days_stuck": days_stuck
+        })
+    
+    return {"bottlenecks": bottlenecks}
+
+@api_router.get("/analytics/activity-feed")
+async def get_activity_feed(request: Request):
+    await get_current_user(request)
+    
+    # Get recent 20 proposals with history
+    proposals = await db.proposals.find({}).sort("updated_at", -1).limit(20).to_list(20)
+    
+    activities = []
+    for p in proposals:
+        # Get the most recent history entry
+        if p.get("history") and len(p["history"]) > 0:
+            latest_history = p["history"][-1]
+            activities.append({
+                "proposal_id": str(p["_id"]),
+                "proposal_title": p["title"],
+                "action": latest_history["action"],
+                "by": latest_history["by"],
+                "comment": latest_history.get("comment", ""),
+                "timestamp": latest_history["timestamp"]
+            })
+    
+    return {"activities": activities[:15]}
+
+@api_router.get("/analytics/throughput")
+async def get_throughput(request: Request):
+    await get_current_user(request)
+    
+    # Count proposals approved in last 30 days
+    thirty_days_ago = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+    
+    approved_count = await db.proposals.count_documents({
+        "status": "approved",
+        "updated_at": {"$gte": thirty_days_ago}
+    })
+    
+    # Calculate proposals per day
+    throughput_per_day = round(approved_count / 30, 1)
+    
+    # Generate sparkline data (last 30 days)
+    sparkline = []
+    for i in range(29, -1, -1):
+        day_start = (datetime.now(timezone.utc) - timedelta(days=i)).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+        day_end = (datetime.now(timezone.utc) - timedelta(days=i)).replace(hour=23, minute=59, second=59, microsecond=999999).isoformat()
+        
+        day_count = await db.proposals.count_documents({
+            "status": "approved",
+            "updated_at": {"$gte": day_start, "$lte": day_end}
+        })
+        sparkline.append(day_count)
+    
+    return {
+        "approved_last_30_days": approved_count,
+        "throughput_per_day": throughput_per_day,
+        "sparkline": sparkline
+    }
+
+@api_router.get("/analytics/sla-health")
+async def get_sla_health(request: Request):
+    await get_current_user(request)
+    
+    # Find proposals in review for > 3 days (critical SLA)
+    three_days_ago = (datetime.now(timezone.utc) - timedelta(days=3)).isoformat()
+    one_day_ago = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+    
+    critical_count = await db.proposals.count_documents({
+        "status": {"$nin": ["approved", "needs_revision"]},
+        "updated_at": {"$lt": three_days_ago}
+    })
+    
+    warning_count = await db.proposals.count_documents({
+        "status": {"$nin": ["approved", "needs_revision"]},
+        "updated_at": {"$gte": three_days_ago, "$lt": one_day_ago}
+    })
+    
+    total_active = await db.proposals.count_documents({
+        "status": {"$nin": ["approved", "needs_revision"]}
+    })
+    
+    health_percentage = ((total_active - critical_count) / total_active * 100) if total_active > 0 else 100
+    
+    return {
+        "critical_count": critical_count,
+        "warning_count": warning_count,
+        "total_active": total_active,
+        "health_percentage": round(health_percentage, 1)
+    }
+
+@api_router.get("/analytics/deal-value-summary")
+async def get_deal_value_summary(request: Request):
+    await get_current_user(request)
+    
+    # Calculate total deal value for active proposals
+    pipeline = [
+        {"$match": {"status": {"$nin": ["approved", "needs_revision"]}, "deal_value": {"$ne": None}}},
+        {"$group": {"_id": None, "total_value": {"$sum": "$deal_value"}}}
+    ]
+    
+    result = await db.proposals.aggregate(pipeline).to_list(1)
+    active_value = result[0]["total_value"] if result else 0
+    
+    # Calculate total approved value
+    pipeline_approved = [
+        {"$match": {"status": "approved", "deal_value": {"$ne": None}}},
+        {"$group": {"_id": None, "total_value": {"$sum": "$deal_value"}}}
+    ]
+    
+    result_approved = await db.proposals.aggregate(pipeline_approved).to_list(1)
+    approved_value = result_approved[0]["total_value"] if result_approved else 0
+    
+    return {
+        "active_pipeline_value": active_value,
+        "approved_value": approved_value,
+        "total_value": active_value + approved_value
+    }
 
 app.include_router(api_router)
 

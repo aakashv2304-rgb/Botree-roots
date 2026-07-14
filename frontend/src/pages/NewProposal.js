@@ -25,7 +25,8 @@ const NewProposal = () => {
     rate: '',
     customer_name: '',
     industry: '',
-    comments: ''
+    comments: '',
+    deal_value: ''
   });
   const [fileName, setFileName] = useState('');
 
@@ -64,7 +65,8 @@ const NewProposal = () => {
         rate: formData.rate,
         customer_name: formData.customer_name,
         industry: formData.industry,
-        comments: formData.comments
+        comments: formData.comments,
+        deal_value: formData.deal_value ? parseFloat(formData.deal_value) : null
       }, { withCredentials: true });
 
       toast.success('Proposal created successfully!');
@@ -215,6 +217,22 @@ const NewProposal = () => {
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
+                  <Label htmlFor="deal_value" className="text-gray-700 font-semibold flex items-center gap-2">
+                    <CurrencyDollar size={16} />
+                    Deal Value (INR)
+                  </Label>
+                  <Input
+                    id="deal_value"
+                    type="number"
+                    value={formData.deal_value}
+                    onChange={(e) => setFormData({ ...formData, deal_value: e.target.value })}
+                    placeholder="e.g., 500000"
+                    className="h-12 smooth-transition focus:border-pink-500 focus:ring-pink-500"
+                  />
+                  <p className="text-xs text-gray-500">Total deal value in Indian Rupees</p>
+                </div>
+
+                <div className="space-y-2">
                   <Label htmlFor="one_time" className="text-gray-700 font-semibold flex items-center gap-2">
                     <CurrencyDollar size={16} />
                     One Time Cost
@@ -223,7 +241,7 @@ const NewProposal = () => {
                     id="one_time"
                     value={formData.one_time}
                     onChange={(e) => setFormData({ ...formData, one_time: e.target.value })}
-                    placeholder="e.g., $5000"
+                    placeholder="e.g., ₹50,000"
                     className="h-12 smooth-transition focus:border-pink-500 focus:ring-pink-500"
                   />
                 </div>
@@ -237,7 +255,7 @@ const NewProposal = () => {
                     id="rate"
                     value={formData.rate}
                     onChange={(e) => setFormData({ ...formData, rate: e.target.value })}
-                    placeholder="e.g., $50/user/month"
+                    placeholder="e.g., ₹500/user/month"
                     className="h-12 smooth-transition focus:border-pink-500 focus:ring-pink-500"
                   />
                 </div>
