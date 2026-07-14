@@ -69,8 +69,8 @@ const PendingApprovals = () => {
   return (
     <div className="p-8" data-testid="pending-page">
       <div className="mb-8">
-        <h1 className="text-4xl font-bold tracking-tight mb-2" style={{ fontFamily: 'Cabinet Grotesk, system-ui, sans-serif' }}>Pending Approvals</h1>
-        <p className="text-[#71717A]">Proposals awaiting your action</p>
+        <h1 className="text-4xl font-display font-black tracking-tight mb-2">Pending Approvals</h1>
+        <p className="text-gray-600 font-body">Proposals awaiting your action</p>
       </div>
 
       <div className="bg-white border border-[#E4E4E7] shadow-sm">

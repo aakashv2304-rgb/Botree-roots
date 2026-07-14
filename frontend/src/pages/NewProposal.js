@@ -99,8 +99,8 @@ const NewProposal = () => {
       </Button>
 
       <div className="mb-8">
-        <h1 className="text-4xl font-bold text-gray-900 mb-2">Create New Proposal</h1>
-        <p className="text-gray-600">Submit a new proposal for approval through the workflow</p>
+        <h1 className="text-4xl font-display font-black text-gray-900 mb-2">Create New Proposal</h1>
+        <p className="text-gray-600 font-body">Submit a new proposal for approval through the workflow</p>
       </div>
 
       <div className="max-w-4xl">
@@ -108,7 +108,7 @@ const NewProposal = () => {
           <form onSubmit={handleSubmit} data-testid="new-proposal-form" className="space-y-6">
             {/* Basic Information Section */}
             <div className="pb-6 border-b border-gray-200">
-              <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <h2 className="text-xl font-heading font-bold text-gray-900 mb-4 flex items-center gap-2">
                 <FileText size={24} className="text-pink-600" />
                 Basic Information
               </h2>
@@ -144,7 +144,7 @@ const NewProposal = () => {
 
             {/* Customer & Product Details */}
             <div className="pb-6 border-b border-gray-200">
-              <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <h2 className="text-xl font-heading font-bold text-gray-900 mb-4 flex items-center gap-2">
                 <Building size={24} className="text-purple-600" />
                 Customer & Product Details
               </h2>
@@ -209,7 +209,7 @@ const NewProposal = () => {
 
             {/* Pricing Details */}
             <div className="pb-6 border-b border-gray-200">
-              <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <h2 className="text-xl font-heading font-bold text-gray-900 mb-4 flex items-center gap-2">
                 <CurrencyDollar size={24} className="text-green-600" />
                 Pricing Details
               </h2>
@@ -246,7 +246,7 @@ const NewProposal = () => {
 
             {/* Additional Information */}
             <div className="pb-6 border-b border-gray-200">
-              <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <h2 className="text-xl font-heading font-bold text-gray-900 mb-4 flex items-center gap-2">
                 <ChatCircle size={24} className="text-blue-600" />
                 Additional Information
               </h2>
@@ -265,7 +265,7 @@ const NewProposal = () => {
 
             {/* File Upload */}
             <div>
-              <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <h2 className="text-xl font-heading font-bold text-gray-900 mb-4 flex items-center gap-2">
                 <Upload size={24} className="text-orange-600" />
                 Document Upload
               </h2>

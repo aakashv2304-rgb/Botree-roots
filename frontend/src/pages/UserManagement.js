@@ -97,8 +97,8 @@ const UserManagement = () => {
     <div className="p-8" data-testid="users-page">
       <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">User Management</h1>
-          <p className="text-gray-600">Manage system users and roles</p>
+          <h1 className="text-4xl font-display font-black text-gray-900 mb-2">User Management</h1>
+          <p className="text-gray-600 font-body">Manage system users and roles</p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
@@ -109,7 +109,7 @@ const UserManagement = () => {
           </DialogTrigger>
           <DialogContent className="bg-white">
             <DialogHeader>
-              <DialogTitle className="text-xl font-bold">Create New User</DialogTitle>
+              <DialogTitle className="text-xl font-heading font-bold">Create New User</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4" data-testid="create-user-form">
               <div className="space-y-2">

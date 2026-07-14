@@ -44,12 +44,12 @@ const Login = () => {
             <div className="mb-6 flex justify-center animate-float">
               <BotreeLogo size="lg" />
             </div>
-            <p className="text-gray-600 font-medium">Proposal Management System</p>
+            <p className="text-gray-600 font-medium font-body">Proposal Management System</p>
           </div>
 
           <form onSubmit={handleSubmit} data-testid="login-form" className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="email" data-testid="email-label" className="text-gray-700 font-semibold text-sm uppercase tracking-wider">Email</Label>
+              <Label htmlFor="email" data-testid="email-label" className="text-gray-700 font-bold text-sm uppercase tracking-wider font-body">Email</Label>
               <Input
                 id="email"
                 type="email"
@@ -63,7 +63,7 @@ const Login = () => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password" data-testid="password-label" className="text-gray-700 font-semibold text-sm uppercase tracking-wider">Password</Label>
+              <Label htmlFor="password" data-testid="password-label" className="text-gray-700 font-bold text-sm uppercase tracking-wider font-body">Password</Label>
               <Input
                 id="password"
                 type="password"

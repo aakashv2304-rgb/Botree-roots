@@ -68,8 +68,8 @@ const Overview = () => {
   return (
     <div className="p-8" data-testid="overview-page">
       <div className="mb-8">
-        <h1 className="text-4xl font-bold tracking-tight mb-2" style={{ fontFamily: 'Cabinet Grotesk, system-ui, sans-serif' }}>Dashboard</h1>
-        <p className="text-[#71717A]">Overview of all proposals</p>
+        <h1 className="text-4xl font-display font-black tracking-tight mb-2">Dashboard</h1>
+        <p className="text-gray-600 font-body">Overview of all proposals</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
