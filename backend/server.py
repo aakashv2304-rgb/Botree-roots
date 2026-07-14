@@ -156,6 +156,13 @@ class ProposalCreate(BaseModel):
     title: str
     description: str
     file_id: str
+    one_time: Optional[str] = None
+    product: Optional[str] = None
+    users: Optional[str] = None
+    rate: Optional[str] = None
+    customer_name: Optional[str] = None
+    industry: Optional[str] = None
+    comments: Optional[str] = None
 
 class ProposalAction(BaseModel):
     comment: Optional[str] = None
@@ -408,6 +415,13 @@ async def create_proposal(proposal: ProposalCreate, request: Request):
             "size": file_doc["size"],
             "storage_path": file_doc["storage_path"]
         },
+        "one_time": proposal.one_time,
+        "product": proposal.product,
+        "users": proposal.users,
+        "rate": proposal.rate,
+        "customer_name": proposal.customer_name,
+        "industry": proposal.industry,
+        "comments": proposal.comments,
         "history": [{
             "action": "created",
             "by": {"id": current_user["id"], "name": current_user["name"], "role": current_user["role"]},
@@ -468,6 +482,13 @@ async def get_proposals(request: Request, status: Optional[str] = None, search: 
             "current_stage": p["current_stage"],
             "created_by": {"id": str(creator["_id"]), "name": creator["name"], "role": creator["role"]},
             "file_info": p["file_info"],
+            "one_time": p.get("one_time"),
+            "product": p.get("product"),
+            "users": p.get("users"),
+            "rate": p.get("rate"),
+            "customer_name": p.get("customer_name"),
+            "industry": p.get("industry"),
+            "comments": p.get("comments"),
             "history": p["history"],
             "created_at": p["created_at"],
             "updated_at": p["updated_at"]
@@ -495,6 +516,13 @@ async def get_proposal(proposal_id: str, request: Request):
         "current_stage": proposal["current_stage"],
         "created_by": {"id": str(creator["_id"]), "name": creator["name"], "role": creator["role"]},
         "file_info": proposal["file_info"],
+        "one_time": proposal.get("one_time"),
+        "product": proposal.get("product"),
+        "users": proposal.get("users"),
+        "rate": proposal.get("rate"),
+        "customer_name": proposal.get("customer_name"),
+        "industry": proposal.get("industry"),
+        "comments": proposal.get("comments"),
         "history": proposal["history"],
         "created_at": proposal["created_at"],
         "updated_at": proposal["updated_at"]
@@ -545,6 +573,13 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
                     "size": file_doc["size"],
                     "storage_path": file_doc["storage_path"]
                 },
+                "one_time": proposal.one_time,
+                "product": proposal.product,
+                "users": proposal.users,
+                "rate": proposal.rate,
+                "customer_name": proposal.customer_name,
+                "industry": proposal.industry,
+                "comments": proposal.comments,
                 "updated_at": datetime.now(timezone.utc).isoformat()
             },
             "$push": {"history": history_entry}

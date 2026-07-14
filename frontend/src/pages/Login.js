@@ -5,6 +5,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { toast } from 'sonner';
+import BotreeLogo from '../components/BotreeLogo';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -28,30 +29,27 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-pink-50 via-purple-50 to-white">
-      <div className="w-full max-w-md px-6">
-        <div className="bg-white border border-gray-200 rounded-xl p-8 shadow-xl">
+    <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
+      {/* Animated background */}
+      <div className="absolute inset-0 bg-gradient-to-br from-pink-50 via-purple-50 to-white"></div>
+      <div className="absolute inset-0 opacity-30">
+        <div className="absolute top-20 left-10 w-72 h-72 bg-pink-300 rounded-full mix-blend-multiply filter blur-xl animate-float"></div>
+        <div className="absolute top-40 right-10 w-72 h-72 bg-purple-300 rounded-full mix-blend-multiply filter blur-xl animate-float" style={{animationDelay: '2s'}}></div>
+        <div className="absolute -bottom-8 left-1/2 w-72 h-72 bg-pink-200 rounded-full mix-blend-multiply filter blur-xl animate-float" style={{animationDelay: '4s'}}></div>
+      </div>
+
+      <div className="relative z-10 w-full max-w-md px-6">
+        <div className="bg-white/80 backdrop-blur-xl border border-gray-200/50 rounded-2xl p-8 shadow-2xl card-hover">
           <div className="mb-8 text-center">
-            <div className="mb-4">
-              <svg width="48" height="48" viewBox="0 0 48 48" className="mx-auto">
-                <defs>
-                  <linearGradient id="botree-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" style={{stopColor: '#F72585'}} />
-                    <stop offset="100%" style={{stopColor: '#7209B7'}} />
-                  </linearGradient>
-                </defs>
-                <path d="M24 4 L40 16 L40 32 L24 44 L8 32 L8 16 Z" fill="url(#botree-gradient)" />
-                <path d="M24 12 L32 18 L32 30 L24 36 L16 30 L16 18 Z" fill="white" />
-                <path d="M24 20 L28 23 L28 29 L24 32 L20 29 L20 23 Z" fill="url(#botree-gradient)" />
-              </svg>
+            <div className="mb-6 flex justify-center animate-float">
+              <BotreeLogo size="lg" />
             </div>
-            <h1 className="text-3xl font-bold mb-2" style={{background: 'linear-gradient(135deg, #F72585 0%, #7209B7 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text'}}>BOTREE SOFTWARE</h1>
             <p className="text-gray-600 font-medium">Proposal Management System</p>
           </div>
 
           <form onSubmit={handleSubmit} data-testid="login-form" className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="email" data-testid="email-label" className="text-gray-700 font-medium">Email</Label>
+              <Label htmlFor="email" data-testid="email-label" className="text-gray-700 font-semibold text-sm uppercase tracking-wider">Email</Label>
               <Input
                 id="email"
                 type="email"
@@ -59,13 +57,13 @@ const Login = () => {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 data-testid="email-input"
-                className="border-gray-300 focus:border-[#F72585] focus:ring-[#F72585]"
+                className="border-gray-300 focus:border-pink-500 focus:ring-pink-500 h-12 smooth-transition"
                 placeholder="Enter your email"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password" data-testid="password-label" className="text-gray-700 font-medium">Password</Label>
+              <Label htmlFor="password" data-testid="password-label" className="text-gray-700 font-semibold text-sm uppercase tracking-wider">Password</Label>
               <Input
                 id="password"
                 type="password"
@@ -73,7 +71,7 @@ const Login = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 data-testid="password-input"
-                className="border-gray-300 focus:border-[#F72585] focus:ring-[#F72585]"
+                className="border-gray-300 focus:border-pink-500 focus:ring-pink-500 h-12 smooth-transition"
                 placeholder="Enter your password"
               />
             </div>
@@ -82,10 +80,18 @@ const Login = () => {
               type="submit"
               disabled={loading}
               data-testid="login-submit-button"
-              className="w-full text-white font-semibold transition-all shadow-lg hover:shadow-xl"
+              className="w-full text-white font-bold text-base h-12 shadow-lg hover:shadow-xl btn-gradient"
               style={{background: 'linear-gradient(135deg, #F72585 0%, #7209B7 100%)'}}
             >
-              {loading ? 'Signing in...' : 'Sign In'}
+              {loading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Signing in...
+                </span>
+              ) : 'Sign In'}
             </Button>
           </form>
         </div>

@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { House, ClockCounterClockwise, CheckCircle, Users, SignOut, Plus } from '@phosphor-icons/react';
 import { Button } from './ui/button';
 import { useNavigate } from 'react-router-dom';
+import BotreeLogo from './BotreeLogo';
 
 const Sidebar = () => {
   const { user, logout } = useAuth();
@@ -25,11 +26,15 @@ const Sidebar = () => {
   }
 
   return (
-    <div className="w-64 text-white flex flex-col" style={{background: 'linear-gradient(180deg, #F72585 0%, #7209B7 100%)'}}>
+    <div className="w-64 text-white flex flex-col shadow-2xl" style={{background: 'linear-gradient(180deg, #F72585 0%, #7209B7 100%)'}}>
       <div className="p-6 border-b border-white/20">
-        <h1 className="text-xl font-bold tracking-tight" data-testid="app-title">BOTREE SOFTWARE</h1>
-        <p className="text-white/90 text-sm mt-1">{user?.name}</p>
-        <p className="text-white/70 text-xs uppercase tracking-wider mt-1 font-semibold">{user?.role}</p>
+        <div className="text-white">
+          <BotreeLogo size="sm" />
+        </div>
+        <div className="mt-4 pt-4 border-t border-white/20">
+          <p className="text-white/90 text-sm font-semibold">{user?.name}</p>
+          <p className="text-white/70 text-xs uppercase tracking-widest mt-1 font-bold">{user?.role}</p>
+        </div>
       </div>
 
       <nav className="flex-1 p-4 space-y-2">
