@@ -173,28 +173,81 @@ const ProposalDetail = () => {
               </div>
             </div>
 
-            <div className="space-y-4 text-sm">
-              <div className="flex items-center gap-2">
-                <span className="text-[#71717A]">Created by:</span>
-                <span className="font-medium">{proposal.created_by.name} ({proposal.created_by.role})</span>
+            <div className="space-y-3 text-sm border-t border-gray-200 pt-4 mt-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-500 text-xs font-medium">Created by:</span>
+                  <span className="font-semibold text-xs">{proposal.created_by.name} ({proposal.created_by.role})</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-500 text-xs font-medium">Created on:</span>
+                  <span className="font-semibold text-xs">{new Date(proposal.created_at).toLocaleDateString()}</span>
+                </div>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[#71717A]">Created on:</span>
-                <span className="font-medium">{new Date(proposal.created_at).toLocaleDateString()}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[#71717A]">Document:</span>
+                <span className="text-gray-500 text-xs font-medium">Document:</span>
                 <Button
                   onClick={handleDownload}
                   variant="link"
-                  className="h-auto p-0 text-[#0F172A] hover:text-[#1E293B]"
+                  className="h-auto p-0 text-pink-600 hover:text-pink-700 text-xs"
                   data-testid="download-button"
                 >
-                  <Download size={16} className="mr-1" />
+                  <Download size={14} className="mr-1" />
                   {proposal.file_info.filename}
                 </Button>
               </div>
             </div>
+
+            {/* Extended Fields */}
+            {(proposal.customer_name || proposal.industry || proposal.product || proposal.users || proposal.rate || proposal.one_time || proposal.comments) && (
+              <div className="border-t border-gray-200 pt-4 mt-4">
+                <h3 className="text-sm font-heading font-bold text-gray-900 mb-3">Proposal Details</h3>
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  {proposal.customer_name && (
+                    <div className="bg-gray-50 p-2 rounded">
+                      <span className="text-gray-500 font-medium block mb-1">Customer</span>
+                      <span className="text-gray-900 font-semibold">{proposal.customer_name}</span>
+                    </div>
+                  )}
+                  {proposal.industry && (
+                    <div className="bg-gray-50 p-2 rounded">
+                      <span className="text-gray-500 font-medium block mb-1">Industry</span>
+                      <span className="text-gray-900 font-semibold">{proposal.industry}</span>
+                    </div>
+                  )}
+                  {proposal.product && (
+                    <div className="bg-gray-50 p-2 rounded">
+                      <span className="text-gray-500 font-medium block mb-1">Product</span>
+                      <span className="text-gray-900 font-semibold">{proposal.product}</span>
+                    </div>
+                  )}
+                  {proposal.users && (
+                    <div className="bg-gray-50 p-2 rounded">
+                      <span className="text-gray-500 font-medium block mb-1">Users</span>
+                      <span className="text-gray-900 font-semibold">{proposal.users}</span>
+                    </div>
+                  )}
+                  {proposal.one_time && (
+                    <div className="bg-gray-50 p-2 rounded">
+                      <span className="text-gray-500 font-medium block mb-1">One Time Cost</span>
+                      <span className="text-gray-900 font-semibold">{proposal.one_time}</span>
+                    </div>
+                  )}
+                  {proposal.rate && (
+                    <div className="bg-gray-50 p-2 rounded">
+                      <span className="text-gray-500 font-medium block mb-1">Rate</span>
+                      <span className="text-gray-900 font-semibold">{proposal.rate}</span>
+                    </div>
+                  )}
+                </div>
+                {proposal.comments && (
+                  <div className="bg-gray-50 p-2 rounded mt-3">
+                    <span className="text-gray-500 font-medium text-xs block mb-1">Comments</span>
+                    <p className="text-gray-900 text-xs">{proposal.comments}</p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="bg-white border border-[#E4E4E7] p-8 shadow-sm">
