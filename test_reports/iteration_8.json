@@ -1,0 +1,25 @@
+{
+  "summary": "Full E2E verified after MessageSquare -> ChatCircle & DollarSign -> CurrencyDollar icon fixes. No webpack overlay, no page errors. Login (Sales & CGO) works, dashboard shows Botree logo/sidebar, Create New Proposal form renders all 7 extended fields with correct section icons (FileText, Building, Package), file upload works, submission succeeds, and CGO approval advances workflow. Backend confirms all extended fields persisted.",
+  "tested_scope": ["frontend", "backend", "auth", "integration"],
+  "passed": [
+    "Frontend compiles - no webpack overlay, no JS pageerrors",
+    "Sales login (sales@botree.com/Sales@123) -> /dashboard, 'Login successful' toast",
+    "Botree logo + sidebar (Dashboard, Pending, Approved, New Proposal, Sign Out) rendered",
+    "Navigate to /dashboard/new - Create New Proposal page loads",
+    "All 9 form inputs present: title, description, customer_name, industry, product, users, rate, one_time, comments, file",
+    "Section icons render: Basic Information (FileText), Customer & Product Details (Building), Product (Package)",
+    "Form fill + PDF upload + Submit Proposal -> 'Proposal created successfully!' toast, redirected to dashboard",
+    "New proposal 'E2E Test Proposal T1' appears in Sales dashboard with 'Sales Submitted' badge",
+    "CGO login (cgo@botree.com/CGO@123) -> dashboard, sees the new proposal",
+    "CGO opens proposal detail - shows title, description, document, Workflow Progress (Sales checked, CGO current, Finance pending)",
+    "CGO Approve action succeeds - workflow advances to Finance Review",
+    "GET /api/proposals returns proposal with all 7 extended fields: customer_name=TestCo Inc, industry=SaaS, product=Botree DMS, users=50, rate=150, one_time=10000, comments='E2E comments'",
+    "Backend status transitions correctly: sales_submitted -> finance_review after CGO approval"
+  ],
+  "failed": [],
+  "action_items": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "retest_needed": false,
+  "full_testing_deferred": true,
+  "notes": "Two console 401s observed on /api/auth/me before login redirect - normal (unauthenticated probe). Proposal detail page displays workflow/document only (not extended fields) - fields are persisted via API; if UI display was expected, that would be a separate feature ask, not a regression from icon fixes."
+}

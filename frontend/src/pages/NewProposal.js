@@ -7,7 +7,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { toast } from 'sonner';
-import { Upload, ArrowLeft, FileText, CurrencyDollar, Users as UsersIcon, Package, Building, MessageSquare } from '@phosphor-icons/react';
+import { Upload, ArrowLeft, FileText, CurrencyDollar, Users as UsersIcon, Package, Building, ChatCircle } from '@phosphor-icons/react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -247,7 +247,7 @@ const NewProposal = () => {
             {/* Additional Information */}
             <div className="pb-6 border-b border-gray-200">
               <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-                <MessageSquare size={24} className="text-blue-600" />
+                <ChatCircle size={24} className="text-blue-600" />
                 Additional Information
               </h2>
               <div className="space-y-2">
