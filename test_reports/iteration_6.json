@@ -1,0 +1,32 @@
+{
+  "summary": "User's 'errors coming in loading the page' report is a REAL bug, NOT a CORS false positive. Frontend fails to compile due to invalid import in NewProposal.js: `DollarSign` is not exported by `@phosphor-icons/react`. The webpack-dev-server error overlay iframe covers the entire page and intercepts all pointer events, making the entire app unusable in the browser (login button not clickable, no navigation possible). Backend API (login, /auth/me, /proposals) works correctly when called directly with curl.",
+  "tested_scope": ["frontend", "backend", "integration"],
+  "passed": [
+    "Backend /api/auth/login with sales@botree.com returns 200 with user object",
+    "Backend /api/auth/me returns correct user info with cookie",
+    "Backend GET /api/proposals returns proposal list (extended fields present in schema)",
+    "Backend ProposalCreate model contains all 7 new fields (one_time, product, users, rate, customer_name, industry, comments)",
+    "Login page HTML renders and Botree logo (SVG) is visible"
+  ],
+  "failed": [
+    {
+      "area": "frontend / compilation",
+      "issue": "NewProposal.js imports `DollarSign` from `@phosphor-icons/react`, which does not export that name. Correct name is `CurrencyDollar`. Webpack shows: `export 'DollarSign' (imported as 'DollarSign') was not found in '@phosphor-icons/react'`.",
+      "evidence": "/var/log/supervisor/frontend.*.log: `Failed to compile. Attempted import error: 'DollarSign' is not exported from '@phosphor-icons/react'`. File: /app/frontend/src/pages/NewProposal.js line 10 (import) and lines 213, 219, 233 (usage). Browser shows full-page 'Compiled with problems' overlay.",
+      "priority": "HIGH"
+    },
+    {
+      "area": "frontend / UX blocker",
+      "issue": "webpack-dev-server-client-overlay iframe intercepts all pointer events, so users cannot click Sign In, cannot navigate, cannot use the app at all. This is what the user is reporting as 'errors coming in loading the page' - it is not CORS.",
+      "evidence": "Playwright click on data-testid='login-submit-button' timed out with: `<iframe src=\"about:blank\" id=\"webpack-dev-server-client-overlay\"></iframe> intercepts pointer events`.",
+      "priority": "HIGH"
+    }
+  ],
+  "action_items": [
+    "In /app/frontend/src/pages/NewProposal.js replace `DollarSign` with `CurrencyDollar` (both in the import from '@phosphor-icons/react' on line 10 and in the 3 JSX usages around lines 213, 219, 233). After the fix, the webpack overlay will disappear and the whole app will become usable again.",
+    "Re-run full UI test (login -> new proposal -> submit with all 7 fields -> verify persistence via GET /api/proposals) after the icon fix."
+  ],
+  "success_rate": {"backend": "100%", "frontend": "0% (blocked by compile error)"},
+  "retest_needed": true,
+  "full_testing_deferred": true
+}
