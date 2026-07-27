@@ -132,48 +132,8 @@ const Login = () => {
               </Button>
             </form>
 
-            {/* Divider */}
-            <div className="relative my-6 animate-fade-in" style={{animationDelay: '0.5s'}}>
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-200"></div>
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-4 bg-white text-gray-500">Quick Access</span>
-              </div>
-            </div>
-
-            {/* Demo Credentials */}
-            <div className="space-y-3 animate-fade-in" style={{animationDelay: '0.6s'}}>
-              <p className="text-xs text-gray-500 text-center font-semibold uppercase tracking-wide">Demo Accounts</p>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { role: 'Sales', email: 'sales@botree.com', color: 'from-purple-500 to-pink-500' },
-                  { role: 'CGO', email: 'cgo@botree.com', color: 'from-indigo-500 to-purple-500' },
-                  { role: 'Finance', email: 'finance@botree.com', color: 'from-pink-500 to-rose-500' },
-                  { role: 'Legal', email: 'legal@botree.com', color: 'from-violet-500 to-purple-500' },
-                  { role: 'CFO', email: 'cfo@botree.com', color: 'from-fuchsia-500 to-pink-500' },
-                  { role: 'Admin', email: 'admin@botree.com', color: 'from-purple-600 to-pink-600' }
-                ].map((user, index) => (
-                  <button
-                    key={user.role}
-                    type="button"
-                    onClick={() => {
-                      setEmail(user.email);
-                      setPassword(`${user.role}@123`);
-                    }}
-                    className={`group relative p-3 bg-gradient-to-br ${user.color} rounded-lg text-white hover:scale-105 transition-all duration-200 shadow-md hover:shadow-lg animate-scale-in`}
-                    style={{animationDelay: `${0.7 + index * 0.05}s`}}
-                  >
-                    <div className="text-sm font-bold">{user.role}</div>
-                    <div className="text-[10px] opacity-90">Pass: {user.role}@123</div>
-                    <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-10 rounded-lg transition-opacity"></div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
             {/* Footer */}
-            <div className="text-center pt-4 border-t border-gray-100 animate-fade-in" style={{animationDelay: '0.9s'}}>
+            <div className="text-center pt-6 border-t border-gray-100 animate-fade-in" style={{animationDelay: '0.5s'}}>
               <p className="text-xs text-gray-500">
                 Botree Software © 2026 | <span className="font-semibold">Proposal Tracker</span>
               </p>
@@ -184,7 +144,7 @@ const Login = () => {
           </div>
 
           {/* Bottom tagline */}
-          <div className="text-center mt-6 animate-fade-in" style={{animationDelay: '1s'}}>
+          <div className="text-center mt-6 animate-fade-in" style={{animationDelay: '0.6s'}}>
             <p className="text-sm text-gray-700">
               Run Your Route-to-Market Business in <span className="font-bold bg-gradient-to-r from-[#7518F2] to-[#E64AD1] bg-clip-text text-transparent">One Place</span>
             </p>
