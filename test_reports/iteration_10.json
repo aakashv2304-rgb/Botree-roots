@@ -1,0 +1,25 @@
+{
+  "summary": "Verified version comparison + restore-version feature end-to-end. Backend restore endpoint works with all validation branches (403 for non-Sales, 400 when not needs_revision, 404 for unknown version). Restore creates a new version (v3) with old version's (v1) content and 'Restored from vX' change note; history records restored_version action. Frontend renders 3 versions correctly, shows 'Restore This Version' on non-current versions, Compare Versions button enters compare mode with checkbox selection limited to 2, side-by-side diff shows yellow-highlighted changed fields with red strike-through old values and green bold new values, and deal_value is INR formatted (₹1,00,000 / ₹2,00,000).",
+  "tested_scope": ["backend", "frontend", "integration"],
+  "passed": [
+    "POST /api/proposals/{id}/restore-version -> 200 creates v3 labeled v3_2026-07-27",
+    "Restore validation: CGO -> 403, non-revision status -> 400, unknown version -> 404",
+    "Restored v3 content matches v1 exactly (title, description, customer_name, industry, product, deal_value)",
+    "v3 change_note = 'Restored from v1_2026-07-27'",
+    "History contains restored_version action with version=3 and comment 'Restored from v1_2026-07-27 to v3_2026-07-27'",
+    "Version history UI shows v1, v2, v3 with CURRENT badge on v3",
+    "Restore This Version button visible on v1 and v2 only (2 buttons), not on current v3",
+    "Compare Versions button enters compare mode; checkbox selection limited to 2 (3rd click blocked, still 2 checked)",
+    "Diff view: 5 yellow-highlighted rows, 5 line-through old values (red), 5 green-bold new values",
+    "Deal values rendered as INR (₹1,00,000 and ₹2,00,000) in comparison view",
+    "'Restored from v1' change note visible on current version detail",
+    "Auth (Sales/CGO cookie-based login) working"
+  ],
+  "failed": [],
+  "action_items": [
+    "Optional (out of scope of this feature): Sales user sees Approve/Return/Reject action panel on their own proposal in needs_revision — verify RBAC on Take Action panel visibility (pre-existing, not blocking)."
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "retest_needed": false,
+  "full_testing_deferred": true
+}

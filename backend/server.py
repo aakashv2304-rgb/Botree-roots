@@ -591,6 +591,102 @@ async def get_proposal_versions(proposal_id: str, request: Request):
     
     return {"versions": enriched_versions}
 
+@api_router.post("/proposals/{proposal_id}/restore-version")
+async def restore_version(proposal_id: str, version_number: int, request: Request):
+    """Restore a previous version by creating a new version with old content"""
+    current_user = await get_current_user(request)
+    
+    if current_user["role"] != "Sales":
+        raise HTTPException(status_code=403, detail="Only Sales can restore versions")
+    
+    proposal = await db.proposals.find_one({"_id": ObjectId(proposal_id)})
+    if not proposal:
+        raise HTTPException(status_code=404, detail="Proposal not found")
+    
+    if proposal["created_by"] != current_user["id"]:
+        raise HTTPException(status_code=403, detail="You can only restore your own proposals")
+    
+    if proposal["status"] != "needs_revision":
+        raise HTTPException(status_code=400, detail="Can only restore versions for proposals that need revision")
+    
+    if proposal.get("is_closed", False):
+        raise HTTPException(status_code=400, detail="Cannot restore a closed/rejected proposal")
+    
+    # Find the version to restore
+    versions = proposal.get("versions", [])
+    version_to_restore = None
+    for v in versions:
+        if v["version_number"] == version_number:
+            version_to_restore = v
+            break
+    
+    if not version_to_restore:
+        raise HTTPException(status_code=404, detail=f"Version {version_number} not found")
+    
+    now = datetime.now(timezone.utc)
+    new_version_number = proposal.get("current_version", 1) + 1
+    version_label = f"v{new_version_number}_{now.strftime('%Y-%m-%d')}"
+    
+    # Create new version from old version content
+    new_version = {
+        "version_number": new_version_number,
+        "version_label": version_label,
+        "title": version_to_restore["title"],
+        "description": version_to_restore["description"],
+        "file_info": version_to_restore["file_info"],
+        "one_time": version_to_restore.get("one_time"),
+        "product": version_to_restore.get("product"),
+        "users": version_to_restore.get("users"),
+        "rate": version_to_restore.get("rate"),
+        "customer_name": version_to_restore.get("customer_name"),
+        "industry": version_to_restore.get("industry"),
+        "comments": version_to_restore.get("comments"),
+        "deal_value": version_to_restore.get("deal_value"),
+        "created_by": current_user["id"],
+        "created_at": now.isoformat(),
+        "change_note": f"Restored from {version_to_restore['version_label']}"
+    }
+    
+    history_entry = {
+        "action": "restored_version",
+        "by": {"id": current_user["id"], "name": current_user["name"], "role": current_user["role"]},
+        "comment": f"Restored from {version_to_restore['version_label']} to {version_label}",
+        "version": new_version_number,
+        "timestamp": now.isoformat()
+    }
+    
+    # Update proposal with restored version and reset to first stage
+    await db.proposals.update_one(
+        {"_id": ObjectId(proposal_id)},
+        {
+            "$set": {
+                "title": new_version["title"],
+                "description": new_version["description"],
+                "status": "sales_submitted",
+                "current_stage": 1,
+                "current_version": new_version_number,
+                "file_info": new_version["file_info"],
+                "one_time": new_version["one_time"],
+                "product": new_version["product"],
+                "users": new_version["users"],
+                "rate": new_version["rate"],
+                "customer_name": new_version["customer_name"],
+                "industry": new_version["industry"],
+                "comments": new_version["comments"],
+                "deal_value": new_version["deal_value"],
+                "updated_at": now.isoformat()
+            },
+            "$push": {
+                "history": history_entry,
+                "versions": new_version
+            }
+        }
+    )
+    
+    logger.info(f"[EMAIL] Proposal '{new_version['title']}' restored to {version_label} by {current_user['name']}")
+    
+    return {"message": f"Version restored successfully as {version_label}", "version": version_label}
+
 @api_router.put("/proposals/{proposal_id}")
 async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: Request):
     current_user = await get_current_user(request)

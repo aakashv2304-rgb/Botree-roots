@@ -27,6 +27,8 @@ const ProposalDetail = () => {
   const [proposal, setProposal] = useState(null);
   const [versions, setVersions] = useState([]);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [compareMode, setCompareMode] = useState(false);
+  const [selectedVersions, setSelectedVersions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [comment, setComment] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
@@ -104,6 +106,60 @@ const ProposalDetail = () => {
     } finally {
       setActionLoading(false);
     }
+  };
+
+  const handleRestoreVersion = async (versionNumber) => {
+    if (!window.confirm(`Are you sure you want to restore version ${versionNumber}? This will create a new version with the content from v${versionNumber}.`)) {
+      return;
+    }
+    
+    try {
+      const { data } = await axios.post(`${API}/proposals/${id}/restore-version`, 
+        versionNumber, 
+        { 
+          withCredentials: true,
+          headers: { 'Content-Type': 'application/json' }
+        }
+      );
+      toast.success(data.message);
+      fetchProposal();
+      fetchVersionHistory();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to restore version');
+    }
+  };
+
+  const toggleVersionForCompare = (versionNumber) => {
+    if (selectedVersions.includes(versionNumber)) {
+      setSelectedVersions(selectedVersions.filter(v => v !== versionNumber));
+    } else {
+      if (selectedVersions.length >= 2) {
+        toast.error('You can only compare 2 versions at a time');
+        return;
+      }
+      setSelectedVersions([...selectedVersions, versionNumber]);
+    }
+  };
+
+  const getVersionComparison = () => {
+    if (selectedVersions.length !== 2) return null;
+    
+    const v1 = versions.find(v => v.version_number === selectedVersions[0]);
+    const v2 = versions.find(v => v.version_number === selectedVersions[1]);
+    
+    if (!v1 || !v2) return null;
+    
+    // Ensure v1 is older than v2
+    const [older, newer] = v1.version_number < v2.version_number ? [v1, v2] : [v2, v1];
+    
+    return { older, newer };
+  };
+
+  const getFieldDiff = (field, older, newer) => {
+    const oldVal = older[field] || 'N/A';
+    const newVal = newer[field] || 'N/A';
+    const changed = oldVal !== newVal;
+    return { oldVal, newVal, changed };
   };
 
   const handleDownload = async () => {
@@ -315,10 +371,90 @@ const ProposalDetail = () => {
           {/* Version History */}
           {showVersionHistory && versions.length > 1 && (
             <div className="bg-white border border-[#E4E4E7] p-8 shadow-sm">
-              <h2 className="text-xl font-bold tracking-tight mb-6 flex items-center gap-2">
-                <GitBranch size={24} />
-                Version History
-              </h2>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold tracking-tight flex items-center gap-2">
+                  <GitBranch size={24} />
+                  Version History
+                </h2>
+                <div className="flex items-center gap-2">
+                  {!compareMode && (
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => {
+                        setCompareMode(true);
+                        setSelectedVersions([]);
+                      }}
+                      disabled={versions.length < 2}
+                    >
+                      Compare Versions
+                    </Button>
+                  )}
+                  {compareMode && (
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => {
+                        setCompareMode(false);
+                        setSelectedVersions([]);
+                      }}
+                    >
+                      Cancel Compare
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              {/* Version Comparison View */}
+              {compareMode && selectedVersions.length === 2 && getVersionComparison() && (
+                <div className="mb-6 p-6 bg-blue-50 border-2 border-blue-300 rounded-lg">
+                  <h3 className="text-lg font-bold mb-4 text-blue-900">Comparing Versions</h3>
+                  {(() => {
+                    const { older, newer } = getVersionComparison();
+                    const fields = ['title', 'description', 'customer_name', 'industry', 'product', 'deal_value'];
+                    
+                    return (
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4 mb-4">
+                          <div className="text-center p-2 bg-red-100 rounded">
+                            <Badge className="bg-red-600">{older.version_label}</Badge>
+                            <p className="text-xs mt-1">{new Date(older.created_at).toLocaleDateString()}</p>
+                          </div>
+                          <div className="text-center p-2 bg-green-100 rounded">
+                            <Badge className="bg-green-600">{newer.version_label}</Badge>
+                            <p className="text-xs mt-1">{new Date(newer.created_at).toLocaleDateString()}</p>
+                          </div>
+                        </div>
+                        
+                        {fields.map(field => {
+                          const diff = getFieldDiff(field, older, newer);
+                          return (
+                            <div key={field} className={`grid grid-cols-2 gap-4 p-3 rounded ${diff.changed ? 'bg-yellow-50 border border-yellow-300' : 'bg-gray-50'}`}>
+                              <div>
+                                <p className="text-xs font-semibold text-gray-600 mb-1 capitalize">{field.replace('_', ' ')}</p>
+                                <p className={`text-sm ${diff.changed ? 'line-through text-red-700' : ''}`}>
+                                  {field === 'deal_value' && diff.oldVal !== 'N/A' 
+                                    ? `₹${parseFloat(diff.oldVal).toLocaleString('en-IN')}` 
+                                    : diff.oldVal}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-xs font-semibold text-gray-600 mb-1 capitalize">{field.replace('_', ' ')}</p>
+                                <p className={`text-sm ${diff.changed ? 'font-bold text-green-700' : ''}`}>
+                                  {field === 'deal_value' && diff.newVal !== 'N/A' 
+                                    ? `₹${parseFloat(diff.newVal).toLocaleString('en-IN')}` 
+                                    : diff.newVal}
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+
               <div className="space-y-4">
                 {versions.slice().reverse().map((version, index) => (
                   <div 
@@ -326,11 +462,21 @@ const ProposalDetail = () => {
                     className={`p-4 rounded-lg border ${
                       version.version_number === proposal.current_version 
                         ? 'border-indigo-500 bg-indigo-50' 
+                        : compareMode && selectedVersions.includes(version.version_number)
+                        ? 'border-blue-500 bg-blue-50'
                         : 'border-gray-200 bg-gray-50'
                     }`}
                   >
                     <div className="flex items-start justify-between mb-2">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {compareMode && (
+                          <input 
+                            type="checkbox"
+                            checked={selectedVersions.includes(version.version_number)}
+                            onChange={() => toggleVersionForCompare(version.version_number)}
+                            className="w-4 h-4 text-blue-600"
+                          />
+                        )}
                         <Badge className={
                           version.version_number === proposal.current_version 
                             ? 'bg-indigo-600 text-white' 
@@ -340,6 +486,16 @@ const ProposalDetail = () => {
                         </Badge>
                         {version.version_number === proposal.current_version && (
                           <span className="text-xs text-indigo-600 font-semibold">CURRENT</span>
+                        )}
+                        {canEdit() && version.version_number !== proposal.current_version && !proposal.is_closed && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleRestoreVersion(version.version_number)}
+                            className="text-xs border-purple-500 text-purple-600 hover:bg-purple-500 hover:text-white"
+                          >
+                            Restore This Version
+                          </Button>
                         )}
                       </div>
                       <span className="text-xs text-gray-500">
@@ -410,12 +566,14 @@ const ProposalDetail = () => {
                           entry.action === 'approved' ? 'bg-[#10B981] text-white' : 
                           entry.action === 'rejected_closed' ? 'bg-[#DC2626] text-white' :
                           entry.action === 'returned_for_revision' ? 'bg-[#F59E0B] text-white' :
+                          entry.action === 'restored_version' ? 'bg-[#8B5CF6] text-white' :
                           entry.action === 'rejected' ? 'bg-[#EF4444] text-white' : 
                           'bg-[#E4E4E7] text-[#09090B]'
                         }`}
                       >
                         {entry.action === 'rejected_closed' ? 'Rejected (Closed)' :
                          entry.action === 'returned_for_revision' ? 'Returned for Revision' :
+                         entry.action === 'restored_version' ? 'Restored Version' :
                          entry.action}
                       </Badge>
                       {entry.version && (
