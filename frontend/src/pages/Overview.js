@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { MagnifyingGlass, FileText, Clock, TrendUp, Warning, CheckCircle, X, Funnel, CurrencyDollar } from '@phosphor-icons/react';
+import { MagnifyingGlass, FileText, Clock, TrendUp, Warning, CheckCircle, X, Funnel, CurrencyDollar, CalendarBlank, CaretLeft, CaretRight } from '@phosphor-icons/react';
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
+import { Button } from '../components/ui/button';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -19,19 +20,22 @@ const Overview = () => {
     activityFeed: null,
     throughput: null,
     slaHealth: null,
-    dealValue: null
+    dealValue: null,
+    monthlyData: null
   });
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [loading, setLoading] = useState(true);
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
   useEffect(() => {
     fetchAll();
-  }, []);
+  }, [selectedMonth, selectedYear]);
 
   const fetchAll = async () => {
     try {
-      const [proposalsRes, stageRes, approvalRes, bottleneckRes, activityRes, throughputRes, slaRes, dealValueRes] = await Promise.all([
+      const [proposalsRes, stageRes, approvalRes, bottleneckRes, activityRes, throughputRes, slaRes, dealValueRes, monthlyRes] = await Promise.all([
         axios.get(`${API}/proposals`, { withCredentials: true }),
         axios.get(`${API}/analytics/stage-counts`, { withCredentials: true }),
         axios.get(`${API}/analytics/approval-rate`, { withCredentials: true }),
@@ -39,7 +43,8 @@ const Overview = () => {
         axios.get(`${API}/analytics/activity-feed`, { withCredentials: true }),
         axios.get(`${API}/analytics/throughput`, { withCredentials: true }),
         axios.get(`${API}/analytics/sla-health`, { withCredentials: true }),
-        axios.get(`${API}/analytics/deal-value-summary`, { withCredentials: true })
+        axios.get(`${API}/analytics/deal-value-summary`, { withCredentials: true }),
+        axios.get(`${API}/analytics/monthly-proposals?year=${selectedYear}&month=${selectedMonth}`, { withCredentials: true })
       ]);
       
       setProposals(proposalsRes.data);
@@ -50,7 +55,8 @@ const Overview = () => {
         activityFeed: activityRes.data,
         throughput: throughputRes.data,
         slaHealth: slaRes.data,
-        dealValue: dealValueRes.data
+        dealValue: dealValueRes.data,
+        monthlyData: monthlyRes.data
       });
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -96,6 +102,28 @@ const Overview = () => {
     const hours = date.getHours().toString().padStart(2, '0');
     const minutes = date.getMinutes().toString().padStart(2, '0');
     return `${hours}:${minutes}`;
+  };
+
+  const navigateMonth = (direction) => {
+    let newMonth = selectedMonth + direction;
+    let newYear = selectedYear;
+    
+    if (newMonth > 12) {
+      newMonth = 1;
+      newYear += 1;
+    } else if (newMonth < 1) {
+      newMonth = 12;
+      newYear -= 1;
+    }
+    
+    setSelectedMonth(newMonth);
+    setSelectedYear(newYear);
+  };
+
+  const goToCurrentMonth = () => {
+    const now = new Date();
+    setSelectedMonth(now.getMonth() + 1);
+    setSelectedYear(now.getFullYear());
   };
 
   if (loading) {
@@ -144,8 +172,64 @@ const Overview = () => {
 
       {/* KPI Overview Bar */}
       <div className="bg-[#1F2937] border-b border-[#374151] px-6 py-4">
+        {/* Month Selector */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <CalendarBlank size={20} className="text-purple-400" />
+            <span className="text-sm font-semibold text-gray-300">Monthly Stats:</span>
+            <span className="text-lg font-bold text-white">{analytics.monthlyData?.month_name || 'Loading...'}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={() => navigateMonth(-1)}
+              size="sm"
+              variant="ghost"
+              className="text-gray-400 hover:text-white"
+            >
+              <CaretLeft size={18} weight="bold" />
+            </Button>
+            {!analytics.monthlyData?.is_current_month && (
+              <Button
+                onClick={goToCurrentMonth}
+                size="sm"
+                variant="outline"
+                className="text-xs border-purple-500 text-purple-400 hover:bg-purple-500/10"
+              >
+                Current Month
+              </Button>
+            )}
+            <Button
+              onClick={() => navigateMonth(1)}
+              size="sm"
+              variant="ghost"
+              className="text-gray-400 hover:text-white"
+              disabled={analytics.monthlyData?.is_current_month}
+            >
+              <CaretRight size={18} weight="bold" />
+            </Button>
+          </div>
+        </div>
+
         <div className="grid grid-cols-4 gap-4 stagger-children">
-          {/* Active Queue */}
+          {/* Monthly Proposals Count */}
+          <div className="bg-gradient-to-br from-purple-900/30 to-pink-900/30 border-2 border-purple-500/50 rounded-lg p-3 hover-lift transition-colors-smooth">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-semibold text-purple-300 uppercase tracking-wider">Proposals This Month</span>
+              <FileText size={16} className="text-purple-400" />
+            </div>
+            <div className="flex items-baseline gap-3">
+              <span className="text-3xl font-bold text-white">{analytics.monthlyData?.total_proposals || 0}</span>
+              <div className="text-xs text-purple-300">
+                {analytics.monthlyData?.is_current_month ? 'So Far' : 'Total'}
+              </div>
+            </div>
+            <div className="mt-2 text-xs text-purple-400">
+              <span className="font-semibold">{analytics.monthlyData?.active_proposals || 0}</span> Active • 
+              <span className="font-semibold ml-1">{analytics.monthlyData?.approved || 0}</span> Approved
+            </div>
+          </div>
+
+          {/* Active Pipeline */}
           <div className="bg-[#111827] border border-[#374151] rounded-lg p-3 hover-lift transition-colors-smooth">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Active Pipeline</span>
@@ -184,18 +268,6 @@ const Overview = () => {
             <div className="flex items-baseline gap-2">
               <span className="text-2xl font-bold text-white">{formatCurrency(analytics.dealValue?.active_pipeline_value)}</span>
               <span className="text-xs text-gray-400">Active</span>
-            </div>
-          </div>
-
-          {/* Throughput */}
-          <div className="bg-[#111827] border border-[#374151] rounded-lg p-3 hover-lift transition-colors-smooth">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">30-Day Velocity</span>
-              <TrendUp size={16} className="text-emerald-400" />
-            </div>
-            <div className="flex items-baseline gap-3">
-              <span className="text-2xl font-bold text-white">{analytics.throughput?.approved_last_30_days || 0}</span>
-              <span className="text-xs text-gray-400">Closed</span>
             </div>
           </div>
         </div>

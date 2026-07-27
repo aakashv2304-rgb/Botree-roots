@@ -1310,6 +1310,88 @@ async def get_deal_value_summary(request: Request):
         "total_value": active_value + approved_value
     }
 
+@api_router.get("/analytics/monthly-proposals")
+async def get_monthly_proposals(request: Request, year: int = None, month: int = None):
+    """Get proposal counts for a specific month"""
+    await get_current_user(request)
+    
+    # Default to current month if not specified
+    now = datetime.now(timezone.utc)
+    target_year = year if year else now.year
+    target_month = month if month else now.month
+    
+    # Calculate start and end of target month
+    start_of_month = datetime(target_year, target_month, 1, tzinfo=timezone.utc)
+    
+    # Calculate end of month
+    if target_month == 12:
+        end_of_month = datetime(target_year + 1, 1, 1, tzinfo=timezone.utc)
+    else:
+        end_of_month = datetime(target_year, target_month + 1, 1, tzinfo=timezone.utc)
+    
+    # If current month, use current date as end
+    if target_year == now.year and target_month == now.month:
+        end_of_month = now
+    
+    # Count proposals created in this month
+    total_proposals = await db.proposals.count_documents({
+        "created_at": {
+            "$gte": start_of_month.isoformat(),
+            "$lt": end_of_month.isoformat()
+        }
+    })
+    
+    # Count by status
+    pipeline = [
+        {
+            "$match": {
+                "created_at": {
+                    "$gte": start_of_month.isoformat(),
+                    "$lt": end_of_month.isoformat()
+                }
+            }
+        },
+        {
+            "$group": {
+                "_id": "$status",
+                "count": {"$sum": 1}
+            }
+        }
+    ]
+    
+    results = await db.proposals.aggregate(pipeline).to_list(None)
+    
+    status_counts = {
+        "sales_submitted": 0,
+        "cgo_review": 0,
+        "finance_review": 0,
+        "legal_review": 0,
+        "cfo_review": 0,
+        "approved": 0,
+        "needs_revision": 0,
+        "rejected": 0
+    }
+    
+    for r in results:
+        if r["_id"] in status_counts:
+            status_counts[r["_id"]] = r["count"]
+    
+    # Calculate active proposals
+    active_count = sum(status_counts[key] for key in ["sales_submitted", "cgo_review", "finance_review", "legal_review", "cfo_review"])
+    
+    return {
+        "year": target_year,
+        "month": target_month,
+        "month_name": start_of_month.strftime("%B %Y"),
+        "total_proposals": total_proposals,
+        "active_proposals": active_count,
+        "approved": status_counts["approved"],
+        "rejected": status_counts["rejected"],
+        "needs_revision": status_counts["needs_revision"],
+        "by_status": status_counts,
+        "is_current_month": (target_year == now.year and target_month == now.month)
+    }
+
 app.include_router(api_router)
 
 app.add_middleware(
