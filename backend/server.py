@@ -172,14 +172,23 @@ class UserResponse(BaseModel):
     role: str
     created_at: str
 
+class AdditionalFee(BaseModel):
+    name: str
+    value: float
+
+class Product(BaseModel):
+    product_name: str
+    users: Optional[str] = None
+    price_per_user: Optional[float] = None
+    one_time_cost: Optional[float] = None
+    minimum_billing: Optional[float] = None
+    additional_fees: Optional[List[AdditionalFee]] = []
+
 class ProposalCreate(BaseModel):
     title: str
     description: str
     file_id: str
-    one_time: Optional[str] = None
-    product: Optional[str] = None
-    users: Optional[str] = None
-    rate: Optional[str] = None
+    products: Optional[List[Product]] = []
     customer_name: Optional[str] = None
     industry: Optional[str] = None
     comments: Optional[str] = None
@@ -440,10 +449,7 @@ async def create_proposal(proposal: ProposalCreate, request: Request):
             "size": file_doc["size"],
             "storage_path": file_doc["storage_path"]
         },
-        "one_time": proposal.one_time,
-        "product": proposal.product,
-        "users": proposal.users,
-        "rate": proposal.rate,
+        "products": [p.dict() for p in proposal.products] if proposal.products else [],
         "customer_name": proposal.customer_name,
         "industry": proposal.industry,
         "comments": proposal.comments,
@@ -462,10 +468,7 @@ async def create_proposal(proposal: ProposalCreate, request: Request):
         "is_closed": False,
         "created_by": current_user["id"],
         "file_info": version_data["file_info"],
-        "one_time": proposal.one_time,
-        "product": proposal.product,
-        "users": proposal.users,
-        "rate": proposal.rate,
+        "products": [p.dict() for p in proposal.products] if proposal.products else [],
         "customer_name": proposal.customer_name,
         "industry": proposal.industry,
         "comments": proposal.comments,
@@ -535,10 +538,7 @@ async def get_proposals(request: Request, status: Optional[str] = None, search: 
             "is_closed": p.get("is_closed", False),
             "created_by": {"id": str(creator["_id"]), "name": creator["name"], "role": creator["role"]},
             "file_info": p["file_info"],
-            "one_time": p.get("one_time"),
-            "product": p.get("product"),
-            "users": p.get("users"),
-            "rate": p.get("rate"),
+            "products": p.get("products", []),
             "customer_name": p.get("customer_name"),
             "industry": p.get("industry"),
             "comments": p.get("comments"),
@@ -572,10 +572,7 @@ async def get_proposal(proposal_id: str, request: Request):
         "is_closed": proposal.get("is_closed", False),
         "created_by": {"id": str(creator["_id"]), "name": creator["name"], "role": creator["role"]},
         "file_info": proposal["file_info"],
-        "one_time": proposal.get("one_time"),
-        "product": proposal.get("product"),
-        "users": proposal.get("users"),
-        "rate": proposal.get("rate"),
+        "products": proposal.get("products", []),
         "customer_name": proposal.get("customer_name"),
         "industry": proposal.get("industry"),
         "comments": proposal.get("comments"),
@@ -911,10 +908,7 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
             "size": file_doc["size"],
             "storage_path": file_doc["storage_path"]
         },
-        "one_time": proposal.one_time,
-        "product": proposal.product,
-        "users": proposal.users,
-        "rate": proposal.rate,
+        "products": [p.dict() for p in proposal.products] if proposal.products else [],
         "customer_name": proposal.customer_name,
         "industry": proposal.industry,
         "comments": proposal.comments,
@@ -943,10 +937,7 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
                 "current_stage": 1,
                 "current_version": new_version_number,
                 "file_info": new_version["file_info"],
-                "one_time": proposal.one_time,
-                "product": proposal.product,
-                "users": proposal.users,
-                "rate": proposal.rate,
+                "products": [p.dict() for p in proposal.products] if proposal.products else [],
                 "customer_name": proposal.customer_name,
                 "industry": proposal.industry,
                 "comments": proposal.comments,
