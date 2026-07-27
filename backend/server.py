@@ -1,5 +1,5 @@
 from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Header, Query, UploadFile, File, Depends
-from fastapi.responses import Response as FastAPIResponse
+from fastapi.responses import Response as FastAPIResponse, StreamingResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -14,6 +14,13 @@ import bcrypt
 import jwt
 from bson import ObjectId
 import requests
+from reportlab.lib.pagesizes import letter, A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
+from io import BytesIO
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -686,6 +693,163 @@ async def restore_version(proposal_id: str, version_number: int, request: Reques
     logger.info(f"[EMAIL] Proposal '{new_version['title']}' restored to {version_label} by {current_user['name']}")
     
     return {"message": f"Version restored successfully as {version_label}", "version": version_label}
+
+@api_router.get("/proposals/{proposal_id}/versions/{version_number}/download-pdf")
+async def download_version_pdf(proposal_id: str, version_number: int, request: Request):
+    """Generate and download a PDF of a specific proposal version"""
+    current_user = await get_current_user(request)
+    
+    proposal = await db.proposals.find_one({"_id": ObjectId(proposal_id)})
+    if not proposal:
+        raise HTTPException(status_code=404, detail="Proposal not found")
+    
+    # Find the specific version
+    versions = proposal.get("versions", [])
+    version = None
+    for v in versions:
+        if v["version_number"] == version_number:
+            version = v
+            break
+    
+    if not version:
+        raise HTTPException(status_code=404, detail=f"Version {version_number} not found")
+    
+    # Get creator info
+    creator = await db.users.find_one({"_id": ObjectId(version["created_by"])})
+    creator_name = creator["name"] if creator else "Unknown"
+    creator_role = creator["role"] if creator else "Unknown"
+    
+    # Create PDF in memory
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=72, leftMargin=72, topMargin=72, bottomMargin=18)
+    
+    # Container for PDF elements
+    elements = []
+    
+    # Styles
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=24,
+        textColor=colors.HexColor('#1F2937'),
+        spaceAfter=30,
+        alignment=TA_CENTER
+    )
+    heading_style = ParagraphStyle(
+        'CustomHeading',
+        parent=styles['Heading2'],
+        fontSize=16,
+        textColor=colors.HexColor('#4B5563'),
+        spaceAfter=12,
+        spaceBefore=12
+    )
+    normal_style = styles['Normal']
+    
+    # Title
+    elements.append(Paragraph("Proposal Document", title_style))
+    elements.append(Spacer(1, 0.2*inch))
+    
+    # Version Badge
+    version_table = Table([[f"Version: {version['version_label']}"]], colWidths=[6*inch])
+    version_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#6366F1')),
+        ('TEXTCOLOR', (0, 0), (-1, -1), colors.white),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 12),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+    ]))
+    elements.append(version_table)
+    elements.append(Spacer(1, 0.3*inch))
+    
+    # Main content table
+    data = [
+        ['Field', 'Value'],
+        ['Title', version['title']],
+        ['Description', version['description']],
+        ['Customer Name', version.get('customer_name', 'N/A')],
+        ['Industry', version.get('industry', 'N/A')],
+        ['Product', version.get('product', 'N/A')],
+        ['Users', version.get('users', 'N/A')],
+        ['One Time Cost', version.get('one_time', 'N/A')],
+        ['Rate', version.get('rate', 'N/A')],
+        ['Deal Value (INR)', f"₹{version['deal_value']:,.2f}" if version.get('deal_value') else 'N/A'],
+        ['Comments', version.get('comments', 'N/A')],
+    ]
+    
+    table = Table(data, colWidths=[2*inch, 4*inch])
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#E5E7EB')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor('#1F2937')),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 12),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('TOPPADDING', (0, 0), (-1, 0), 12),
+        ('BACKGROUND', (0, 1), (0, -1), colors.HexColor('#F9FAFB')),
+        ('FONTNAME', (0, 1), (0, -1), 'Helvetica-Bold'),
+        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#D1D5DB')),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 12),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 12),
+        ('TOPPADDING', (0, 1), (-1, -1), 8),
+        ('BOTTOMPADDING', (0, 1), (-1, -1), 8),
+    ]))
+    elements.append(table)
+    elements.append(Spacer(1, 0.3*inch))
+    
+    # Metadata section
+    elements.append(Paragraph("Version Metadata", heading_style))
+    
+    metadata_data = [
+        ['Created By', f"{creator_name} ({creator_role})"],
+        ['Created On', datetime.fromisoformat(version['created_at'].replace('Z', '+00:00')).strftime('%B %d, %Y at %I:%M %p')],
+        ['Change Note', version.get('change_note', 'N/A')],
+        ['File Name', version['file_info']['filename']],
+    ]
+    
+    metadata_table = Table(metadata_data, colWidths=[2*inch, 4*inch])
+    metadata_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#F3F4F6')),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#D1D5DB')),
+        ('LEFTPADDING', (0, 0), (-1, -1), 12),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 12),
+        ('TOPPADDING', (0, 0), (-1, -1), 8),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+    ]))
+    elements.append(metadata_table)
+    
+    # Footer
+    elements.append(Spacer(1, 0.5*inch))
+    footer_style = ParagraphStyle(
+        'Footer',
+        parent=styles['Normal'],
+        fontSize=8,
+        textColor=colors.HexColor('#6B7280'),
+        alignment=TA_CENTER
+    )
+    elements.append(Paragraph(f"Generated on {datetime.now(timezone.utc).strftime('%B %d, %Y at %I:%M %p UTC')}", footer_style))
+    elements.append(Paragraph("Botree Software - Proposal Tracker", footer_style))
+    
+    # Build PDF
+    doc.build(elements)
+    
+    # Get PDF content
+    buffer.seek(0)
+    pdf_content = buffer.getvalue()
+    buffer.close()
+    
+    # Return as downloadable file
+    filename = f"proposal_{version['version_label']}_{proposal['title'][:30].replace(' ', '_')}.pdf"
+    
+    return StreamingResponse(
+        BytesIO(pdf_content),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
 
 @api_router.put("/proposals/{proposal_id}")
 async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: Request):

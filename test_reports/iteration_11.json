@@ -1,0 +1,37 @@
+{
+  "summary": "Version PDF export tested end-to-end. Backend endpoint GET /api/proposals/{id}/versions/{n}/download-pdf works: returns 200 with application/pdf, Content-Disposition attachment, valid %PDF-1.4 file (~2.7KB). Auth (401) and version-not-found (404) errors correct. PDF content includes title, description, customer, industry, product, users, one_time, rate, deal_value with comma-formatted INR numbers, comments, version_label badge, creator name+role, timestamp, change_note, filename, and 'Botree Software - Proposal Tracker' footer. Content differs between v1 (Cust A / 100,000) and v2 (Cust B EDITED / 200,000). Frontend: 3 'Download PDF' buttons render inside the versions modal (opened via '3 versions' button); clicking downloads a valid PDF, toast 'PDF downloaded: vX_YYYY-MM-DD' shown. Downloads work for v1 and v3 (current). Auth via cookie session works.",
+  "tested_scope": ["backend", "frontend", "integration", "auth"],
+  "passed": [
+    "POST /api/auth/login (sales) 200",
+    "GET /api/proposals/{id} returns 3 versions",
+    "GET /api/proposals/{id}/versions/1/download-pdf 200, Content-Type application/pdf, Content-Disposition attachment; filename=proposal_v1_2026-07-27_Restore_v1.pdf, %PDF-1.4 header",
+    "GET .../versions/2/download-pdf 200, different content from v1 (v2 title 'Restore v2 EDITED', deal 200,000)",
+    "GET .../versions/99/download-pdf 404 {'detail':'Version 99 not found'}",
+    "Unauthenticated download-pdf 401",
+    "PDF text extraction confirms: 'Proposal Document' title, 'Version: v1_2026-07-27' badge, all fields (Title, Description, Customer Name, Industry, Product, Users, One Time Cost, Rate, Deal Value (INR), Comments), 'Version Metadata' with Created By 'Sales User (Sales)', Created On, Change Note, File Name, 'Botree Software - Proposal Tracker' footer",
+    "Frontend: opening version modal reveals 3 'Download PDF' buttons; clicking triggers browser download of valid PDF (proposal_v1_2026-07-27.pdf, 2748 bytes, %PDF header)",
+    "Toast notification 'PDF downloaded: v1_2026-07-27' shown after download",
+    "Download works for both current version (v3) and older version (v1)"
+  ],
+  "failed": [
+    {
+      "area": "PDF rendering",
+      "issue": "INR ₹ symbol renders as missing-glyph tofu (■) in generated PDF because default Helvetica font does not include U+20B9. Numeric formatting (100,000.00) is correct.",
+      "evidence": "pypdf extracted text shows 'Deal Value (INR) ■100,000.00' for v1 and '■200,000.00' for v2",
+      "priority": "MEDIUM"
+    },
+    {
+      "area": "Frontend filename",
+      "issue": "Spec expected filename format proposal_vX_YYYY-MM-DD_title.pdf but frontend saves as proposal_{versionLabel}.pdf (title portion missing). Backend Content-Disposition does include title (proposal_v1_2026-07-27_Restore_v1.pdf), but ProposalDetail.js line 179 hardcodes `proposal_${versionLabel}.pdf` and overrides it.",
+      "evidence": "Downloaded file suggested_filename: 'proposal_v1_2026-07-27.pdf' (no title). Code: link.setAttribute('download', `proposal_${versionLabel}.pdf`)",
+      "priority": "LOW"
+    }
+  ],
+  "action_items": [
+    "Register a Unicode-capable font (e.g., DejaVuSans or NotoSans) with reportlab pdfmetrics and use it in styles/tables so the ₹ symbol renders correctly in the PDF.",
+    "Update ProposalDetail.js handleDownloadPDF to include the proposal title in the local filename, e.g., `proposal_${versionLabel}_${title.slice(0,30).replaceAll(' ','_')}.pdf`, or read the filename from the response's Content-Disposition header to match backend."
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "retest_needed": false,
+  "full_testing_deferred": true
+}

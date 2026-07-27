@@ -7,7 +7,7 @@ import { Textarea } from '../components/ui/textarea';
 import { Label } from '../components/ui/label';
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
-import { ArrowLeft, Check, Clock, Download, ArrowBendUpLeft, X, GitBranch, ListNumbers } from '@phosphor-icons/react';
+import { ArrowLeft, Check, Clock, Download, ArrowBendUpLeft, X, GitBranch, ListNumbers, FilePdf } from '@phosphor-icons/react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -160,6 +160,33 @@ const ProposalDetail = () => {
     const newVal = newer[field] || 'N/A';
     const changed = oldVal !== newVal;
     return { oldVal, newVal, changed };
+  };
+
+  const handleDownloadPDF = async (versionNumber, versionLabel) => {
+    try {
+      const response = await axios.get(
+        `${API}/proposals/${id}/versions/${versionNumber}/download-pdf`,
+        { 
+          withCredentials: true,
+          responseType: 'blob'
+        }
+      );
+      
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `proposal_${versionLabel}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      toast.success(`PDF downloaded: ${versionLabel}`);
+    } catch (error) {
+      toast.error('Failed to download PDF');
+      console.error('PDF download error:', error);
+    }
   };
 
   const handleDownload = async () => {
@@ -497,6 +524,15 @@ const ProposalDetail = () => {
                             Restore This Version
                           </Button>
                         )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleDownloadPDF(version.version_number, version.version_label)}
+                          className="text-xs border-blue-500 text-blue-600 hover:bg-blue-500 hover:text-white"
+                        >
+                          <FilePdf size={14} className="mr-1" />
+                          Download PDF
+                        </Button>
                       </div>
                       <span className="text-xs text-gray-500">
                         {new Date(version.created_at).toLocaleString()}
