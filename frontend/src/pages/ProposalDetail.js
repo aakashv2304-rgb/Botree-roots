@@ -348,13 +348,13 @@ const ProposalDetail = () => {
             </div>
 
             {/* Extended Fields */}
-            {(proposal.customer_name || proposal.industry || proposal.product || proposal.users || proposal.rate || proposal.one_time || proposal.deal_value || proposal.comments) && (
+            {(proposal.customer_name || proposal.industry || proposal.products?.length > 0 || proposal.deal_value || proposal.comments) && (
               <div className="border-t border-gray-200 pt-4 mt-4">
                 <h3 className="text-sm font-heading font-bold text-gray-900 mb-3">Proposal Details</h3>
                 <div className="grid grid-cols-2 gap-3 text-xs">
                   {proposal.deal_value && (
                     <div className="bg-emerald-50 p-2 rounded border border-emerald-200">
-                      <span className="text-emerald-700 font-medium block mb-1">Deal Value</span>
+                      <span className="text-emerald-700 font-medium block mb-1">Total Deal Value</span>
                       <span className="text-emerald-900 font-bold text-base">₹{proposal.deal_value.toLocaleString('en-IN')}</span>
                     </div>
                   )}
@@ -370,31 +370,62 @@ const ProposalDetail = () => {
                       <span className="text-gray-900 font-semibold">{proposal.industry}</span>
                     </div>
                   )}
-                  {proposal.product && (
-                    <div className="bg-gray-50 p-2 rounded">
-                      <span className="text-gray-500 font-medium block mb-1">Product</span>
-                      <span className="text-gray-900 font-semibold">{proposal.product}</span>
-                    </div>
-                  )}
-                  {proposal.users && (
-                    <div className="bg-gray-50 p-2 rounded">
-                      <span className="text-gray-500 font-medium block mb-1">Users</span>
-                      <span className="text-gray-900 font-semibold">{proposal.users}</span>
-                    </div>
-                  )}
-                  {proposal.one_time && (
-                    <div className="bg-gray-50 p-2 rounded">
-                      <span className="text-gray-500 font-medium block mb-1">One Time Cost</span>
-                      <span className="text-gray-900 font-semibold">{proposal.one_time}</span>
-                    </div>
-                  )}
-                  {proposal.rate && (
-                    <div className="bg-gray-50 p-2 rounded">
-                      <span className="text-gray-500 font-medium block mb-1">Rate</span>
-                      <span className="text-gray-900 font-semibold">{proposal.rate}</span>
-                    </div>
-                  )}
                 </div>
+
+                {/* Products Section */}
+                {proposal.products && proposal.products.length > 0 && (
+                  <div className="mt-4 space-y-3">
+                    <h4 className="font-bold text-gray-900">Products ({proposal.products.length})</h4>
+                    {proposal.products.map((product, index) => (
+                      <div key={index} className="bg-purple-50 border border-purple-200 p-4 rounded-lg">
+                        <div className="flex items-center justify-between mb-3">
+                          <h5 className="font-bold text-purple-900">{product.product_name || `Product ${index + 1}`}</h5>
+                          <span className="text-xs bg-purple-200 text-purple-800 px-2 py-1 rounded">Product {index + 1}</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          {product.users && (
+                            <div>
+                              <span className="text-purple-700 font-medium">Users:</span>
+                              <span className="text-purple-900 ml-2">{product.users}</span>
+                            </div>
+                          )}
+                          {product.price_per_user && (
+                            <div>
+                              <span className="text-purple-700 font-medium">Price/User:</span>
+                              <span className="text-purple-900 ml-2">₹{product.price_per_user.toLocaleString('en-IN')}</span>
+                            </div>
+                          )}
+                          {product.one_time_cost && (
+                            <div>
+                              <span className="text-purple-700 font-medium">One-Time Cost:</span>
+                              <span className="text-purple-900 ml-2">₹{product.one_time_cost.toLocaleString('en-IN')}</span>
+                            </div>
+                          )}
+                          {product.minimum_billing && (
+                            <div>
+                              <span className="text-purple-700 font-medium">Min. Billing:</span>
+                              <span className="text-purple-900 ml-2">₹{product.minimum_billing.toLocaleString('en-IN')}</span>
+                            </div>
+                          )}
+                        </div>
+                        {product.additional_fees && product.additional_fees.length > 0 && (
+                          <div className="mt-3 pt-3 border-t border-purple-300">
+                            <span className="text-xs text-purple-700 font-bold block mb-2">Additional Fees:</span>
+                            <div className="space-y-1">
+                              {product.additional_fees.map((fee, fIndex) => (
+                                <div key={fIndex} className="flex justify-between text-xs bg-white rounded px-2 py-1">
+                                  <span className="text-gray-700">{fee.name}</span>
+                                  <span className="text-gray-900 font-semibold">₹{fee.value.toLocaleString('en-IN')}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 {proposal.comments && (
                   <div className="bg-gray-50 p-2 rounded mt-3">
                     <span className="text-gray-500 font-medium text-xs block mb-1">Comments</span>
