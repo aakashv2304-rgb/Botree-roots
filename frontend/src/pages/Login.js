@@ -48,20 +48,11 @@ const Login = () => {
       {/* Header with Logo */}
       <div className="absolute top-0 left-0 right-0 px-8 py-6 animate-fade-in">
         <div className="flex items-center gap-3">
-          <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-              <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#7518F2" />
-                <stop offset="100%" stopColor="#E64AD1" />
-              </linearGradient>
-            </defs>
-            <path d="M20 0L32 12L20 24L8 12L20 0Z" fill="url(#logoGradient)"/>
-            <path d="M20 16L32 28L20 40L8 28L20 16Z" fill="url(#logoGradient)" opacity="0.7"/>
-          </svg>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">BOTREE</h1>
-            <p className="text-xs text-gray-600 tracking-wide">SOFTWARE</p>
-          </div>
+          <img 
+            src="https://customer-assets-7cd3h4nn.emergentagent.net/job_proposal-tracker-app/artifacts/12kvgckj_Botree%20Logo-white-bg.webp" 
+            alt="Botree Software Logo" 
+            className="h-12 w-auto"
+          />
         </div>
       </div>
 
