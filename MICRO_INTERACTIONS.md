@@ -1,7 +1,7 @@
 # 🎨 Micro-Interactions & Animations Guide
 
 ## Overview
-This document describes all the micro-interactions and animations implemented in the Botree Proposal Tracker.
+This document describes all the micro-interactions and animations implemented in the Botree Botree Roots.
 
 ---
 

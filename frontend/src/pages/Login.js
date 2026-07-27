@@ -66,7 +66,7 @@ const Login = () => {
               <h2 className="text-3xl font-bold text-gray-900">
                 Welcome Back
               </h2>
-              <p className="text-gray-600">Sign in to Proposal Tracker</p>
+              <p className="text-gray-600">Sign in to Botree Roots</p>
             </div>
 
             {/* Login Form */}
@@ -135,7 +135,7 @@ const Login = () => {
             {/* Footer */}
             <div className="text-center pt-6 border-t border-gray-100 animate-fade-in" style={{animationDelay: '0.5s'}}>
               <p className="text-xs text-gray-500">
-                Botree Software © 2026 | <span className="font-semibold">Proposal Tracker</span>
+                Botree Software © 2026 | <span className="font-semibold">Botree Roots</span>
               </p>
               <p className="text-xs text-gray-400 mt-1">
                 Secure Authentication System

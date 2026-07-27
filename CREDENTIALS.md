@@ -1,4 +1,4 @@
-# 🔐 Botree Proposal Tracker - All User Credentials
+# 🔐 Botree Botree Roots - All User Credentials
 
 ## Demo User Accounts
 
@@ -93,5 +93,5 @@ Simply click on any role button (Sales, CGO, Finance, Legal, CFO, Admin) to auto
 ---
 
 **Generated**: 2026-07-27
-**System**: Botree Proposal Tracker
+**System**: Botree Botree Roots
 **Environment**: Demo/Testing

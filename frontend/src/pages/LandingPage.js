@@ -66,7 +66,7 @@ const LandingPage = () => {
             <BotreeArrowLogo width={40} height={40} />
             <div>
               <h1 className="text-xl font-bold">Botree Software</h1>
-              <p className="text-xs text-gray-400">Proposal Tracker</p>
+              <p className="text-xs text-gray-400">Botree Roots</p>
             </div>
           </div>
           <Button 
