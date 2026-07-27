@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Sidebar from '../components/Sidebar';
+import PageTransition from '../components/PageTransition';
 import Overview from './Overview';
 import PendingApprovals from './PendingApprovals';
 import ApprovedProposals from './ApprovedProposals';
@@ -19,15 +20,17 @@ const Dashboard = () => {
     <div className="flex min-h-screen bg-[#F4F4F5]">
       <Sidebar />
       <div className="flex-1">
-        <Routes>
-          <Route path="/" element={<Overview />} />
-          <Route path="/pending" element={<PendingApprovals />} />
-          <Route path="/approved" element={<ApprovedProposals />} />
-          <Route path="/users" element={<UserManagement />} />
-          <Route path="/proposal/:id" element={<ProposalDetail />} />
-          <Route path="/proposal/:id/edit" element={<EditProposal />} />
-          <Route path="/new" element={<NewProposal />} />
-        </Routes>
+        <PageTransition key={location.pathname}>
+          <Routes location={location}>
+            <Route path="/" element={<Overview />} />
+            <Route path="/pending" element={<PendingApprovals />} />
+            <Route path="/approved" element={<ApprovedProposals />} />
+            <Route path="/users" element={<UserManagement />} />
+            <Route path="/proposal/:id" element={<ProposalDetail />} />
+            <Route path="/proposal/:id/edit" element={<EditProposal />} />
+            <Route path="/new" element={<NewProposal />} />
+          </Routes>
+        </PageTransition>
       </div>
     </div>
   );

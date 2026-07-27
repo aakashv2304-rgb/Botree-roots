@@ -144,9 +144,9 @@ const Overview = () => {
 
       {/* KPI Overview Bar */}
       <div className="bg-[#1F2937] border-b border-[#374151] px-6 py-4">
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-4 gap-4 stagger-children">
           {/* Active Queue */}
-          <div className="bg-[#111827] border border-[#374151] rounded-lg p-3">
+          <div className="bg-[#111827] border border-[#374151] rounded-lg p-3 hover-lift transition-colors-smooth">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Active Pipeline</span>
               <FileText size={16} className="text-indigo-400" />
@@ -162,7 +162,7 @@ const Overview = () => {
           </div>
 
           {/* SLA Health */}
-          <div className="bg-[#111827] border border-[#374151] rounded-lg p-3">
+          <div className="bg-[#111827] border border-[#374151] rounded-lg p-3 hover-lift transition-colors-smooth">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">SLA Health</span>
               <Warning size={16} className={analytics.slaHealth?.critical_count > 0 ? "text-red-400" : "text-emerald-400"} />
@@ -170,13 +170,13 @@ const Overview = () => {
             <div className="flex items-baseline gap-3">
               <span className="text-2xl font-bold text-white">{analytics.slaHealth?.health_percentage || 0}%</span>
               {analytics.slaHealth?.critical_count > 0 && (
-                <span className="text-xs text-red-400 font-semibold">{analytics.slaHealth.critical_count} Critical</span>
+                <span className="text-xs text-red-400 font-semibold badge-pulse">{analytics.slaHealth.critical_count} Critical</span>
               )}
             </div>
           </div>
 
           {/* Deal Value */}
-          <div className="bg-[#111827] border border-[#374151] rounded-lg p-3">
+          <div className="bg-[#111827] border border-[#374151] rounded-lg p-3 hover-lift transition-colors-smooth">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Pipeline Value</span>
               <CurrencyDollar size={16} className="text-emerald-400" />
@@ -188,7 +188,7 @@ const Overview = () => {
           </div>
 
           {/* Throughput */}
-          <div className="bg-[#111827] border border-[#374151] rounded-lg p-3">
+          <div className="bg-[#111827] border border-[#374151] rounded-lg p-3 hover-lift transition-colors-smooth">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">30-Day Velocity</span>
               <TrendUp size={16} className="text-emerald-400" />
@@ -239,7 +239,7 @@ const Overview = () => {
                           key={proposal.id}
                           onClick={() => navigate(`/dashboard/proposal/${proposal.id}`)}
                           data-testid={`proposal-${proposal.id}`}
-                          className="hover:bg-[#374151]/30 cursor-pointer transition-colors"
+                          className="hover:bg-[#374151]/30 cursor-pointer transition-all duration-200 hover:scale-[1.01] hover:shadow-lg"
                         >
                           <td className="py-2 px-3 text-gray-300 font-mono text-xs">#{String(index + 1).padStart(3, '0')}</td>
                           <td className="py-2 px-3">
