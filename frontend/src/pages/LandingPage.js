@@ -1,11 +1,61 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import BotreeArrowLogo from '../components/BotreeArrowLogo';
-import { FileText, ArrowRight, CheckCircle, Clock, CurrencyDollar } from '@phosphor-icons/react';
+import { FileText, ArrowRight, CheckCircle, Clock, CurrencyDollar, Bell, TrendUp } from '@phosphor-icons/react';
+import axios from 'axios';
+
+const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const LandingPage = () => {
   const navigate = useNavigate();
+  const [user, setUser] = useState(null);
+  const [pendingStats, setPendingStats] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    checkAuthAndFetchStats();
+  }, []);
+
+  const checkAuthAndFetchStats = async () => {
+    try {
+      // Check if user is logged in
+      const { data: userData } = await axios.get(`${API}/auth/me`, { withCredentials: true });
+      setUser(userData);
+      
+      // Fetch proposals
+      const { data: proposals } = await axios.get(`${API}/proposals`, { withCredentials: true });
+      
+      // Calculate pending reviews based on role
+      let pendingCount = 0;
+      let needsRevisionCount = 0;
+      
+      if (userData.role === 'Sales') {
+        // Sales: count proposals needing revision
+        needsRevisionCount = proposals.filter(p => p.status === 'needs_revision' && p.created_by.id === userData.id).length;
+        pendingCount = proposals.filter(p => p.status !== 'approved' && p.created_by.id === userData.id).length;
+      } else {
+        // Other roles: count proposals waiting for their approval
+        const roleStageMap = {
+          'CGO': 'cgo_review',
+          'Finance': 'finance_review',
+          'Legal': 'legal_review',
+          'CFO': 'cfo_review'
+        };
+        const targetStatus = roleStageMap[userData.role];
+        if (targetStatus) {
+          pendingCount = proposals.filter(p => p.status === targetStatus).length;
+        }
+      }
+      
+      setPendingStats({ pendingCount, needsRevisionCount, totalProposals: proposals.length });
+    } catch (error) {
+      // User not logged in, that's fine
+      setUser(null);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0F172A] via-[#1E293B] to-[#0F172A] text-white">

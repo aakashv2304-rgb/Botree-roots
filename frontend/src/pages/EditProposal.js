@@ -28,7 +28,8 @@ const EditProposal = () => {
     customer_name: '',
     industry: '',
     comments: '',
-    deal_value: ''
+    deal_value: '',
+    change_note: ''
   });
   const [fileName, setFileName] = useState('');
 
@@ -51,7 +52,8 @@ const EditProposal = () => {
         customer_name: data.customer_name || '',
         industry: data.industry || '',
         comments: data.comments || '',
-        deal_value: data.deal_value || ''
+        deal_value: data.deal_value || '',
+        change_note: ''
       });
       setFileName(data.file_info.filename);
     } catch (error) {
@@ -98,7 +100,8 @@ const EditProposal = () => {
         customer_name: formData.customer_name,
         industry: formData.industry,
         comments: formData.comments,
-        deal_value: formData.deal_value ? parseFloat(formData.deal_value) : null
+        deal_value: formData.deal_value ? parseFloat(formData.deal_value) : null,
+        change_note: formData.change_note
       }, { withCredentials: true });
 
       toast.success('Proposal updated and resubmitted successfully');
@@ -211,6 +214,19 @@ const EditProposal = () => {
                   placeholder="Product name"
                 />
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="change_note">Change Note <span className="text-red-500">*</span></Label>
+              <Textarea
+                id="change_note"
+                value={formData.change_note}
+                onChange={(e) => setFormData({ ...formData, change_note: e.target.value })}
+                placeholder="Explain what changes were made based on reviewer feedback..."
+                rows={3}
+                required
+              />
+              <p className="text-xs text-gray-500">Required: Describe what you changed after the review feedback</p>
             </div>
 
             <div className="space-y-2">

@@ -164,6 +164,7 @@ class ProposalCreate(BaseModel):
     industry: Optional[str] = None
     comments: Optional[str] = None
     deal_value: Optional[float] = None
+    change_note: Optional[str] = None
 
 class ProposalAction(BaseModel):
     comment: Optional[str] = None
@@ -404,12 +405,15 @@ async def create_proposal(proposal: ProposalCreate, request: Request):
     if not file_doc:
         raise HTTPException(status_code=404, detail="File not found")
     
-    new_proposal = {
+    now = datetime.now(timezone.utc)
+    version_label = f"v1_{now.strftime('%Y-%m-%d')}"
+    
+    # Create first version
+    version_data = {
+        "version_number": 1,
+        "version_label": version_label,
         "title": proposal.title,
         "description": proposal.description,
-        "status": "sales_submitted",
-        "current_stage": 1,
-        "created_by": current_user["id"],
         "file_info": {
             "id": file_doc["id"],
             "filename": file_doc["original_filename"],
@@ -424,14 +428,38 @@ async def create_proposal(proposal: ProposalCreate, request: Request):
         "industry": proposal.industry,
         "comments": proposal.comments,
         "deal_value": proposal.deal_value,
+        "created_by": current_user["id"],
+        "created_at": now.isoformat(),
+        "change_note": "Initial version"
+    }
+    
+    new_proposal = {
+        "title": proposal.title,
+        "description": proposal.description,
+        "status": "sales_submitted",
+        "current_stage": 1,
+        "current_version": 1,
+        "is_closed": False,
+        "created_by": current_user["id"],
+        "file_info": version_data["file_info"],
+        "one_time": proposal.one_time,
+        "product": proposal.product,
+        "users": proposal.users,
+        "rate": proposal.rate,
+        "customer_name": proposal.customer_name,
+        "industry": proposal.industry,
+        "comments": proposal.comments,
+        "deal_value": proposal.deal_value,
+        "versions": [version_data],
         "history": [{
             "action": "created",
             "by": {"id": current_user["id"], "name": current_user["name"], "role": current_user["role"]},
             "comment": "Proposal submitted",
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "version": 1,
+            "timestamp": now.isoformat()
         }],
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "updated_at": datetime.now(timezone.utc).isoformat()
+        "created_at": now.isoformat(),
+        "updated_at": now.isoformat()
     }
     
     result = await db.proposals.insert_one(new_proposal)
@@ -443,6 +471,7 @@ async def create_proposal(proposal: ProposalCreate, request: Request):
         "description": new_proposal["description"],
         "status": new_proposal["status"],
         "current_stage": new_proposal["current_stage"],
+        "current_version": new_proposal["current_version"],
         "created_by": current_user,
         "file_info": new_proposal["file_info"],
         "history": new_proposal["history"],
@@ -482,6 +511,8 @@ async def get_proposals(request: Request, status: Optional[str] = None, search: 
             "description": p["description"],
             "status": p["status"],
             "current_stage": p["current_stage"],
+            "current_version": p.get("current_version", 1),
+            "is_closed": p.get("is_closed", False),
             "created_by": {"id": str(creator["_id"]), "name": creator["name"], "role": creator["role"]},
             "file_info": p["file_info"],
             "one_time": p.get("one_time"),
@@ -517,6 +548,8 @@ async def get_proposal(proposal_id: str, request: Request):
         "description": proposal["description"],
         "status": proposal["status"],
         "current_stage": proposal["current_stage"],
+        "current_version": proposal.get("current_version", 1),
+        "is_closed": proposal.get("is_closed", False),
         "created_by": {"id": str(creator["_id"]), "name": creator["name"], "role": creator["role"]},
         "file_info": proposal["file_info"],
         "one_time": proposal.get("one_time"),
@@ -527,10 +560,36 @@ async def get_proposal(proposal_id: str, request: Request):
         "industry": proposal.get("industry"),
         "comments": proposal.get("comments"),
         "deal_value": proposal.get("deal_value"),
+        "versions": proposal.get("versions", []),
         "history": proposal["history"],
         "created_at": proposal["created_at"],
         "updated_at": proposal["updated_at"]
     }
+
+@api_router.get("/proposals/{proposal_id}/versions")
+async def get_proposal_versions(proposal_id: str, request: Request):
+    await get_current_user(request)
+    
+    proposal = await db.proposals.find_one({"_id": ObjectId(proposal_id)})
+    if not proposal:
+        raise HTTPException(status_code=404, detail="Proposal not found")
+    
+    versions = proposal.get("versions", [])
+    
+    # Enrich each version with creator info
+    enriched_versions = []
+    for v in versions:
+        creator = await db.users.find_one({"_id": ObjectId(v["created_by"])})
+        creator_info = {"name": "Unknown", "role": "Unknown"}
+        if creator:
+            creator_info = {"name": creator["name"], "role": creator["role"]}
+        
+        enriched_versions.append({
+            **v,
+            "created_by": creator_info
+        })
+    
+    return {"versions": enriched_versions}
 
 @api_router.put("/proposals/{proposal_id}")
 async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: Request):
@@ -548,21 +607,55 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
         raise HTTPException(status_code=403, detail="You can only edit your own proposals")
     
     if existing_proposal["status"] != "needs_revision":
-        raise HTTPException(status_code=400, detail="Can only edit rejected proposals")
+        raise HTTPException(status_code=400, detail="Can only edit proposals that need revision")
+    
+    # Check if proposal is closed
+    if existing_proposal.get("is_closed", False):
+        raise HTTPException(status_code=400, detail="Cannot edit a closed/rejected proposal")
     
     # Verify new file if provided
     file_doc = await db.files.find_one({"id": proposal.file_id, "is_deleted": False})
     if not file_doc:
         raise HTTPException(status_code=404, detail="File not found")
     
+    now = datetime.now(timezone.utc)
+    new_version_number = existing_proposal.get("current_version", 1) + 1
+    version_label = f"v{new_version_number}_{now.strftime('%Y-%m-%d')}"
+    
+    # Create new version
+    new_version = {
+        "version_number": new_version_number,
+        "version_label": version_label,
+        "title": proposal.title,
+        "description": proposal.description,
+        "file_info": {
+            "id": file_doc["id"],
+            "filename": file_doc["original_filename"],
+            "size": file_doc["size"],
+            "storage_path": file_doc["storage_path"]
+        },
+        "one_time": proposal.one_time,
+        "product": proposal.product,
+        "users": proposal.users,
+        "rate": proposal.rate,
+        "customer_name": proposal.customer_name,
+        "industry": proposal.industry,
+        "comments": proposal.comments,
+        "deal_value": proposal.deal_value,
+        "created_by": current_user["id"],
+        "created_at": now.isoformat(),
+        "change_note": proposal.change_note or "Revised after review feedback"
+    }
+    
     history_entry = {
         "action": "updated",
         "by": {"id": current_user["id"], "name": current_user["name"], "role": current_user["role"]},
-        "comment": "Proposal updated and resubmitted",
-        "timestamp": datetime.now(timezone.utc).isoformat()
+        "comment": f"Proposal updated to {version_label} and resubmitted",
+        "version": new_version_number,
+        "timestamp": now.isoformat()
     }
     
-    # Update proposal and reset to first stage
+    # Update proposal with new version and reset to first stage
     await db.proposals.update_one(
         {"_id": ObjectId(proposal_id)},
         {
@@ -571,12 +664,8 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
                 "description": proposal.description,
                 "status": "sales_submitted",
                 "current_stage": 1,
-                "file_info": {
-                    "id": file_doc["id"],
-                    "filename": file_doc["original_filename"],
-                    "size": file_doc["size"],
-                    "storage_path": file_doc["storage_path"]
-                },
+                "current_version": new_version_number,
+                "file_info": new_version["file_info"],
                 "one_time": proposal.one_time,
                 "product": proposal.product,
                 "users": proposal.users,
@@ -585,15 +674,18 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
                 "industry": proposal.industry,
                 "comments": proposal.comments,
                 "deal_value": proposal.deal_value,
-                "updated_at": datetime.now(timezone.utc).isoformat()
+                "updated_at": now.isoformat()
             },
-            "$push": {"history": history_entry}
+            "$push": {
+                "history": history_entry,
+                "versions": new_version
+            }
         }
     )
     
-    logger.info(f"[EMAIL] Proposal '{proposal.title}' updated and resubmitted by {current_user['name']} - CGO should be notified")
+    logger.info(f"[EMAIL] Proposal '{proposal.title}' updated to {version_label} by {current_user['name']} - CGO should be notified")
     
-    return {"message": "Proposal updated and resubmitted successfully"}
+    return {"message": f"Proposal updated to {version_label} and resubmitted successfully", "version": version_label}
 
 @api_router.post("/proposals/{proposal_id}/approve")
 async def approve_proposal(proposal_id: str, action: ProposalAction, request: Request):
@@ -609,10 +701,13 @@ async def approve_proposal(proposal_id: str, action: ProposalAction, request: Re
     if stage_info["role"] != current_user["role"]:
         raise HTTPException(status_code=403, detail="Not your turn to approve")
     
+    current_version = proposal.get("current_version", 1)
+    
     history_entry = {
         "action": "approved",
         "by": {"id": current_user["id"], "name": current_user["name"], "role": current_user["role"]},
         "comment": action.comment or "Approved",
+        "version": current_version,
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
     
@@ -641,7 +736,11 @@ async def approve_proposal(proposal_id: str, action: ProposalAction, request: Re
 
 @api_router.post("/proposals/{proposal_id}/reject")
 async def reject_proposal(proposal_id: str, action: ProposalAction, request: Request):
+    """Permanently close/reject a proposal - cannot be reopened"""
     current_user = await get_current_user(request)
+    
+    if not action.comment or not action.comment.strip():
+        raise HTTPException(status_code=400, detail="Rejection comment is mandatory")
     
     proposal = await db.proposals.find_one({"_id": ObjectId(proposal_id)})
     if not proposal:
@@ -653,10 +752,58 @@ async def reject_proposal(proposal_id: str, action: ProposalAction, request: Req
     if stage_info["role"] != current_user["role"]:
         raise HTTPException(status_code=403, detail="Not your turn to reject")
     
+    current_version = proposal.get("current_version", 1)
+    
     history_entry = {
-        "action": "rejected",
+        "action": "rejected_closed",
         "by": {"id": current_user["id"], "name": current_user["name"], "role": current_user["role"]},
-        "comment": action.comment or "Sent back to Sales for revision",
+        "comment": action.comment,
+        "version": current_version,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.proposals.update_one(
+        {"_id": ObjectId(proposal_id)},
+        {
+            "$set": {
+                "status": "rejected",
+                "is_closed": True,
+                "updated_at": datetime.now(timezone.utc).isoformat()
+            },
+            "$push": {"history": history_entry}
+        }
+    )
+    
+    creator = await db.users.find_one({"_id": ObjectId(proposal["created_by"])})
+    logger.info(f"[EMAIL] Proposal '{proposal['title']}' permanently rejected by {current_user['name']}")
+    
+    return {"message": "Proposal rejected and closed permanently", "new_status": "rejected"}
+
+@api_router.post("/proposals/{proposal_id}/return-for-revision")
+async def return_for_revision(proposal_id: str, action: ProposalAction, request: Request):
+    """Return proposal to Sales for revision - can be edited and resubmitted"""
+    current_user = await get_current_user(request)
+    
+    if not action.comment or not action.comment.strip():
+        raise HTTPException(status_code=400, detail="Revision notes are mandatory when returning for revision")
+    
+    proposal = await db.proposals.find_one({"_id": ObjectId(proposal_id)})
+    if not proposal:
+        raise HTTPException(status_code=404, detail="Proposal not found")
+    
+    current_stage = proposal["current_stage"]
+    stage_info = WORKFLOW_STAGES[current_stage]
+    
+    if stage_info["role"] != current_user["role"]:
+        raise HTTPException(status_code=403, detail="Not your turn to return for revision")
+    
+    current_version = proposal.get("current_version", 1)
+    
+    history_entry = {
+        "action": "returned_for_revision",
+        "by": {"id": current_user["id"], "name": current_user["name"], "role": current_user["role"]},
+        "comment": action.comment,
+        "version": current_version,
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
     
@@ -673,9 +820,9 @@ async def reject_proposal(proposal_id: str, action: ProposalAction, request: Req
     )
     
     creator = await db.users.find_one({"_id": ObjectId(proposal["created_by"])})
-    logger.info(f"[EMAIL] Proposal '{proposal['title']}' rejected by {current_user['name']} - sent back to {creator['name']}")
+    logger.info(f"[EMAIL] Proposal '{proposal['title']}' returned for revision by {current_user['name']} to {creator['name']}")
     
-    return {"message": "Proposal sent back to Sales", "new_status": "needs_revision"}
+    return {"message": "Proposal returned to Sales for revision", "new_status": "needs_revision"}
 
 @api_router.get("/proposals/{proposal_id}/download")
 async def download_proposal_file(proposal_id: str, request: Request):

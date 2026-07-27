@@ -7,7 +7,7 @@ import { Textarea } from '../components/ui/textarea';
 import { Label } from '../components/ui/label';
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
-import { ArrowLeft, Check, Clock, Download, ArrowBendUpLeft } from '@phosphor-icons/react';
+import { ArrowLeft, Check, Clock, Download, ArrowBendUpLeft, X, GitBranch, ListNumbers } from '@phosphor-icons/react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -25,12 +25,15 @@ const ProposalDetail = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [proposal, setProposal] = useState(null);
+  const [versions, setVersions] = useState([]);
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [loading, setLoading] = useState(true);
   const [comment, setComment] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
 
   useEffect(() => {
     fetchProposal();
+    fetchVersionHistory();
   }, [id]);
 
   const fetchProposal = async () => {
@@ -41,6 +44,15 @@ const ProposalDetail = () => {
       toast.error('Failed to fetch proposal');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchVersionHistory = async () => {
+    try {
+      const { data } = await axios.get(`${API}/proposals/${id}/versions`, { withCredentials: true });
+      setVersions(data.versions || []);
+    } catch (error) {
+      console.error('Failed to fetch version history');
     }
   };
 
@@ -60,17 +72,35 @@ const ProposalDetail = () => {
 
   const handleReject = async () => {
     if (!comment.trim()) {
-      toast.error('Please add a comment when rejecting');
+      toast.error('Please add a comment when permanently rejecting');
       return;
     }
     setActionLoading(true);
     try {
       await axios.post(`${API}/proposals/${id}/reject`, { comment }, { withCredentials: true });
-      toast.success('Proposal sent back to Sales');
+      toast.success('Proposal permanently rejected');
       fetchProposal();
       setComment('');
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to reject');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleReturnForRevision = async () => {
+    if (!comment.trim()) {
+      toast.error('Please add revision notes when returning for revision');
+      return;
+    }
+    setActionLoading(true);
+    try {
+      await axios.post(`${API}/proposals/${id}/return-for-revision`, { comment }, { withCredentials: true });
+      toast.success('Proposal returned to Sales for revision');
+      fetchProposal();
+      setComment('');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to return for revision');
     } finally {
       setActionLoading(false);
     }
@@ -148,19 +178,45 @@ const ProposalDetail = () => {
           <div className="bg-white border border-[#E4E4E7] p-8 shadow-sm">
             <div className="flex items-start justify-between mb-6">
               <div className="flex-1">
-                <h1 className="text-3xl font-bold tracking-tight mb-2" data-testid="proposal-title">
-                  {proposal.title}
-                </h1>
+                <div className="flex items-center gap-3 mb-2">
+                  <h1 className="text-3xl font-bold tracking-tight" data-testid="proposal-title">
+                    {proposal.title}
+                  </h1>
+                  <Badge className="bg-indigo-100 text-indigo-700 border border-indigo-300 flex items-center gap-1">
+                    <GitBranch size={14} />
+                    {proposal.versions && proposal.versions.length > 0 
+                      ? proposal.versions[proposal.current_version - 1]?.version_label 
+                      : `v${proposal.current_version || 1}`}
+                  </Badge>
+                  {versions.length > 1 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowVersionHistory(!showVersionHistory)}
+                      className="text-xs"
+                    >
+                      <ListNumbers size={16} className="mr-1" />
+                      {versions.length} versions
+                    </Button>
+                  )}
+                </div>
                 <p className="text-gray-600">{proposal.description}</p>
               </div>
               <div className="flex items-center gap-3">
                 <Badge
-                  className={proposal.status === 'approved' ? 'bg-green-500 text-white' : proposal.status === 'needs_revision' ? 'bg-red-500 text-white' : 'bg-amber-500 text-white'}
+                  className={
+                    proposal.status === 'approved' ? 'bg-green-500 text-white' : 
+                    proposal.status === 'rejected' ? 'bg-red-600 text-white' :
+                    proposal.status === 'needs_revision' ? 'bg-amber-500 text-white' : 
+                    'bg-blue-500 text-white'
+                  }
                   data-testid="proposal-status-badge"
                 >
-                  {proposal.status === 'approved' ? 'Approved' : proposal.status === 'needs_revision' ? 'Needs Revision' : 'Pending'}
+                  {proposal.status === 'approved' ? 'Approved' : 
+                   proposal.status === 'rejected' ? 'Rejected (Closed)' :
+                   proposal.status === 'needs_revision' ? 'Needs Revision' : 'Pending'}
                 </Badge>
-                {canEdit() && (
+                {canEdit() && !proposal.is_closed && (
                   <Button
                     onClick={() => navigate(`/dashboard/proposal/${id}/edit`)}
                     className="text-white font-semibold shadow-lg"
@@ -256,6 +312,55 @@ const ProposalDetail = () => {
             )}
           </div>
 
+          {/* Version History */}
+          {showVersionHistory && versions.length > 1 && (
+            <div className="bg-white border border-[#E4E4E7] p-8 shadow-sm">
+              <h2 className="text-xl font-bold tracking-tight mb-6 flex items-center gap-2">
+                <GitBranch size={24} />
+                Version History
+              </h2>
+              <div className="space-y-4">
+                {versions.slice().reverse().map((version, index) => (
+                  <div 
+                    key={version.version_number} 
+                    className={`p-4 rounded-lg border ${
+                      version.version_number === proposal.current_version 
+                        ? 'border-indigo-500 bg-indigo-50' 
+                        : 'border-gray-200 bg-gray-50'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <Badge className={
+                          version.version_number === proposal.current_version 
+                            ? 'bg-indigo-600 text-white' 
+                            : 'bg-gray-400 text-white'
+                        }>
+                          {version.version_label}
+                        </Badge>
+                        {version.version_number === proposal.current_version && (
+                          <span className="text-xs text-indigo-600 font-semibold">CURRENT</span>
+                        )}
+                      </div>
+                      <span className="text-xs text-gray-500">
+                        {new Date(version.created_at).toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="text-sm space-y-1">
+                      <p><strong>Title:</strong> {version.title}</p>
+                      <p><strong>Customer:</strong> {version.customer_name || 'N/A'}</p>
+                      <p><strong>Deal Value:</strong> {version.deal_value ? `₹${version.deal_value.toLocaleString('en-IN')}` : 'N/A'}</p>
+                      <p><strong>Change Note:</strong> {version.change_note}</p>
+                      <p className="text-xs text-gray-500">
+                        <strong>Created by:</strong> {version.created_by?.name || 'Unknown'} ({version.created_by?.role || 'Unknown'})
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="bg-white border border-[#E4E4E7] p-8 shadow-sm">
             <h2 className="text-xl font-bold tracking-tight mb-6" style={{ fontFamily: 'Cabinet Grotesk, system-ui, sans-serif' }}>Workflow Progress</h2>
             
@@ -297,16 +402,27 @@ const ProposalDetail = () => {
               {proposal.history.map((entry, index) => (
                 <div key={index} className="flex gap-4 pb-4 border-b border-[#E4E4E7] last:border-0" data-testid={`history-${index}`}>
                   <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <span className="font-semibold text-sm">{entry.by.name}</span>
                       <span className="text-xs text-[#71717A]">({entry.by.role})</span>
                       <Badge
                         className={`text-xs ${
-                          entry.action === 'approved' ? 'bg-[#10B981] text-white' : entry.action === 'rejected' ? 'bg-[#EF4444] text-white' : 'bg-[#E4E4E7] text-[#09090B]'
+                          entry.action === 'approved' ? 'bg-[#10B981] text-white' : 
+                          entry.action === 'rejected_closed' ? 'bg-[#DC2626] text-white' :
+                          entry.action === 'returned_for_revision' ? 'bg-[#F59E0B] text-white' :
+                          entry.action === 'rejected' ? 'bg-[#EF4444] text-white' : 
+                          'bg-[#E4E4E7] text-[#09090B]'
                         }`}
                       >
-                        {entry.action}
+                        {entry.action === 'rejected_closed' ? 'Rejected (Closed)' :
+                         entry.action === 'returned_for_revision' ? 'Returned for Revision' :
+                         entry.action}
                       </Badge>
+                      {entry.version && (
+                        <Badge variant="outline" className="text-xs">
+                          v{entry.version}
+                        </Badge>
+                      )}
                     </div>
                     <p className="text-sm text-[#71717A] mb-1">{entry.comment}</p>
                     <p className="text-xs text-[#A1A1AA]">{new Date(entry.timestamp).toLocaleString()}</p>
@@ -324,12 +440,12 @@ const ProposalDetail = () => {
               
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="comment">Comment (optional for approval, required for rejection)</Label>
+                  <Label htmlFor="comment">Comment</Label>
                   <Textarea
                     id="comment"
                     value={comment}
                     onChange={(e) => setComment(e.target.value)}
-                    placeholder="Add your comments..."
+                    placeholder="Add your comments (required for reject/return)..."
                     rows={4}
                     data-testid="action-comment-input"
                   />
@@ -346,16 +462,31 @@ const ProposalDetail = () => {
                     {actionLoading ? 'Processing...' : 'Approve'}
                   </Button>
                   <Button
+                    onClick={handleReturnForRevision}
+                    disabled={actionLoading}
+                    data-testid="return-button"
+                    variant="outline"
+                    className="w-full border-amber-500 text-amber-600 hover:bg-amber-500 hover:text-white"
+                  >
+                    <ArrowBendUpLeft size={20} className="mr-2" />
+                    {actionLoading ? 'Processing...' : 'Return for Revision'}
+                  </Button>
+                  <Button
                     onClick={handleReject}
                     disabled={actionLoading}
                     data-testid="reject-button"
                     variant="outline"
                     className="w-full border-[#EF4444] text-[#EF4444] hover:bg-[#EF4444] hover:text-white"
                   >
-                    <ArrowBendUpLeft size={20} className="mr-2" />
-                    {actionLoading ? 'Processing...' : 'Send Back to Sales'}
+                    <X size={20} className="mr-2" />
+                    {actionLoading ? 'Processing...' : 'Reject Permanently'}
                   </Button>
                 </div>
+                <p className="text-xs text-gray-500 border-t pt-3">
+                  <strong>Return for Revision:</strong> Sends back to Sales for editing (resubmittable).
+                  <br />
+                  <strong>Reject Permanently:</strong> Closes proposal (cannot be reopened).
+                </p>
               </div>
             </div>
           </div>
