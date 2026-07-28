@@ -149,6 +149,12 @@ backend:
       - working: "NA"
         agent: "main"
         comment: "Installed resend>=2.0.0, added RESEND_API_KEY and SENDER_EMAIL to .env. Created send_workflow_notification() function. Integrated email notifications in: POST /proposals (notify CGO), POST /proposals/{id}/approve (notify next approver or creator), POST /proposals/{id}/reject (notify creator), POST /proposals/{id}/return-for-revision (notify creator). Uses async non-blocking email sending with HTML templates."
+      - working: false
+        agent: "testing"
+        comment: "Email code is correct but domain botree.co.in is not verified in Resend. All emails rejected with domain verification error."
+      - working: "NA"
+        agent: "main"
+        comment: "Changed SENDER_EMAIL from noreply@botree.co.in to onboarding@resend.dev (Resend's verified default domain) for testing. Backend restarted. Ready for retest."
 
 frontend:
   - task: "Add Department dropdown in User Creation form"
@@ -182,3 +188,7 @@ test_plan:
 agent_communication:
   - agent: "main"
     message: "Implemented Resend email notifications. User provided API key: re_KjTskzK2_ANHtbo8qTp8AiTH1nnErHWvg and sender email: noreply@botree.co.in. Integrated in all workflow endpoints. Need to test: 1) Email sent when proposal created (to CGO), 2) Email sent when approved (to next approver), 3) Email sent when rejected (to creator), 4) Email sent when returned for revision (to creator). Backend restarted successfully."
+  - agent: "testing"
+    message: "Email notification code is correctly implemented and wired. However, botree.co.in domain is not verified in Resend, causing all emails to fail with domain verification error. Code paths are correct, async pattern works, failures don't block workflow."
+  - agent: "main"
+    message: "Changed SENDER_EMAIL to onboarding@resend.dev (Resend's verified default) per user request. Backend restarted. Need to retest all 4 email triggers and verify successful email delivery with Email IDs in logs."

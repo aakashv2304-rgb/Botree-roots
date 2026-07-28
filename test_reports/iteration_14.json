@@ -1,0 +1,31 @@
+{
+  "summary": "Sender change to onboarding@resend.dev FIXED the previous 'botree.co.in domain not verified' error, but exposed a new Resend restriction. All 4 workflow triggers (create/approve/reject/return-for-revision) execute correctly and call Resend, but Resend rejects every send because the account is in test/sandbox mode: 'You can only send testing emails to your own email address (aakashv2304@gmail.com).' No emails are actually delivered to CGO, Finance, or the creator. Zero 'Email sent to ... - Email ID: ...' INFO log lines observed.",
+  "tested_scope": ["backend", "integration"],
+  "passed": [
+    "Login for Sales and CGO via cookie auth (200)",
+    "POST /api/proposals (Sales) returns 200 and triggers CGO notification code path",
+    "POST /api/proposals/{id}/approve (CGO) transitions status to finance_review (200) and triggers Finance notification",
+    "POST /api/proposals/{id}/reject (CGO) transitions status to rejected (200) and triggers creator notification",
+    "POST /api/proposals/{id}/return-for-revision (CGO) transitions status to needs_revision (200) and triggers creator notification",
+    "Previous domain-verification error is GONE — sender onboarding@resend.dev is accepted by Resend",
+    "Email failures continue to be non-blocking; workflow transitions persist correctly",
+    "[EMAIL] INFO log context lines appear for all 4 triggers (create, approve, reject, return)"
+  ],
+  "failed": [
+    {
+      "area": "Resend account tier / sandbox restriction",
+      "issue": "Resend now rejects every send with: 'You can only send testing emails to your own email address (aakashv2304@gmail.com). To send emails to other recipients, please verify a domain at resend.com/domains, and change the from address to an email using this domain.' This affects ALL 4 workflow triggers — no email is delivered to varun.gupta@botree.co.in (CGO), aakash.vimalanathan@botree.co.in (Finance), or sales@botree.com (creator).",
+      "evidence": "Backend log at /var/log/supervisor/backend.*.log — 6 consecutive 'Failed to send email notification: You can only send testing emails to your own email address (aakashv2304@gmail.com)' ERROR lines between 08:23:18 and 08:23:50 across create/approve/reject/return operations. Zero 'Email sent to ... - Email ID:' success lines.",
+      "priority": "HIGH"
+    }
+  ],
+  "action_items": [
+    "The Resend account is on the free/testing tier, which — even with the onboarding@resend.dev sender — only permits sending to the account owner's email (aakashv2304@gmail.com). To actually deliver to CGO/Finance/creator recipients, you MUST verify a custom domain (e.g., botree.co.in) at https://resend.com/domains and set SENDER_EMAIL to an address on that verified domain (e.g., no-reply@botree.co.in). OR upgrade the Resend account plan.",
+    "For an immediate smoke-test of delivery, temporarily change the recipient in send_workflow_notification to aakashv2304@gmail.com — Resend will accept and deliver, confirming the code path end-to-end. This is only for validation, not production.",
+    "After domain verification + SENDER_EMAIL update, re-run create -> approve -> reject -> return and confirm 'Email sent to ... - Email ID: ...' INFO log lines appear."
+  ],
+  "success_rate": {"backend": "100% (code paths, workflow API), 0% (actual email delivery)", "frontend": "not tested"},
+  "retest_needed": true,
+  "full_testing_deferred": true,
+  "notes": "Code implementation is correct and robust. Blocker is purely Resend account configuration (sandbox mode). The switch to onboarding@resend.dev resolved the domain-verification error but did not enable free sending to arbitrary recipients — this is a documented Resend policy."
+}
