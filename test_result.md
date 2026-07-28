@@ -107,40 +107,52 @@ user_problem_statement: "Update system with production employee emails and add d
 backend:
   - task: "Add department field to user schema and endpoints"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Added department field to UserCreate, UserResponse, RegisterRequest models. Updated /api/users GET and POST endpoints to handle department. Added validation for department field (Sales, CGO, Finance, Legal, CFO, Admin)."
+      - working: true
+        agent: "testing"
+        comment: "Backend fully validated. Department field required (422 without it), whitelist validation works (400 for invalid values), all endpoints return department correctly."
   
   - task: "Seed production users with department mapping"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Updated seed_users() function to create 4 new production users with @botree.co.in emails and correct departments. Kept existing Sales users. Updated existing users to add department field if missing."
+      - working: true
+        agent: "testing"
+        comment: "All 4 production users verified: varun.gupta@botree.co.in (CGO), chandra.prakash@botree.co.in (CFO), anakha.sajikumar@botree.co.in (Legal), aakash.vimalanathan@botree.co.in (Finance). All login successfully with Botree@123."
+      - working: true
+        agent: "main"
+        comment: "Cleaned up legacy test users. Only production users and Sales user remain."
 
 frontend:
   - task: "Add Department dropdown in User Creation form"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/frontend/src/pages/UserManagement.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Added Department dropdown field (required) in user creation form with options: Sales, CGO, Finance, Legal, CFO, Admin. Added Department column to user table to display department for each user."
+      - working: true
+        agent: "testing"
+        comment: "Frontend fully validated. Department column visible in user table, all 4 production users display with correct department badges. Create User modal has Department dropdown with all 6 options."
 
 metadata:
   created_by: "main_agent"
