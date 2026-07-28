@@ -1,0 +1,30 @@
+{
+  "summary": "Backend email notification wiring verified for all 4 workflow triggers (create/approve/reject/return-for-revision). Emails are dispatched non-blockingly via asyncio.to_thread and failures do NOT block workflow (proposals still transition correctly). HOWEVER: Resend API rejects EVERY send with 'The botree.co.in domain is not verified.' — no email is actually delivered.",
+  "tested_scope": ["backend", "integration"],
+  "passed": [
+    "Login for Sales, CGO, Finance users via cookie auth",
+    "POST /api/proposals creates proposal (200) and triggers send_workflow_notification to CGO",
+    "POST /api/proposals/{id}/approve as CGO transitions status to finance_review (200) and triggers notification to Finance",
+    "POST /api/proposals/{id}/reject as CGO transitions status to rejected (200) and triggers notification to creator",
+    "POST /api/proposals/{id}/return-for-revision as CGO transitions status to needs_revision (200) and triggers notification to creator",
+    "Email failures do NOT block workflow — all 4 endpoints return 200 and DB status updates persist even when Resend send throws",
+    "Async non-blocking pattern confirmed (asyncio.to_thread wrapping resend.Emails.send, log entries in expected order)",
+    "Exceptions caught in send_workflow_notification and logged as ERROR (no 500s bubble up)"
+  ],
+  "failed": [
+    {
+      "area": "Resend integration / domain configuration",
+      "issue": "Every email send returns error: 'The botree.co.in domain is not verified. Please, add and verify your domain on https://resend.com/domains'. No email is actually delivered to any recipient (CGO, Finance, or creator). Zero successful 'Email sent to ... - Email ID: ...' log lines were observed across all 8 send attempts (4 workflow events x 2 test runs).",
+      "evidence": "Backend log lines from /var/log/supervisor/backend.*.log e.g. '2026-07-28 06:53:38,916 - server - ERROR - Failed to send email notification: The botree.co.in domain is not verified.' repeated for create/approve/reject/return.",
+      "priority": "HIGH"
+    }
+  ],
+  "action_items": [
+    "Verify the botree.co.in domain in the Resend dashboard (https://resend.com/domains) — add SPF/DKIM DNS records — OR temporarily set SENDER_EMAIL to Resend's default onboarding@resend.dev for testing. Until domain is verified, NO emails will be delivered even though code path is correct.",
+    "After domain verification, re-run the same create→approve→reject→return flow and confirm 'Email sent to ... - Email ID: ...' INFO log lines appear (and recipients actually get the message)."
+  ],
+  "success_rate": {"backend": "100% (code paths)", "frontend": "not tested"},
+  "retest_needed": true,
+  "full_testing_deferred": true,
+  "notes": "Resend API key is valid and reachable (Resend responds with a specific domain-verification error, not an auth error). This is purely a Resend account/DNS setup issue — code implementation is correct and robust (graceful failure, non-blocking async, all 4 triggers wired)."
+}

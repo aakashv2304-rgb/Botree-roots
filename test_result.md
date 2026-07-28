@@ -102,7 +102,7 @@
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
 
-user_problem_statement: "Update system with production employee emails and add department assignment during Admin user creation. Department field is required for all new user creations and should be visible in the user table."
+user_problem_statement: "Implement email notifications for workflow stage transitions using Resend. Email should be sent when: 1) Proposal is created (notify CGO), 2) Proposal is approved (notify next approver), 3) Proposal is rejected (notify creator), 4) Proposal is returned for revision (notify creator)"
 
 backend:
   - task: "Add department field to user schema and endpoints"
@@ -138,6 +138,18 @@ backend:
         agent: "main"
         comment: "Cleaned up legacy test users. Only production users and Sales user remain."
 
+  - task: "Email notifications for workflow transitions"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Installed resend>=2.0.0, added RESEND_API_KEY and SENDER_EMAIL to .env. Created send_workflow_notification() function. Integrated email notifications in: POST /proposals (notify CGO), POST /proposals/{id}/approve (notify next approver or creator), POST /proposals/{id}/reject (notify creator), POST /proposals/{id}/return-for-revision (notify creator). Uses async non-blocking email sending with HTML templates."
+
 frontend:
   - task: "Add Department dropdown in User Creation form"
     implemented: true
@@ -156,19 +168,17 @@ frontend:
 
 metadata:
   created_by: "main_agent"
-  version: "1.0"
-  test_sequence: 1
-  run_ui: true
+  version: "1.1"
+  test_sequence: 2
+  run_ui: false
 
 test_plan:
   current_focus:
-    - "Add department field to user schema and endpoints"
-    - "Seed production users with department mapping"
-    - "Add Department dropdown in User Creation form"
+    - "Email notifications for workflow transitions"
   stuck_tasks: []
-  test_all: true
+  test_all: false
   test_priority: "high_first"
 
 agent_communication:
   - agent: "main"
-    message: "Implemented department field across backend and frontend. Updated user schema, API endpoints, seed script with production emails, and UI. Need to test: 1) Department field is required during user creation 2) Production users exist with correct departments 3) Department column shows in user table 4) Department validation works (only allowed values accepted)"
+    message: "Implemented Resend email notifications. User provided API key: re_KjTskzK2_ANHtbo8qTp8AiTH1nnErHWvg and sender email: noreply@botree.co.in. Integrated in all workflow endpoints. Need to test: 1) Email sent when proposal created (to CGO), 2) Email sent when approved (to next approver), 3) Email sent when rejected (to creator), 4) Email sent when returned for revision (to creator). Backend restarted successfully."

@@ -14,6 +14,8 @@ import bcrypt
 import jwt
 from bson import ObjectId
 import requests
+import asyncio
+import resend
 from reportlab.lib.pagesizes import letter, A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
@@ -57,6 +59,11 @@ JWT_SECRET = os.environ.get("JWT_SECRET")
 APP_NAME = "proposal-tracker"
 STORAGE_URL = "https://integrations.emergentagent.com/objstore/api/v1/storage"
 EMERGENT_KEY = os.environ.get("EMERGENT_LLM_KEY")
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
+SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "noreply@botree.co.in")
+
+# Initialize Resend
+resend.api_key = RESEND_API_KEY
 
 # Storage key (module-level)
 storage_key = None
@@ -147,6 +154,92 @@ def get_object(path: str) -> tuple:
     )
     resp.raise_for_status()
     return resp.content, resp.headers.get("Content-Type", "application/octet-stream")
+
+# Email notification functions
+async def send_workflow_notification(
+    recipient_email: str, 
+    recipient_name: str,
+    proposal_title: str, 
+    proposal_id: str,
+    stage: str,
+    action: str,  # "assigned", "approved", "rejected", "returned"
+    comment: Optional[str] = None
+):
+    """Send email notification for workflow stage transitions"""
+    try:
+        if not RESEND_API_KEY:
+            logger.warning("RESEND_API_KEY not configured, skipping email notification")
+            return
+        
+        # Build subject based on action
+        if action == "assigned":
+            subject = f"New Proposal Assigned: {proposal_title}"
+            action_text = f"A new proposal has been assigned to you for {stage} review"
+        elif action == "approved":
+            subject = f"Proposal Approved: {proposal_title}"
+            action_text = f"The proposal has been approved at {stage}"
+        elif action == "rejected":
+            subject = f"Proposal Rejected: {proposal_title}"
+            action_text = f"The proposal has been rejected at {stage}"
+        elif action == "returned":
+            subject = f"Proposal Returned for Revision: {proposal_title}"
+            action_text = f"The proposal has been returned for revision from {stage}"
+        else:
+            action_text = f"Update on proposal at {stage}"
+        
+        # Build HTML email
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <style>
+                body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                .header {{ background: linear-gradient(135deg, #F72585 0%, #7209B7 100%); color: white; padding: 20px; border-radius: 8px 8px 0 0; }}
+                .content {{ background: #f9f9f9; padding: 30px; border: 1px solid #ddd; border-top: none; }}
+                .footer {{ background: #333; color: white; padding: 15px; text-align: center; border-radius: 0 0 8px 8px; font-size: 12px; }}
+                .btn {{ display: inline-block; padding: 12px 24px; background: linear-gradient(135deg, #F72585 0%, #7209B7 100%); color: white; text-decoration: none; border-radius: 6px; margin: 20px 0; }}
+                .comment-box {{ background: white; padding: 15px; border-left: 4px solid #7209B7; margin: 15px 0; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1 style="margin: 0;">Botree Roots</h1>
+                    <p style="margin: 5px 0 0 0;">Proposal Workflow Notification</p>
+                </div>
+                <div class="content">
+                    <h2 style="color: #7209B7;">Hello {recipient_name},</h2>
+                    <p><strong>{action_text}</strong></p>
+                    <p><strong>Proposal:</strong> {proposal_title}</p>
+                    <p><strong>Stage:</strong> {stage}</p>
+                    {f'<div class="comment-box"><strong>Comment:</strong><br>{comment}</div>' if comment else ''}
+                    <p>Please log in to Botree Roots to review and take action on this proposal.</p>
+                </div>
+                <div class="footer">
+                    <p>&copy; 2026 Botree Software Solutions. All rights reserved.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        params = {
+            "from": SENDER_EMAIL,
+            "to": [recipient_email],
+            "subject": subject,
+            "html": html_content
+        }
+        
+        # Send email asynchronously (non-blocking)
+        email_result = await asyncio.to_thread(resend.Emails.send, params)
+        logger.info(f"Email sent to {recipient_email} for proposal {proposal_id} - Email ID: {email_result.get('id')}")
+        return email_result
+        
+    except Exception as e:
+        logger.error(f"Failed to send email notification: {str(e)}")
+        # Don't raise exception - email failures shouldn't block workflow
+        return None
 
 # Models
 class LoginRequest(BaseModel):
@@ -509,10 +602,27 @@ async def create_proposal(proposal: ProposalCreate, request: Request):
     }
     
     result = await db.proposals.insert_one(new_proposal)
+    proposal_id = str(result.inserted_id)
     logger.info(f"[EMAIL] New proposal '{proposal.title}' created by {current_user['name']} - CGO should be notified")
     
+    # Notify CGO (next stage after Sales submission)
+    cgo_user = await db.users.find_one(
+        {"department": "CGO"},
+        {"_id": 0, "email": 1, "name": 1}
+    )
+    if cgo_user:
+        await send_workflow_notification(
+            recipient_email=cgo_user["email"],
+            recipient_name=cgo_user["name"],
+            proposal_title=proposal.title,
+            proposal_id=proposal_id,
+            stage="CGO Review",
+            action="assigned",
+            comment=None
+        )
+    
     response_proposal = {
-        "id": str(result.inserted_id),
+        "id": proposal_id,
         "title": new_proposal["title"],
         "description": new_proposal["description"],
         "status": new_proposal["status"],
@@ -1017,11 +1127,40 @@ async def approve_proposal(proposal_id: str, action: ProposalAction, request: Re
         }
     )
     
+    # Send email notification
     if new_status == "approved":
         logger.info(f"[EMAIL] Proposal '{proposal['title']}' fully approved by {current_user['name']}")
+        # Notify proposal creator
+        creator = await db.users.find_one({"_id": ObjectId(proposal["created_by"])}, {"_id": 0})
+        if creator:
+            await send_workflow_notification(
+                recipient_email=creator["email"],
+                recipient_name=creator["name"],
+                proposal_title=proposal["title"],
+                proposal_id=proposal_id,
+                stage="Final Approval",
+                action="approved",
+                comment=action.comment
+            )
     else:
         next_role = WORKFLOW_STAGES[next_stage]["role"]
         logger.info(f"[EMAIL] Proposal '{proposal['title']}' approved by {current_user['name']} - moving to {next_role}")
+        
+        # Find next approver by department/role
+        next_approver = await db.users.find_one(
+            {"department": next_role},
+            {"_id": 0, "email": 1, "name": 1}
+        )
+        if next_approver:
+            await send_workflow_notification(
+                recipient_email=next_approver["email"],
+                recipient_name=next_approver["name"],
+                proposal_title=proposal["title"],
+                proposal_id=proposal_id,
+                stage=WORKFLOW_STAGES[next_stage]["label"],
+                action="assigned",
+                comment=action.comment
+            )
     
     return {"message": "Proposal approved", "new_status": new_status}
 
@@ -1065,8 +1204,20 @@ async def reject_proposal(proposal_id: str, action: ProposalAction, request: Req
         }
     )
     
-    creator = await db.users.find_one({"_id": ObjectId(proposal["created_by"])})
+    # Notify proposal creator
+    creator = await db.users.find_one({"_id": ObjectId(proposal["created_by"])}, {"_id": 0})
     logger.info(f"[EMAIL] Proposal '{proposal['title']}' permanently rejected by {current_user['name']}")
+    
+    if creator:
+        await send_workflow_notification(
+            recipient_email=creator["email"],
+            recipient_name=creator["name"],
+            proposal_title=proposal["title"],
+            proposal_id=proposal_id,
+            stage=stage_info["label"],
+            action="rejected",
+            comment=action.comment
+        )
     
     return {"message": "Proposal rejected and closed permanently", "new_status": "rejected"}
 
@@ -1110,8 +1261,20 @@ async def return_for_revision(proposal_id: str, action: ProposalAction, request:
         }
     )
     
-    creator = await db.users.find_one({"_id": ObjectId(proposal["created_by"])})
+    # Notify proposal creator
+    creator = await db.users.find_one({"_id": ObjectId(proposal["created_by"])}, {"_id": 0})
     logger.info(f"[EMAIL] Proposal '{proposal['title']}' returned for revision by {current_user['name']} to {creator['name']}")
+    
+    if creator:
+        await send_workflow_notification(
+            recipient_email=creator["email"],
+            recipient_name=creator["name"],
+            proposal_title=proposal["title"],
+            proposal_id=proposal_id,
+            stage=stage_info["label"],
+            action="returned",
+            comment=action.comment
+        )
     
     return {"message": "Proposal returned to Sales for revision", "new_status": "needs_revision"}
 
