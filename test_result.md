@@ -101,3 +101,62 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: "Update system with production employee emails and add department assignment during Admin user creation. Department field is required for all new user creations and should be visible in the user table."
+
+backend:
+  - task: "Add department field to user schema and endpoints"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Added department field to UserCreate, UserResponse, RegisterRequest models. Updated /api/users GET and POST endpoints to handle department. Added validation for department field (Sales, CGO, Finance, Legal, CFO, Admin)."
+  
+  - task: "Seed production users with department mapping"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Updated seed_users() function to create 4 new production users with @botree.co.in emails and correct departments. Kept existing Sales users. Updated existing users to add department field if missing."
+
+frontend:
+  - task: "Add Department dropdown in User Creation form"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/pages/UserManagement.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Added Department dropdown field (required) in user creation form with options: Sales, CGO, Finance, Legal, CFO, Admin. Added Department column to user table to display department for each user."
+
+metadata:
+  created_by: "main_agent"
+  version: "1.0"
+  test_sequence: 1
+  run_ui: true
+
+test_plan:
+  current_focus:
+    - "Add department field to user schema and endpoints"
+    - "Seed production users with department mapping"
+    - "Add Department dropdown in User Creation form"
+  stuck_tasks: []
+  test_all: true
+  test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: "Implemented department field across backend and frontend. Updated user schema, API endpoints, seed script with production emails, and UI. Need to test: 1) Department field is required during user creation 2) Production users exist with correct departments 3) Department column shows in user table 4) Department validation works (only allowed values accepted)"

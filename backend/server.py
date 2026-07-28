@@ -158,18 +158,21 @@ class RegisterRequest(BaseModel):
     password: str
     name: str
     role: str
+    department: str
 
 class UserCreate(BaseModel):
     email: EmailStr
     password: str
     name: str
     role: str
+    department: str
 
 class UserResponse(BaseModel):
     id: str
     email: str
     name: str
     role: str
+    department: str
     created_at: str
 
 class AdditionalFee(BaseModel):
@@ -234,12 +237,12 @@ async def seed_users():
     admin_password = os.environ.get("ADMIN_PASSWORD", "Admin@123")
     
     users_to_seed = [
-        {"email": admin_email, "password": admin_password, "name": "System Admin", "role": "Admin"},
-        {"email": "finance@botree.com", "password": "Finance@123", "name": "Finance User", "role": "Finance"},
-        {"email": "sales@botree.com", "password": "Sales@123", "name": "Sales User", "role": "Sales"},
-        {"email": "cgo@botree.com", "password": "CGO@123", "name": "CGO User", "role": "CGO"},
-        {"email": "legal@botree.com", "password": "Legal@123", "name": "Legal User", "role": "Legal"},
-        {"email": "cfo@botree.com", "password": "CFO@123", "name": "CFO User", "role": "CFO"},
+        {"email": admin_email, "password": admin_password, "name": "System Admin", "role": "Admin", "department": "Admin"},
+        {"email": "sales@botree.com", "password": "Sales@123", "name": "Sales User", "role": "Sales", "department": "Sales"},
+        {"email": "varun.gupta@botree.co.in", "password": "Botree@123", "name": "Varun Gupta", "role": "CGO", "department": "CGO"},
+        {"email": "aakash.vimalanathan@botree.co.in", "password": "Botree@123", "name": "Aakash Vimalanathan", "role": "Finance", "department": "Finance"},
+        {"email": "anakha.sajikumar@botree.co.in", "password": "Botree@123", "name": "Anakha Sajikumar", "role": "Legal", "department": "Legal"},
+        {"email": "chandra.prakash@botree.co.in", "password": "Botree@123", "name": "Chandra Prakash", "role": "CFO", "department": "CFO"},
     ]
     
     for user_data in users_to_seed:
@@ -251,20 +254,32 @@ async def seed_users():
                 "password_hash": hashed,
                 "name": user_data["name"],
                 "role": user_data["role"],
+                "department": user_data["department"],
                 "created_at": datetime.now(timezone.utc).isoformat()
             })
             logger.info(f"Seeded user: {user_data['email']}")
-        elif not verify_password(user_data["password"], existing["password_hash"]):
-            await db.users.update_one(
-                {"email": user_data["email"]},
-                {"$set": {"password_hash": hash_password(user_data["password"])}}
-            )
+        else:
+            # Update existing users with department field if missing
+            update_fields = {}
+            if "department" not in existing:
+                update_fields["department"] = user_data["department"]
+            if not verify_password(user_data["password"], existing["password_hash"]):
+                update_fields["password_hash"] = hash_password(user_data["password"])
+            if update_fields:
+                await db.users.update_one(
+                    {"email": user_data["email"]},
+                    {"$set": update_fields}
+                )
+                logger.info(f"Updated user: {user_data['email']}")
     
     # Write test credentials
     with open("/app/memory/test_credentials.md", "w") as f:
-        f.write("# Test Credentials\n\n")
+        f.write("# Production Credentials - Botree Roots\n\n")
+        f.write("## Live Production Users\n\n")
         for user_data in users_to_seed:
-            f.write(f"- **{user_data['role']}**: {user_data['email']} / {user_data['password']}\n")
+            f.write(f"- **{user_data['role']} ({user_data['department']})**: {user_data['email']} / {user_data['password']}\n")
+        f.write("\n## Workflow Order\n")
+        f.write("Sales → CGO → Finance → Legal → CFO → Approved\n")
         f.write("\n## Auth Endpoints\n")
         f.write("- POST /api/auth/login\n")
         f.write("- POST /api/auth/logout\n")
@@ -288,7 +303,8 @@ async def login(request: LoginRequest, response: Response):
         "id": user_id,
         "email": user["email"],
         "name": user["name"],
-        "role": user["role"]
+        "role": user["role"],
+        "department": user.get("department", "")
     }
 
 @api_router.post("/auth/logout")
@@ -310,13 +326,18 @@ async def get_users(request: Request):
         raise HTTPException(status_code=403, detail="Only Admin can manage users")
     
     users = await db.users.find({}, {"password_hash": 0}).to_list(1000)
-    return [{"id": str(u["_id"]), "email": u["email"], "name": u["name"], "role": u["role"], "created_at": u["created_at"]} for u in users]
+    return [{"id": str(u["_id"]), "email": u["email"], "name": u["name"], "role": u["role"], "department": u.get("department", ""), "created_at": u["created_at"]} for u in users]
 
 @api_router.post("/users")
 async def create_user(user_data: UserCreate, request: Request):
     current_user = await get_current_user(request)
     if current_user["role"] != "Admin":
         raise HTTPException(status_code=403, detail="Only Admin can create users")
+    
+    # Validate department
+    valid_departments = ["Sales", "CGO", "Finance", "Legal", "CFO", "Admin"]
+    if user_data.department not in valid_departments:
+        raise HTTPException(status_code=400, detail=f"Invalid department. Must be one of: {', '.join(valid_departments)}")
     
     existing = await db.users.find_one({"email": user_data.email.lower()})
     if existing:
@@ -328,6 +349,7 @@ async def create_user(user_data: UserCreate, request: Request):
         "password_hash": hashed,
         "name": user_data.name,
         "role": user_data.role,
+        "department": user_data.department,
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     result = await db.users.insert_one(new_user)
@@ -337,6 +359,7 @@ async def create_user(user_data: UserCreate, request: Request):
         "email": new_user["email"],
         "name": new_user["name"],
         "role": new_user["role"],
+        "department": new_user["department"],
         "created_at": new_user["created_at"]
     }
 

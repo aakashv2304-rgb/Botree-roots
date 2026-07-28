@@ -1,0 +1,31 @@
+{
+  "summary": "Verified department field integration end-to-end. Backend enforces department as required + whitelist; login and users endpoints return department. Frontend User Management shows Department column and all 4 production users (varun.gupta, chandra.prakash, anakha.sajikumar, aakash.vimalanathan) with correct roles+departments. Create User modal exposes Department dropdown with all 6 allowed values.",
+  "tested_scope": ["backend", "frontend", "auth", "integration"],
+  "passed": [
+    "Admin login (admin@botree.com/Admin@123) returns department=Admin",
+    "All 4 production users login successfully with Botree@123 and return correct department: Varun Gupta (CGO), Chandra Prakash (CFO), Anakha Sajikumar (Legal), Aakash Vimalanathan (Finance)",
+    "GET /api/users returns department field for every user",
+    "POST /api/users without department -> 422 (Field required)",
+    "POST /api/users with invalid department 'Marketing' -> 400 with clear message listing allowed values",
+    "POST /api/users with department=Sales -> 200, department echoed in response",
+    "DELETE /api/users/{id} works (cleanup)",
+    "Frontend /dashboard/users page loads with Department column header",
+    "All 4 production users visible in the user table with correct department badges",
+    "Add User modal opens; Name, Email, Password, Role dropdown, and Department dropdown are all present",
+    "Department options rendered: Admin, Sales, CGO, Finance, Legal, CFO"
+  ],
+  "failed": [
+    {
+      "area": "backend/seed-data",
+      "issue": "Legacy seeded users (finance@botree.com, cgo@botree.com, legal@botree.com, cfo@botree.com) still have department='' (empty string) in DB and render as 'N/A' in UI. Not a validation failure (created before enforcement), but is pre-existing legacy data that violates the new required-department rule if updated via POST.",
+      "evidence": "GET /api/users shows department: '' for finance/cgo/legal/cfo @botree.com. Frontend column shows 'N/A' for them.",
+      "priority": "LOW"
+    }
+  ],
+  "action_items": [
+    "OPTIONAL: Backfill department field for legacy @botree.com users (finance/cgo/legal/cfo) so they align with the department requirement, or delete these legacy accounts if only the .co.in production users are meant to be active."
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "retest_needed": false,
+  "full_testing_deferred": true
+}

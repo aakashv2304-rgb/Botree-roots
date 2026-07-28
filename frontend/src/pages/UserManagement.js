@@ -20,7 +20,7 @@ const UserManagement = () => {
   const [editRoleOpen, setEditRoleOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [newRole, setNewRole] = useState('');
-  const [formData, setFormData] = useState({ email: '', password: '', name: '', role: 'Sales' });
+  const [formData, setFormData] = useState({ email: '', password: '', name: '', role: 'Sales', department: 'Sales' });
 
   useEffect(() => {
     if (user?.role === 'Admin') {
@@ -45,7 +45,7 @@ const UserManagement = () => {
       await axios.post(`${API}/users`, formData, { withCredentials: true });
       toast.success('User created successfully');
       setOpen(false);
-      setFormData({ email: '', password: '', name: '', role: 'Sales' });
+      setFormData({ email: '', password: '', name: '', role: 'Sales', department: 'Sales' });
       fetchUsers();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to create user');
@@ -160,6 +160,22 @@ const UserManagement = () => {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="department">Department <span className="text-red-500">*</span></Label>
+                <Select value={formData.department} onValueChange={(value) => setFormData({ ...formData, department: value })} required>
+                  <SelectTrigger data-testid="user-department-select">
+                    <SelectValue placeholder="Select department" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Sales">Sales</SelectItem>
+                    <SelectItem value="CGO">CGO</SelectItem>
+                    <SelectItem value="Finance">Finance</SelectItem>
+                    <SelectItem value="Legal">Legal</SelectItem>
+                    <SelectItem value="CFO">CFO</SelectItem>
+                    <SelectItem value="Admin">Admin</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <Button type="submit" data-testid="submit-user-button" className="w-full text-white font-semibold shadow-lg" style={{background: 'linear-gradient(135deg, #F72585 0%, #7209B7 100%)'}}>
                 Create User
               </Button>
@@ -176,6 +192,7 @@ const UserManagement = () => {
                 <th className="p-4 text-xs uppercase tracking-wider text-gray-600 font-semibold">Name</th>
                 <th className="p-4 text-xs uppercase tracking-wider text-gray-600 font-semibold">Email</th>
                 <th className="p-4 text-xs uppercase tracking-wider text-gray-600 font-semibold">Role</th>
+                <th className="p-4 text-xs uppercase tracking-wider text-gray-600 font-semibold">Department</th>
                 <th className="p-4 text-xs uppercase tracking-wider text-gray-600 font-semibold">Created</th>
                 <th className="p-4 text-xs uppercase tracking-wider text-gray-600 font-semibold">Actions</th>
               </tr>
@@ -188,6 +205,11 @@ const UserManagement = () => {
                   <td className="p-4">
                     <span className="inline-block px-3 py-1 text-xs font-medium text-white rounded-full" style={{background: 'linear-gradient(135deg, #F72585 0%, #7209B7 100%)'}}>
                       {u.role}
+                    </span>
+                  </td>
+                  <td className="p-4">
+                    <span className="inline-block px-3 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded-full">
+                      {u.department || 'N/A'}
                     </span>
                   </td>
                   <td className="p-4 text-gray-600 text-sm">{new Date(u.created_at).toLocaleDateString()}</td>
