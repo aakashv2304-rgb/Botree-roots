@@ -171,6 +171,12 @@ async def send_workflow_notification(
             logger.warning("RESEND_API_KEY not configured, skipping email notification")
             return
         
+        # TEMPORARY FOR TESTING: Route all emails to Resend account owner (sandbox mode restriction)
+        # TODO: Remove this override after domain verification
+        original_recipient = recipient_email
+        recipient_email = "aakashv2304@gmail.com"
+        logger.info(f"[TEST MODE] Routing email from {original_recipient} to {recipient_email}")
+        
         # Build subject based on action
         if action == "assigned":
             subject = f"New Proposal Assigned: {proposal_title}"
@@ -209,6 +215,7 @@ async def send_workflow_notification(
                     <p style="margin: 5px 0 0 0;">Proposal Workflow Notification</p>
                 </div>
                 <div class="content">
+                    <p style="background: #fff3cd; padding: 10px; border-left: 4px solid #ffc107; margin-bottom: 20px;"><strong>🧪 TEST MODE:</strong> This email was originally intended for <strong>{original_recipient}</strong></p>
                     <h2 style="color: #7209B7;">Hello {recipient_name},</h2>
                     <p><strong>{action_text}</strong></p>
                     <p><strong>Proposal:</strong> {proposal_title}</p>

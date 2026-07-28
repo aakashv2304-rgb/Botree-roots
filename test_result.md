@@ -155,6 +155,12 @@ backend:
       - working: "NA"
         agent: "main"
         comment: "Changed SENDER_EMAIL from noreply@botree.co.in to onboarding@resend.dev (Resend's verified default domain) for testing. Backend restarted. Ready for retest."
+      - working: false
+        agent: "testing"
+        comment: "Resend sandbox mode only allows sending to aakashv2304@gmail.com. All other recipients blocked."
+      - working: "NA"
+        agent: "main"
+        comment: "Added email routing override - ALL emails now route to aakashv2304@gmail.com for testing. Email content shows original intended recipient. Backend restarted."
 
 frontend:
   - task: "Add Department dropdown in User Creation form"

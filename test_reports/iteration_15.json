@@ -1,0 +1,19 @@
+{
+  "summary": "Verified Resend email notifications for all 4 workflow triggers. All emails routed to aakashv2304@gmail.com successfully with unique Resend email IDs. No Resend errors observed for current test run.",
+  "tested_scope": ["backend", "integration"],
+  "passed": [
+    "Sales creates proposal -> [TEST MODE] Routing email from varun.gupta@botree.co.in to aakashv2304@gmail.com -> Email ID: 79d06c8e-926c-4a06-900f-40a3496226aa",
+    "CGO approves proposal -> [TEST MODE] Routing from aakash.vimalanathan@botree.co.in to aakashv2304@gmail.com -> Email ID: 6572a194-c8cb-486f-9e09-490fa812aadd",
+    "Finance rejects proposal -> [TEST MODE] Routing from sales@botree.com to aakashv2304@gmail.com -> Email ID: 9a81eaa1-00ae-4bbb-b729-42fbca4d77b6",
+    "Sales creates 2nd proposal -> Email ID: e8792ff1-b158-437e-9651-8174039de400",
+    "CGO returns for revision -> [TEST MODE] Routing from sales@botree.com to aakashv2304@gmail.com -> Email ID: 5e1c99f5-0930-42a0-a238-47896f1e48c1",
+    "No Resend domain verification errors or sandbox errors in current test run logs",
+    "All 4 workflow API endpoints (create/approve/reject/return-for-revision) responded 200 OK"
+  ],
+  "failed": [],
+  "action_items": [],
+  "success_rate": {"backend": "100%", "frontend": "not tested (backend-only scope)"},
+  "retest_needed": false,
+  "full_testing_deferred": true,
+  "notes": "Email routing override to aakashv2304@gmail.com is working correctly bypassing Resend sandbox restriction. Historical logs from earlier iterations show the previous domain-verification errors that are no longer occurring. Recipient should verify inbox delivery at https://resend.com/emails using the returned Email IDs."
+}
