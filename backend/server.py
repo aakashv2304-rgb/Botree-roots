@@ -57,16 +57,23 @@ logger = logging.getLogger(__name__)
 JWT_ALGORITHM = "HS256"
 JWT_SECRET = os.environ.get("JWT_SECRET")
 APP_NAME = "proposal-tracker"
-STORAGE_URL = "https://integrations.emergentagent.com/objstore/api/v1/storage"
-EMERGENT_KEY = os.environ.get("EMERGENT_LLM_KEY")
+
+# Cookie security: since frontend and backend are served from the SAME origin
+# in production (backend serves the built frontend), "lax" + secure-in-prod is enough.
+# If you ever split them across two domains, switch to samesite="none" and keep secure=True.
+IS_PRODUCTION = os.environ.get("ENVIRONMENT", "development") == "production"
+COOKIE_SECURE = IS_PRODUCTION
+COOKIE_SAMESITE = "lax"
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
 SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "noreply@botree.co.in")
 
 # Initialize Resend
 resend.api_key = RESEND_API_KEY
 
-# Storage key (module-level)
-storage_key = None
+# File storage: MongoDB GridFS - lives in the same free MongoDB Atlas cluster,
+# no external service or API key required.
+from motor.motor_asyncio import AsyncIOMotorGridFSBucket
+fs_bucket = AsyncIOMotorGridFSBucket(db)
 
 # Workflow stages
 WORKFLOW_STAGES = [
@@ -121,39 +128,18 @@ async def get_current_user(request: Request) -> dict:
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
-# Object storage functions
-def init_storage():
-    global storage_key
-    if storage_key:
-        return storage_key
-    try:
-        resp = requests.post(f"{STORAGE_URL}/init", json={"emergent_key": EMERGENT_KEY}, timeout=30)
-        resp.raise_for_status()
-        storage_key = resp.json()["storage_key"]
-        logger.info("Storage initialized successfully")
-        return storage_key
-    except Exception as e:
-        logger.error(f"Storage init failed: {e}")
-        raise
-
-def put_object(path: str, data: bytes, content_type: str) -> dict:
-    key = init_storage()
-    resp = requests.put(
-        f"{STORAGE_URL}/objects/{path}",
-        headers={"X-Storage-Key": key, "Content-Type": content_type},
-        data=data, timeout=120
+# Object storage functions - MongoDB GridFS (no external service needed)
+async def put_object(path: str, data: bytes, content_type: str) -> dict:
+    file_id = await fs_bucket.upload_from_stream(
+        path, data, metadata={"content_type": content_type}
     )
-    resp.raise_for_status()
-    return resp.json()
+    return {"path": str(file_id), "size": len(data)}
 
-def get_object(path: str) -> tuple:
-    key = init_storage()
-    resp = requests.get(
-        f"{STORAGE_URL}/objects/{path}",
-        headers={"X-Storage-Key": key}, timeout=60
-    )
-    resp.raise_for_status()
-    return resp.content, resp.headers.get("Content-Type", "application/octet-stream")
+async def get_object(path: str) -> tuple:
+    grid_out = await fs_bucket.open_download_stream(ObjectId(path))
+    data = await grid_out.read()
+    content_type = (grid_out.metadata or {}).get("content_type", "application/octet-stream")
+    return data, content_type
 
 # Email notification functions
 async def send_workflow_notification(
@@ -324,12 +310,7 @@ async def startup():
     
     # Seed users
     await seed_users()
-    
-    # Initialize storage
-    try:
-        init_storage()
-    except Exception as e:
-        logger.error(f"Storage initialization failed: {e}")
+    # File storage is MongoDB GridFS - no separate init step needed
 
 async def seed_users():
     # Admin (super admin)
@@ -396,8 +377,8 @@ async def login(request: LoginRequest, response: Response):
     access_token = create_access_token(user_id, user["email"])
     refresh_token = create_refresh_token(user_id)
     
-    response.set_cookie(key="access_token", value=access_token, httponly=True, secure=False, samesite="lax", max_age=3600, path="/")
-    response.set_cookie(key="refresh_token", value=refresh_token, httponly=True, secure=False, samesite="lax", max_age=604800, path="/")
+    response.set_cookie(key="access_token", value=access_token, httponly=True, secure=COOKIE_SECURE, samesite=COOKIE_SAMESITE, max_age=3600, path="/")
+    response.set_cookie(key="refresh_token", value=refresh_token, httponly=True, secure=COOKIE_SECURE, samesite=COOKIE_SAMESITE, max_age=604800, path="/")
     
     return {
         "id": user_id,
@@ -512,7 +493,7 @@ async def upload_proposal_file(file: UploadFile, request: Request):
     path = f"{APP_NAME}/proposals/{current_user['id']}/{uuid.uuid4()}.{ext}"
     data = await file.read()
     
-    result = put_object(path, data, file.content_type or "application/octet-stream")
+    result = await put_object(path, data, file.content_type or "application/octet-stream")
     
     file_doc = {
         "id": str(uuid.uuid4()),
@@ -542,7 +523,7 @@ async def download_file(file_id: str, request: Request):
     if not file_doc:
         raise HTTPException(status_code=404, detail="File not found")
     
-    data, content_type = get_object(file_doc["storage_path"])
+    data, content_type = await get_object(file_doc["storage_path"])
     return FastAPIResponse(content=data, media_type=file_doc.get("content_type", content_type))
 
 # Proposal endpoints
@@ -1294,7 +1275,7 @@ async def download_proposal_file(proposal_id: str, request: Request):
         raise HTTPException(status_code=404, detail="Proposal not found")
     
     file_info = proposal["file_info"]
-    data, content_type = get_object(file_info["storage_path"])
+    data, content_type = await get_object(file_info["storage_path"])
     
     return FastAPIResponse(
         content=data,
@@ -1587,10 +1568,11 @@ async def get_monthly_proposals(request: Request, year: int = None, month: int =
 
 app.include_router(api_router)
 
+_cors_origins_raw = os.environ.get('CORS_ORIGINS', 'http://localhost:3000')
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
+    allow_origins=[o.strip() for o in _cors_origins_raw.split(',') if o.strip()],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -1598,3 +1580,23 @@ app.add_middleware(
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
+
+# --- Serve the built React frontend from this same app (same-origin: no CORS/cookie issues) ---
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+
+FRONTEND_BUILD_DIR = ROOT_DIR / "static"
+
+if FRONTEND_BUILD_DIR.exists():
+    app.mount("/static", StaticFiles(directory=FRONTEND_BUILD_DIR / "static"), name="static-assets")
+
+    @app.get("/{full_path:path}")
+    async def serve_frontend(full_path: str):
+        # Never intercept API routes (already handled above by api_router)
+        if full_path.startswith("api/"):
+            raise HTTPException(status_code=404, detail="Not found")
+        candidate = FRONTEND_BUILD_DIR / full_path
+        if full_path and candidate.exists() and candidate.is_file():
+            return FileResponse(candidate)
+        # Fallback to index.html for React Router (client-side routing)
+        return FileResponse(FRONTEND_BUILD_DIR / "index.html")
