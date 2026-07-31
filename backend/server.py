@@ -294,6 +294,10 @@ class ProposalCreate(BaseModel):
 class ProposalAction(BaseModel):
     comment: Optional[str] = None
 
+class FinanceDetailsUpdate(BaseModel):
+    about_customer: Optional[str] = None
+    profitability: Optional[str] = None
+
 class ProposalResponse(BaseModel):
     id: str
     title: str
@@ -681,7 +685,7 @@ async def get_proposal(proposal_id: str, request: Request):
     if not creator:
         creator = {"_id": proposal["created_by"], "name": "Deleted User", "role": "Unknown"}
     
-    return {
+    response = {
         "id": str(proposal["_id"]),
         "title": proposal["title"],
         "description": proposal["description"],
@@ -701,6 +705,14 @@ async def get_proposal(proposal_id: str, request: Request):
         "created_at": proposal["created_at"],
         "updated_at": proposal["updated_at"]
     }
+
+    # About the Customer & Profitability: Finance-entered, visible only to
+    # Finance/CFO/Admin. Everyone else simply never receives these keys.
+    if current_user["role"] in ("Finance", "CFO", "Admin"):
+        response["about_customer"] = proposal.get("about_customer")
+        response["profitability"] = proposal.get("profitability")
+
+    return response
 
 @api_router.get("/proposals/{proposal_id}/versions")
 async def get_proposal_versions(proposal_id: str, request: Request):
@@ -1073,6 +1085,33 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
     logger.info(f"[EMAIL] Proposal '{proposal.title}' updated to {version_label} by {current_user['name']} - CGO should be notified")
     
     return {"message": f"Proposal updated to {version_label} and resubmitted successfully", "version": version_label}
+
+@api_router.patch("/proposals/{proposal_id}/finance-details")
+async def update_finance_details(proposal_id: str, details: FinanceDetailsUpdate, request: Request):
+    """Finance-only fields: About the Customer & Profitability.
+    Only editable by Finance, and only while the proposal is sitting at the
+    Finance review stage. Visible later to Finance/CFO/Admin only (see get_proposal)."""
+    current_user = await get_current_user(request)
+
+    if current_user["role"] != "Finance":
+        raise HTTPException(status_code=403, detail="Only Finance can edit these fields")
+
+    proposal = await db.proposals.find_one({"_id": ObjectId(proposal_id)})
+    if not proposal:
+        raise HTTPException(status_code=404, detail="Proposal not found")
+
+    finance_stage_index = next(i for i, s in enumerate(WORKFLOW_STAGES) if s["key"] == "finance_review")
+    if proposal["current_stage"] != finance_stage_index:
+        raise HTTPException(status_code=403, detail="These fields can only be edited while the proposal is at the Finance stage")
+
+    update_fields = {"updated_at": datetime.now(timezone.utc).isoformat()}
+    if details.about_customer is not None:
+        update_fields["about_customer"] = details.about_customer
+    if details.profitability is not None:
+        update_fields["profitability"] = details.profitability
+
+    await db.proposals.update_one({"_id": ObjectId(proposal_id)}, {"$set": update_fields})
+    return {"message": "Finance details saved"}
 
 @api_router.post("/proposals/{proposal_id}/approve")
 async def approve_proposal(proposal_id: str, action: ProposalAction, request: Request):
