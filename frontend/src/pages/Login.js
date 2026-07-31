@@ -23,13 +23,17 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    
+
     try {
-      await login(email, password);
-      toast.success('Welcome back!');
-      setTimeout(() => navigate('/dashboard'), 300);
+      const result = await login(email, password);
+      if (result.success) {
+        toast.success('Welcome back!');
+        setTimeout(() => navigate('/dashboard'), 300);
+      } else {
+        toast.error(result.error || 'Invalid credentials');
+      }
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Invalid credentials');
+      toast.error('Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
