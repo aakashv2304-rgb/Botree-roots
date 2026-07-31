@@ -13,3 +13,4 @@ requests==2.34.2
 resend>=2.0.0
 reportlab==5.0.0
 python-multipart==0.0.32
+certifi==2026.6.17
