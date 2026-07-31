@@ -32,6 +32,9 @@ const ProposalDetail = () => {
   const [loading, setLoading] = useState(true);
   const [comment, setComment] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+  const [aboutCustomer, setAboutCustomer] = useState('');
+  const [profitability, setProfitability] = useState('');
+  const [savingFinanceDetails, setSavingFinanceDetails] = useState(false);
 
   useEffect(() => {
     fetchProposal();
@@ -42,6 +45,8 @@ const ProposalDetail = () => {
     try {
       const { data } = await axios.get(`${API}/proposals/${id}`, { withCredentials: true });
       setProposal(data);
+      setAboutCustomer(data.about_customer || '');
+      setProfitability(data.profitability || '');
     } catch (error) {
       toast.error('Failed to fetch proposal');
     } finally {
@@ -69,6 +74,23 @@ const ProposalDetail = () => {
       toast.error(error.response?.data?.detail || 'Failed to approve');
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  const handleSaveFinanceDetails = async () => {
+    setSavingFinanceDetails(true);
+    try {
+      await axios.patch(
+        `${API}/proposals/${id}/finance-details`,
+        { about_customer: aboutCustomer, profitability: profitability },
+        { withCredentials: true }
+      );
+      toast.success('Finance details saved');
+      fetchProposal();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to save finance details');
+    } finally {
+      setSavingFinanceDetails(false);
     }
   };
 
@@ -223,6 +245,15 @@ const ProposalDetail = () => {
     
     const currentStage = WORKFLOW_STAGES[proposal.current_stage];
     return currentStage && currentStage.role === user.role;
+  };
+
+  const canViewFinanceFields = () => ['Finance', 'CFO', 'Admin'].includes(user.role);
+
+  const canEditFinanceFields = () => {
+    if (!proposal) return false;
+    if (user.role !== 'Finance') return false;
+    const currentStage = WORKFLOW_STAGES[proposal.current_stage];
+    return currentStage && currentStage.key === 'finance_review';
   };
 
   const canEdit = () => {
@@ -430,6 +461,70 @@ const ProposalDetail = () => {
                   <div className="bg-gray-50 p-2 rounded mt-3">
                     <span className="text-gray-500 font-medium text-xs block mb-1">Comments</span>
                     <p className="text-gray-900 text-xs">{proposal.comments}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Finance-only: About the Customer & Profitability.
+                Visible only to Finance/CFO/Admin; editable only by Finance
+                while the proposal sits at the Finance stage. */}
+            {canViewFinanceFields() && (
+              <div className="border-t border-gray-200 pt-4 mt-4" data-testid="finance-only-section">
+                <h3 className="text-sm font-heading font-bold text-gray-900 mb-3 flex items-center gap-2">
+                  Finance Notes
+                  <span className="text-[10px] uppercase font-semibold text-purple-700 bg-purple-100 px-2 py-0.5 rounded">
+                    Finance / CFO only
+                  </span>
+                </h3>
+
+                {canEditFinanceFields() ? (
+                  <div className="space-y-4 bg-purple-50 border border-purple-200 rounded-lg p-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="about-customer">About the Customer</Label>
+                      <Textarea
+                        id="about-customer"
+                        value={aboutCustomer}
+                        onChange={(e) => setAboutCustomer(e.target.value)}
+                        placeholder="Background on the customer, relationship history, credit notes, etc."
+                        rows={4}
+                        data-testid="about-customer-input"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="profitability">Profitability</Label>
+                      <Textarea
+                        id="profitability"
+                        value={profitability}
+                        onChange={(e) => setProfitability(e.target.value)}
+                        placeholder="Margin analysis, expected profitability, cost breakdown, etc."
+                        rows={4}
+                        data-testid="profitability-input"
+                      />
+                    </div>
+                    <Button
+                      onClick={handleSaveFinanceDetails}
+                      disabled={savingFinanceDetails}
+                      className="bg-[#9B30FF] hover:bg-[#7518F2] text-white"
+                      data-testid="save-finance-details-button"
+                    >
+                      {savingFinanceDetails ? 'Saving...' : 'Save Finance Notes'}
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-3 text-xs">
+                    <div className="bg-purple-50 p-3 rounded border border-purple-200">
+                      <span className="text-purple-700 font-medium block mb-1">About the Customer</span>
+                      <span className="text-gray-900 whitespace-pre-wrap">
+                        {proposal.about_customer || 'Not filled in yet by Finance.'}
+                      </span>
+                    </div>
+                    <div className="bg-purple-50 p-3 rounded border border-purple-200">
+                      <span className="text-purple-700 font-medium block mb-1">Profitability</span>
+                      <span className="text-gray-900 whitespace-pre-wrap">
+                        {proposal.profitability || 'Not filled in yet by Finance.'}
+                      </span>
+                    </div>
                   </div>
                 )}
               </div>
