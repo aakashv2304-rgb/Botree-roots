@@ -326,11 +326,11 @@ async def seed_users():
     
     users_to_seed = [
         {"email": admin_email, "password": admin_password, "name": "System Admin", "role": "Admin", "department": "Admin"},
-        {"email": "sales@botree.com", "password": "Sales@123", "name": "Sales User", "role": "Sales", "department": "Sales"},
-        {"email": "varun.gupta@botree.co.in", "password": "Botree@123", "name": "Varun Gupta", "role": "CGO", "department": "CGO"},
-        {"email": "aakash.vimalanathan@botree.co.in", "password": "Botree@123", "name": "Aakash Vimalanathan", "role": "Finance", "department": "Finance"},
-        {"email": "anakha.sajikumar@botree.co.in", "password": "Botree@123", "name": "Anakha Sajikumar", "role": "Legal", "department": "Legal"},
-        {"email": "chandra.prakash@botree.co.in", "password": "Botree@123", "name": "Chandra Prakash", "role": "CFO", "department": "CFO"},
+        {"email": "sales@botree.com", "password": "YkiSzhfmtsiEvr", "name": "Sales User", "role": "Sales", "department": "Sales"},
+        {"email": "varun.gupta@botree.co.in", "password": "P3U7AFLWmlQsBU", "name": "Varun Gupta", "role": "CGO", "department": "CGO"},
+        {"email": "aakash.vimalanathan@botree.co.in", "password": "K9b4AvWzTcupdm", "name": "Aakash Vimalanathan", "role": "Finance", "department": "Finance"},
+        {"email": "anakha.sajikumar@botree.co.in", "password": "btir0Bep9u3WqQ", "name": "Anakha Sajikumar", "role": "Legal", "department": "Legal"},
+        {"email": "chandra.prakash@botree.co.in", "password": "HP9jMCSL05QoSp", "name": "Chandra Prakash", "role": "CFO", "department": "CFO"},
     ]
     
     for user_data in users_to_seed:
@@ -360,18 +360,9 @@ async def seed_users():
                 )
                 logger.info(f"Updated user: {user_data['email']}")
     
-    # Write test credentials
-    with open("/app/memory/test_credentials.md", "w") as f:
-        f.write("# Production Credentials - Botree Roots\n\n")
-        f.write("## Live Production Users\n\n")
-        for user_data in users_to_seed:
-            f.write(f"- **{user_data['role']} ({user_data['department']})**: {user_data['email']} / {user_data['password']}\n")
-        f.write("\n## Workflow Order\n")
-        f.write("Sales → CGO → Finance → Legal → CFO → Approved\n")
-        f.write("\n## Auth Endpoints\n")
-        f.write("- POST /api/auth/login\n")
-        f.write("- POST /api/auth/logout\n")
-        f.write("- GET /api/auth/me\n")
+    # (Removed: this used to write all seeded users' plaintext passwords to a
+    # debug file on every startup - a security risk, and also the cause of
+    # this container's crash since that directory doesn't exist here.)
 
 # Auth endpoints
 @api_router.post("/auth/login")
