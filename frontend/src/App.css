@@ -127,6 +127,38 @@ h4, h5, h6 {
   animation: float 3s ease-in-out infinite;
 }
 
+/* Splash screen */
+@keyframes splashLogoIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.6) rotate(-8deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+@keyframes splashDotBounce {
+  0%, 80%, 100% {
+    transform: scale(0.6);
+    opacity: 0.5;
+  }
+  40% {
+    transform: scale(1.1);
+    opacity: 1;
+  }
+}
+
+.splash-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #9B30FF, #E64AD1);
+  display: inline-block;
+  animation: splashDotBounce 1.2s ease-in-out infinite both;
+}
+
 /* Gradient border */
 .gradient-border {
   border: 2px solid transparent;
