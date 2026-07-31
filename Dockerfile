@@ -15,9 +15,13 @@ RUN yarn build
 # ---- Stage 2: backend runtime, serving the built frontend ----
 FROM python:3.11-slim AS backend
 
-# DejaVu fonts needed for ₹ symbol rendering in generated PDFs
+# DejaVu fonts needed for ₹ symbol rendering in generated PDFs.
+# Also force-upgrade openssl/libssl3: the version shipped in this base image
+# has a known TLS handshake bug against MongoDB Atlas (TLSV1_ALERT_INTERNAL_ERROR).
 RUN apt-get update && apt-get install -y --no-install-recommends \
     fonts-dejavu-core \
+    ca-certificates \
+    && apt-get upgrade -y openssl libssl3 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app/backend
