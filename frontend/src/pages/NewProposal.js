@@ -22,16 +22,17 @@ const NewProposal = () => {
     customer_name: '',
     industry: '',
     comments: '',
-    deal_value: ''
+    deal_value: '',
+    one_time_setup_fee: ''
   });
   const [fileName, setFileName] = useState('');
+  const [additionalFees, setAdditionalFees] = useState([]);
   const [products, setProducts] = useState([{
     product_name: '',
     users: '',
     price_per_user: '',
-    one_time_cost: '',
     minimum_billing: '',
-    additional_fees: []
+    training: ''
   }]);
 
   const handleFileChange = (e) => {
@@ -47,9 +48,8 @@ const NewProposal = () => {
       product_name: '',
       users: '',
       price_per_user: '',
-      one_time_cost: '',
       minimum_billing: '',
-      additional_fees: []
+      training: ''
     }]);
   };
 
@@ -65,22 +65,18 @@ const NewProposal = () => {
     setProducts(updated);
   };
 
-  const addAdditionalFee = (productIndex) => {
-    const updated = [...products];
-    updated[productIndex].additional_fees.push({ name: '', value: '' });
-    setProducts(updated);
+  const addAdditionalFee = () => {
+    setAdditionalFees([...additionalFees, { name: '', value: '' }]);
   };
 
-  const removeAdditionalFee = (productIndex, feeIndex) => {
-    const updated = [...products];
-    updated[productIndex].additional_fees.splice(feeIndex, 1);
-    setProducts(updated);
+  const removeAdditionalFee = (feeIndex) => {
+    setAdditionalFees(additionalFees.filter((_, i) => i !== feeIndex));
   };
 
-  const updateAdditionalFee = (productIndex, feeIndex, field, value) => {
-    const updated = [...products];
-    updated[productIndex].additional_fees[feeIndex][field] = value;
-    setProducts(updated);
+  const updateAdditionalFee = (feeIndex, field, value) => {
+    const updated = [...additionalFees];
+    updated[feeIndex][field] = value;
+    setAdditionalFees(updated);
   };
 
   const handleSubmit = async (e) => {
@@ -102,13 +98,13 @@ const NewProposal = () => {
         product_name: p.product_name,
         users: p.users,
         price_per_user: p.price_per_user ? parseFloat(p.price_per_user) : null,
-        one_time_cost: p.one_time_cost ? parseFloat(p.one_time_cost) : null,
         minimum_billing: p.minimum_billing ? parseFloat(p.minimum_billing) : null,
-        additional_fees: p.additional_fees.map(f => ({
-          name: f.name,
-          value: parseFloat(f.value) || 0
-        })).filter(f => f.name && f.value)
+        training: p.training ? parseFloat(p.training) : null
       })).filter(p => p.product_name);
+
+      const additionalFeesData = additionalFees
+        .map(f => ({ name: f.name, value: parseFloat(f.value) || 0 }))
+        .filter(f => f.name && f.value);
 
       // Create proposal
       await axios.post(`${API}/proposals`, {
@@ -119,6 +115,8 @@ const NewProposal = () => {
         industry: formData.industry,
         comments: formData.comments,
         deal_value: formData.deal_value ? parseFloat(formData.deal_value) : null,
+        one_time_setup_fee: formData.one_time_setup_fee ? parseFloat(formData.one_time_setup_fee) : null,
+        additional_fees: additionalFeesData,
         products: productsData
       }, { withCredentials: true });
 
@@ -258,6 +256,77 @@ const NewProposal = () => {
             </div>
           </div>
 
+          {/* One-Time Setup & Integration Section */}
+          <div className="bg-white p-8 shadow-sm border border-gray-200 card-enter" style={{animationDelay: '0.05s'}}>
+            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2 mb-6">
+              <CurrencyDollar size={24} className="text-purple-600" />
+              One-Time Setup & Integration
+            </h2>
+
+            <div className="space-y-2 max-w-sm">
+              <Label className="text-gray-700 font-semibold">Setup & Integration Fee (₹)</Label>
+              <Input
+                type="number"
+                value={formData.one_time_setup_fee}
+                onChange={(e) => setFormData({ ...formData, one_time_setup_fee: e.target.value })}
+                placeholder="e.g., 50000"
+                className="h-11 bg-white"
+              />
+            </div>
+
+            {/* Extra Charges - unchanged mechanism, now proposal-level */}
+            <div className="mt-6 pt-6 border-t border-gray-300">
+              <div className="flex items-center justify-between mb-4">
+                <Label className="text-gray-700 font-semibold">Extra Charges</Label>
+                <Button
+                  type="button"
+                  onClick={addAdditionalFee}
+                  variant="ghost"
+                  size="sm"
+                  className="text-purple-600 hover:text-purple-700"
+                >
+                  <Plus size={16} className="mr-1" />
+                  Add Extra Charge
+                </Button>
+              </div>
+
+              {additionalFees.length > 0 && (
+                <div className="space-y-3">
+                  {additionalFees.map((fee, fIndex) => (
+                    <div key={fIndex} className="flex gap-3 items-start bg-gray-50 p-3 rounded-lg border border-gray-200">
+                      <div className="flex-1 space-y-2">
+                        <Input
+                          value={fee.name}
+                          onChange={(e) => updateAdditionalFee(fIndex, 'name', e.target.value)}
+                          placeholder="Fee name (e.g., Customization, Data Migration)"
+                          className="h-10 bg-white"
+                        />
+                      </div>
+                      <div className="w-40 space-y-2">
+                        <Input
+                          type="number"
+                          value={fee.value}
+                          onChange={(e) => updateAdditionalFee(fIndex, 'value', e.target.value)}
+                          placeholder="Amount (₹)"
+                          className="h-10 bg-white"
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        onClick={() => removeAdditionalFee(fIndex)}
+                        variant="ghost"
+                        size="sm"
+                        className="text-red-500 hover:text-red-700"
+                      >
+                        <X size={18} />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Products Section */}
           <div className="bg-white p-8 shadow-sm border border-gray-200 card-enter" style={{animationDelay: '0.1s'}}>
             <div className="flex items-center justify-between mb-6">
@@ -299,7 +368,7 @@ const NewProposal = () => {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
+                    <div className="space-y-2 md:col-span-2">
                       <Label className="text-gray-700 font-semibold">Product Name *</Label>
                       <Input
                         value={product.product_name}
@@ -312,7 +381,7 @@ const NewProposal = () => {
                     <div className="space-y-2">
                       <Label className="text-gray-700 font-semibold flex items-center gap-2">
                         <Users size={16} />
-                        Number of Users
+                        Users
                       </Label>
                       <Input
                         value={product.users}
@@ -323,7 +392,7 @@ const NewProposal = () => {
                     </div>
 
                     <div className="space-y-2">
-                      <Label className="text-gray-700 font-semibold">Price per User (₹)</Label>
+                      <Label className="text-gray-700 font-semibold">Price (per user per month) (₹)</Label>
                       <Input
                         type="number"
                         value={product.price_per_user}
@@ -334,18 +403,7 @@ const NewProposal = () => {
                     </div>
 
                     <div className="space-y-2">
-                      <Label className="text-gray-700 font-semibold">One Time Cost (₹)</Label>
-                      <Input
-                        type="number"
-                        value={product.one_time_cost}
-                        onChange={(e) => updateProduct(pIndex, 'one_time_cost', e.target.value)}
-                        placeholder="e.g., 50000"
-                        className="h-11 bg-white"
-                      />
-                    </div>
-
-                    <div className="space-y-2 md:col-span-2">
-                      <Label className="text-gray-700 font-semibold">Minimum Billing (₹)</Label>
+                      <Label className="text-gray-700 font-semibold">Minimum Billing (per month) (₹)</Label>
                       <Input
                         type="number"
                         value={product.minimum_billing}
@@ -355,58 +413,17 @@ const NewProposal = () => {
                       />
                       <p className="text-xs text-gray-500">Minimum commitment amount</p>
                     </div>
-                  </div>
 
-                  {/* Additional Fees */}
-                  <div className="mt-6 pt-6 border-t border-gray-300">
-                    <div className="flex items-center justify-between mb-4">
-                      <Label className="text-gray-700 font-semibold">Additional Fees</Label>
-                      <Button
-                        type="button"
-                        onClick={() => addAdditionalFee(pIndex)}
-                        variant="ghost"
-                        size="sm"
-                        className="text-purple-600 hover:text-purple-700"
-                      >
-                        <Plus size={16} className="mr-1" />
-                        Add Fee
-                      </Button>
+                    <div className="space-y-2">
+                      <Label className="text-gray-700 font-semibold">Training (per man day/per batch) (₹)</Label>
+                      <Input
+                        type="number"
+                        value={product.training}
+                        onChange={(e) => updateProduct(pIndex, 'training', e.target.value)}
+                        placeholder="e.g., 5000"
+                        className="h-11 bg-white"
+                      />
                     </div>
-
-                    {product.additional_fees.length > 0 && (
-                      <div className="space-y-3">
-                        {product.additional_fees.map((fee, fIndex) => (
-                          <div key={fIndex} className="flex gap-3 items-start bg-white p-3 rounded-lg border border-gray-200">
-                            <div className="flex-1 space-y-2">
-                              <Input
-                                value={fee.name}
-                                onChange={(e) => updateAdditionalFee(pIndex, fIndex, 'name', e.target.value)}
-                                placeholder="Fee name (e.g., Customization, Integration)"
-                                className="h-10"
-                              />
-                            </div>
-                            <div className="w-40 space-y-2">
-                              <Input
-                                type="number"
-                                value={fee.value}
-                                onChange={(e) => updateAdditionalFee(pIndex, fIndex, 'value', e.target.value)}
-                                placeholder="Amount (₹)"
-                                className="h-10"
-                              />
-                            </div>
-                            <Button
-                              type="button"
-                              onClick={() => removeAdditionalFee(pIndex, fIndex)}
-                              variant="ghost"
-                              size="sm"
-                              className="text-red-500 hover:text-red-700"
-                            >
-                              <X size={18} />
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 </div>
               ))}
