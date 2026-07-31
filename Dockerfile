@@ -13,7 +13,7 @@ COPY frontend/ ./
 RUN yarn build
 
 # ---- Stage 2: backend runtime, serving the built frontend ----
-FROM python:3.11-slim AS backend
+FROM python:3.12-slim-trixie AS backend
 
 # DejaVu fonts needed for ₹ symbol rendering in generated PDFs.
 # Also force-upgrade openssl/libssl3: the version shipped in this base image
