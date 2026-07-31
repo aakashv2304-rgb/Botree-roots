@@ -276,9 +276,8 @@ class Product(BaseModel):
     product_name: str
     users: Optional[str] = None
     price_per_user: Optional[float] = None
-    one_time_cost: Optional[float] = None
     minimum_billing: Optional[float] = None
-    additional_fees: Optional[List[AdditionalFee]] = []
+    training: Optional[float] = None
 
 class ProposalCreate(BaseModel):
     title: str
@@ -289,6 +288,8 @@ class ProposalCreate(BaseModel):
     industry: Optional[str] = None
     comments: Optional[str] = None
     deal_value: Optional[float] = None
+    one_time_setup_fee: Optional[float] = None
+    additional_fees: Optional[List[AdditionalFee]] = []
     change_note: Optional[str] = None
 
 class ProposalAction(BaseModel):
@@ -560,6 +561,8 @@ async def create_proposal(proposal: ProposalCreate, request: Request):
         "industry": proposal.industry,
         "comments": proposal.comments,
         "deal_value": proposal.deal_value,
+        "one_time_setup_fee": proposal.one_time_setup_fee,
+        "additional_fees": [f.dict() for f in proposal.additional_fees] if proposal.additional_fees else [],
         "created_by": current_user["id"],
         "created_at": now.isoformat(),
         "change_note": "Initial version"
@@ -579,6 +582,8 @@ async def create_proposal(proposal: ProposalCreate, request: Request):
         "industry": proposal.industry,
         "comments": proposal.comments,
         "deal_value": proposal.deal_value,
+        "one_time_setup_fee": proposal.one_time_setup_fee,
+        "additional_fees": [f.dict() for f in proposal.additional_fees] if proposal.additional_fees else [],
         "versions": [version_data],
         "history": [{
             "action": "created",
@@ -666,6 +671,8 @@ async def get_proposals(request: Request, status: Optional[str] = None, search: 
             "industry": p.get("industry"),
             "comments": p.get("comments"),
             "deal_value": p.get("deal_value"),
+            "one_time_setup_fee": p.get("one_time_setup_fee"),
+            "additional_fees": p.get("additional_fees", []),
             "history": p["history"],
             "created_at": p["created_at"],
             "updated_at": p["updated_at"]
@@ -700,6 +707,8 @@ async def get_proposal(proposal_id: str, request: Request):
         "industry": proposal.get("industry"),
         "comments": proposal.get("comments"),
         "deal_value": proposal.get("deal_value"),
+        "one_time_setup_fee": proposal.get("one_time_setup_fee"),
+        "additional_fees": proposal.get("additional_fees", []),
         "versions": proposal.get("versions", []),
         "history": proposal["history"],
         "created_at": proposal["created_at"],
@@ -914,11 +923,8 @@ async def download_version_pdf(proposal_id: str, version_number: int, request: R
         ['Description', version['description']],
         ['Customer Name', version.get('customer_name', 'N/A')],
         ['Industry', version.get('industry', 'N/A')],
-        ['Product', version.get('product', 'N/A')],
-        ['Users', version.get('users', 'N/A')],
-        ['One Time Cost', version.get('one_time', 'N/A')],
-        ['Rate', version.get('rate', 'N/A')],
         ['Deal Value (INR)', f"₹{version['deal_value']:,.2f}" if version.get('deal_value') else 'N/A'],
+        ['One-Time Setup & Integration (INR)', f"₹{version['one_time_setup_fee']:,.2f}" if version.get('one_time_setup_fee') else 'N/A'],
         ['Comments', version.get('comments', 'N/A')],
     ]
     
@@ -943,6 +949,55 @@ async def download_version_pdf(proposal_id: str, version_number: int, request: R
     ]))
     elements.append(table)
     elements.append(Spacer(1, 0.3*inch))
+
+    # Extra Charges section
+    extra_charges = version.get('additional_fees', [])
+    if extra_charges:
+        elements.append(Paragraph("Extra Charges", heading_style))
+        fee_data = [['Charge', 'Amount (INR)']] + [
+            [f['name'], f"₹{f['value']:,.2f}"] for f in extra_charges
+        ]
+        fee_table = Table(fee_data, colWidths=[3*inch, 3*inch])
+        fee_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#E5E7EB')),
+            ('FONTNAME', (0, 0), (-1, 0), UNICODE_FONT_BOLD),
+            ('FONTNAME', (0, 1), (-1, -1), UNICODE_FONT),
+            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#D1D5DB')),
+            ('LEFTPADDING', (0, 0), (-1, -1), 12),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 12),
+            ('TOPPADDING', (0, 0), (-1, -1), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ]))
+        elements.append(fee_table)
+        elements.append(Spacer(1, 0.3*inch))
+
+    # Products section
+    products_list = version.get('products', [])
+    if products_list:
+        elements.append(Paragraph("Products", heading_style))
+        product_data = [['Product', 'Users', 'Price/User/Month', 'Min. Billing/Month', 'Training']]
+        for prod in products_list:
+            product_data.append([
+                prod.get('product_name', 'N/A'),
+                prod.get('users') or 'N/A',
+                f"₹{prod['price_per_user']:,.2f}" if prod.get('price_per_user') else 'N/A',
+                f"₹{prod['minimum_billing']:,.2f}" if prod.get('minimum_billing') else 'N/A',
+                f"₹{prod['training']:,.2f}" if prod.get('training') else 'N/A',
+            ])
+        product_table = Table(product_data, colWidths=[1.6*inch, 1*inch, 1.4*inch, 1.4*inch, 1*inch])
+        product_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#E5E7EB')),
+            ('FONTNAME', (0, 0), (-1, 0), UNICODE_FONT_BOLD),
+            ('FONTNAME', (0, 1), (-1, -1), UNICODE_FONT),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#D1D5DB')),
+            ('LEFTPADDING', (0, 0), (-1, -1), 6),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ]))
+        elements.append(product_table)
+        elements.append(Spacer(1, 0.3*inch))
     
     # Metadata section
     elements.append(Paragraph("Version Metadata", heading_style))
@@ -1026,7 +1081,13 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
     now = datetime.now(timezone.utc)
     new_version_number = existing_proposal.get("current_version", 1) + 1
     version_label = f"v{new_version_number}_{now.strftime('%Y-%m-%d')}"
-    
+
+    # The revision form doesn't resend products/fees - preserve whatever was
+    # already on the proposal rather than wiping it out with empty defaults.
+    products_data = [p.dict() for p in proposal.products] if proposal.products else existing_proposal.get("products", [])
+    one_time_setup_fee = proposal.one_time_setup_fee if proposal.one_time_setup_fee is not None else existing_proposal.get("one_time_setup_fee")
+    additional_fees_data = [f.dict() for f in proposal.additional_fees] if proposal.additional_fees else existing_proposal.get("additional_fees", [])
+
     # Create new version
     new_version = {
         "version_number": new_version_number,
@@ -1039,11 +1100,13 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
             "size": file_doc["size"],
             "storage_path": file_doc["storage_path"]
         },
-        "products": [p.dict() for p in proposal.products] if proposal.products else [],
+        "products": products_data,
         "customer_name": proposal.customer_name,
         "industry": proposal.industry,
         "comments": proposal.comments,
         "deal_value": proposal.deal_value,
+        "one_time_setup_fee": one_time_setup_fee,
+        "additional_fees": additional_fees_data,
         "created_by": current_user["id"],
         "created_at": now.isoformat(),
         "change_note": proposal.change_note or "Revised after review feedback"
@@ -1068,11 +1131,13 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
                 "current_stage": 1,
                 "current_version": new_version_number,
                 "file_info": new_version["file_info"],
-                "products": [p.dict() for p in proposal.products] if proposal.products else [],
+                "products": products_data,
                 "customer_name": proposal.customer_name,
                 "industry": proposal.industry,
                 "comments": proposal.comments,
                 "deal_value": proposal.deal_value,
+                "one_time_setup_fee": one_time_setup_fee,
+                "additional_fees": additional_fees_data,
                 "updated_at": now.isoformat()
             },
             "$push": {
