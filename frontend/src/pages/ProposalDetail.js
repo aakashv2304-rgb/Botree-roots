@@ -285,6 +285,20 @@ const ProposalDetail = () => {
     return 'pending';
   };
 
+  const getStageTimestamp = (index) => {
+    if (!proposal || !proposal.history) return null;
+
+    if (index === 0) {
+      const created = proposal.history.find((h) => h.action === 'created');
+      return created ? created.timestamp : proposal.created_at;
+    }
+
+    // The "Approved" terminal node shares the CFO approval moment
+    const roleToMatch = index === 5 ? WORKFLOW_STAGES[4].role : WORKFLOW_STAGES[index].role;
+    const matches = proposal.history.filter((h) => h.action === 'approved' && h.by?.role === roleToMatch);
+    return matches.length > 0 ? matches[matches.length - 1].timestamp : null;
+  };
+
   return (
     <div className="p-8" data-testid="proposal-detail-page">
       <Button
@@ -379,7 +393,7 @@ const ProposalDetail = () => {
             </div>
 
             {/* Extended Fields */}
-            {(proposal.customer_name || proposal.industry || proposal.products?.length > 0 || proposal.deal_value || proposal.comments) && (
+            {(proposal.customer_name || proposal.industry || proposal.products?.length > 0 || proposal.deal_value || proposal.one_time_setup_fee || proposal.additional_fees?.length > 0 || proposal.comments) && (
               <div className="border-t border-gray-200 pt-4 mt-4">
                 <h3 className="text-sm font-heading font-bold text-gray-900 mb-3">Proposal Details</h3>
                 <div className="grid grid-cols-2 gap-3 text-xs">
@@ -387,6 +401,12 @@ const ProposalDetail = () => {
                     <div className="bg-emerald-50 p-2 rounded border border-emerald-200">
                       <span className="text-emerald-700 font-medium block mb-1">Total Deal Value</span>
                       <span className="text-emerald-900 font-bold text-base">₹{proposal.deal_value.toLocaleString('en-IN')}</span>
+                    </div>
+                  )}
+                  {proposal.one_time_setup_fee && (
+                    <div className="bg-blue-50 p-2 rounded border border-blue-200">
+                      <span className="text-blue-700 font-medium block mb-1">One-Time Setup & Integration</span>
+                      <span className="text-blue-900 font-bold text-base">₹{proposal.one_time_setup_fee.toLocaleString('en-IN')}</span>
                     </div>
                   )}
                   {proposal.customer_name && (
@@ -422,38 +442,39 @@ const ProposalDetail = () => {
                           )}
                           {product.price_per_user && (
                             <div>
-                              <span className="text-purple-700 font-medium">Price/User:</span>
+                              <span className="text-purple-700 font-medium">Price (per user/month):</span>
                               <span className="text-purple-900 ml-2">₹{product.price_per_user.toLocaleString('en-IN')}</span>
-                            </div>
-                          )}
-                          {product.one_time_cost && (
-                            <div>
-                              <span className="text-purple-700 font-medium">One-Time Cost:</span>
-                              <span className="text-purple-900 ml-2">₹{product.one_time_cost.toLocaleString('en-IN')}</span>
                             </div>
                           )}
                           {product.minimum_billing && (
                             <div>
-                              <span className="text-purple-700 font-medium">Min. Billing:</span>
+                              <span className="text-purple-700 font-medium">Min. Billing (per month):</span>
                               <span className="text-purple-900 ml-2">₹{product.minimum_billing.toLocaleString('en-IN')}</span>
                             </div>
                           )}
-                        </div>
-                        {product.additional_fees && product.additional_fees.length > 0 && (
-                          <div className="mt-3 pt-3 border-t border-purple-300">
-                            <span className="text-xs text-purple-700 font-bold block mb-2">Additional Fees:</span>
-                            <div className="space-y-1">
-                              {product.additional_fees.map((fee, fIndex) => (
-                                <div key={fIndex} className="flex justify-between text-xs bg-white rounded px-2 py-1">
-                                  <span className="text-gray-700">{fee.name}</span>
-                                  <span className="text-gray-900 font-semibold">₹{fee.value.toLocaleString('en-IN')}</span>
-                                </div>
-                              ))}
+                          {product.training && (
+                            <div>
+                              <span className="text-purple-700 font-medium">Training (per man day/batch):</span>
+                              <span className="text-purple-900 ml-2">₹{product.training.toLocaleString('en-IN')}</span>
                             </div>
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </div>
                     ))}
+                  </div>
+                )}
+
+                {proposal.additional_fees && proposal.additional_fees.length > 0 && (
+                  <div className="mt-4">
+                    <h4 className="font-bold text-gray-900 mb-2 text-sm">Extra Charges</h4>
+                    <div className="space-y-1">
+                      {proposal.additional_fees.map((fee, fIndex) => (
+                        <div key={fIndex} className="flex justify-between text-xs bg-blue-50 border border-blue-200 rounded px-3 py-2">
+                          <span className="text-gray-700">{fee.name}</span>
+                          <span className="text-gray-900 font-semibold">₹{fee.value.toLocaleString('en-IN')}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
 
@@ -717,6 +738,13 @@ const ProposalDetail = () => {
                     <div className="flex-1 pb-4">
                       <p className="font-semibold text-sm">{stage.label}</p>
                       {stage.role && <p className="text-xs text-[#71717A]">{stage.role} Review</p>}
+                      {status === 'completed' && getStageTimestamp(index) && (
+                        <p className="text-xs text-[#10B981] font-medium mt-0.5" data-testid={`stage-timestamp-${index}`}>
+                          {new Date(getStageTimestamp(index)).toLocaleString('en-IN', {
+                            day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                          })}
+                        </p>
+                      )}
                     </div>
                   </div>
                 );
