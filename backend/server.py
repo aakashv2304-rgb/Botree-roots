@@ -325,7 +325,7 @@ async def seed_users():
     admin_password = os.environ.get("ADMIN_PASSWORD", "Admin@123")
     
     users_to_seed = [
-        {"email": admin, "password": "Admin@123", "name": "System Admin", "role": "Admin", "department": "Admin"},
+        {"email": "admin@botree.co.in", "password": "Admin@123", "name": "System Admin", "role": "Admin", "department": "Admin"},
         {"email": "sales@botree.co.in", "password": "Sales@123", "name": "Sales User", "role": "Sales", "department": "Sales"},
         {"email": "varun.gupta@botree.co.in", "password": "Varun@123", "name": "Varun Gupta", "role": "CGO", "department": "CGO"},
         {"email": "aakash.vimalanathan@botree.co.in", "password": "Aakash@123", "name": "Aakash Vimalanathan", "role": "Finance", "department": "Finance"},
