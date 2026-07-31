@@ -41,6 +41,12 @@ except Exception:
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
+# Safety net: some OpenSSL 3.x builds have a TLS 1.3 session-resumption bug
+# that Atlas's shared-tier (M0/M2/M5) TLS proxy rejects with
+# TLSV1_ALERT_INTERNAL_ERROR. Capping at TLS 1.2 avoids that code path entirely.
+import ssl
+ssl.SSLContext.maximum_version = ssl.TLSVersion.TLSv1_2
+
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url, tlsCAFile=certifi.where())
