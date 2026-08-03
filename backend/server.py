@@ -290,6 +290,8 @@ class ProposalCreate(BaseModel):
     deal_value: Optional[float] = None
     one_time_setup_fee: Optional[float] = None
     additional_fees: Optional[List[AdditionalFee]] = []
+    contract_years: Optional[int] = None
+    price_escalation_percent: Optional[float] = None
     change_note: Optional[str] = None
 
 class ProposalAction(BaseModel):
@@ -609,6 +611,8 @@ async def create_proposal(proposal: ProposalCreate, request: Request):
         "deal_value": proposal.deal_value,
         "one_time_setup_fee": proposal.one_time_setup_fee,
         "additional_fees": [f.dict() for f in proposal.additional_fees] if proposal.additional_fees else [],
+        "contract_years": proposal.contract_years,
+        "price_escalation_percent": proposal.price_escalation_percent,
         "created_by": current_user["id"],
         "created_at": now.isoformat(),
         "change_note": "Initial version"
@@ -630,6 +634,8 @@ async def create_proposal(proposal: ProposalCreate, request: Request):
         "deal_value": proposal.deal_value,
         "one_time_setup_fee": proposal.one_time_setup_fee,
         "additional_fees": [f.dict() for f in proposal.additional_fees] if proposal.additional_fees else [],
+        "contract_years": proposal.contract_years,
+        "price_escalation_percent": proposal.price_escalation_percent,
         "versions": [version_data],
         "history": [{
             "action": "created",
@@ -719,6 +725,8 @@ async def get_proposals(request: Request, status: Optional[str] = None, search: 
             "deal_value": p.get("deal_value"),
             "one_time_setup_fee": p.get("one_time_setup_fee"),
             "additional_fees": p.get("additional_fees", []),
+            "contract_years": p.get("contract_years"),
+            "price_escalation_percent": p.get("price_escalation_percent"),
             "history": p["history"],
             "created_at": p["created_at"],
             "updated_at": p["updated_at"]
@@ -755,6 +763,8 @@ async def get_proposal(proposal_id: str, request: Request):
         "deal_value": proposal.get("deal_value"),
         "one_time_setup_fee": proposal.get("one_time_setup_fee"),
         "additional_fees": proposal.get("additional_fees", []),
+        "contract_years": proposal.get("contract_years"),
+        "price_escalation_percent": proposal.get("price_escalation_percent"),
         "versions": proposal.get("versions", []),
         "history": proposal["history"],
         "created_at": proposal["created_at"],
@@ -1133,6 +1143,8 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
     products_data = [p.dict() for p in proposal.products] if proposal.products else existing_proposal.get("products", [])
     one_time_setup_fee = proposal.one_time_setup_fee if proposal.one_time_setup_fee is not None else existing_proposal.get("one_time_setup_fee")
     additional_fees_data = [f.dict() for f in proposal.additional_fees] if proposal.additional_fees else existing_proposal.get("additional_fees", [])
+    contract_years = proposal.contract_years if proposal.contract_years is not None else existing_proposal.get("contract_years")
+    price_escalation_percent = proposal.price_escalation_percent if proposal.price_escalation_percent is not None else existing_proposal.get("price_escalation_percent")
 
     # Create new version
     new_version = {
@@ -1153,6 +1165,8 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
         "deal_value": proposal.deal_value,
         "one_time_setup_fee": one_time_setup_fee,
         "additional_fees": additional_fees_data,
+        "contract_years": contract_years,
+        "price_escalation_percent": price_escalation_percent,
         "created_by": current_user["id"],
         "created_at": now.isoformat(),
         "change_note": proposal.change_note or "Revised after review feedback"
@@ -1184,6 +1198,8 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
                 "deal_value": proposal.deal_value,
                 "one_time_setup_fee": one_time_setup_fee,
                 "additional_fees": additional_fees_data,
+                "contract_years": contract_years,
+                "price_escalation_percent": price_escalation_percent,
                 "updated_at": now.isoformat()
             },
             "$push": {
