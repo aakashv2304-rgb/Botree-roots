@@ -317,12 +317,12 @@ const ProfitabilityAnalyzer = () => {
 
             <div className="space-y-2">
               <Label>Link to a Proposal (optional)</Label>
-              <Select value={proposalId} onValueChange={handleProposalSelect}>
+              <Select value={proposalId || 'none'} onValueChange={(v) => handleProposalSelect(v === 'none' ? '' : v)}>
                 <SelectTrigger data-testid="proposal-link-select">
                   <SelectValue placeholder="None - standalone analysis" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">None - standalone analysis</SelectItem>
+                  <SelectItem value="none">None - standalone analysis</SelectItem>
                   {proposals.map((p) => (
                     <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>
                   ))}
