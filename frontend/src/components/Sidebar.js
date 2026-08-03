@@ -1,7 +1,7 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { House, ClockCounterClockwise, CheckCircle, Users, SignOut, Plus } from '@phosphor-icons/react';
+import { House, ClockCounterClockwise, CheckCircle, Users, SignOut, Plus, Calculator } from '@phosphor-icons/react';
 import { Button } from './ui/button';
 import { useNavigate } from 'react-router-dom';
 import BotreeLogo from './BotreeLogo';
@@ -19,6 +19,7 @@ const Sidebar = () => {
     { path: '/dashboard', icon: House, label: 'Dashboard', testId: 'nav-dashboard' },
     { path: '/dashboard/pending', icon: ClockCounterClockwise, label: 'Pending', testId: 'nav-pending' },
     { path: '/dashboard/approved', icon: CheckCircle, label: 'Approved', testId: 'nav-approved' },
+    { path: '/dashboard/profitability-analyzer', icon: Calculator, label: 'Profitability Analyzer', testId: 'nav-profitability-analyzer' },
   ];
 
   if (user?.role === 'Admin') {
