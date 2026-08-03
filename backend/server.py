@@ -295,6 +295,52 @@ class ProposalCreate(BaseModel):
 class ProposalAction(BaseModel):
     comment: Optional[str] = None
 
+# ============ Profitability Analyzer: hardcoded rate card ============
+# Fixed monthly cost per role. Not editable via API - change here only.
+ROLE_RATE_CARD = {
+    "L1": 45000,
+    "L2": 60000,
+    "L3": 91000,
+    "QA": 67738,
+    "Dev": 87500,
+    "Training": 40000,
+    "PM": 136667,
+    "Technical Manager": 162500,
+    "Service Manager": 250000,
+}
+
+# L2 and L3 are auto-calculated from distributor count, not manually picked
+MANUAL_ROLE_OPTIONS = [r for r in ROLE_RATE_CARD.keys() if r not in ("L2", "L3")]
+
+# Per-distributor-per-month costs, auto-applied whenever a line item has a distributor count
+PER_DISTRIBUTOR_MONTHLY_COSTS = {
+    "AWS Cost": 120,
+    "DMS License": 240,
+    "SFA License": 80,
+}
+
+# Required headcount per distributor - drives automatic L2/L3 cost, no allocation slider
+STAFFING_RATIO_PER_DISTRIBUTOR = {
+    "L2": 0.000333,
+    "L3": 0.000667,
+}
+
+class ResourceLine(BaseModel):
+    role_name: str  # must be one of MANUAL_ROLE_OPTIONS
+    allocation_percent: float  # e.g. 10, 20, ... 100
+
+class RevenueLineItem(BaseModel):
+    label: str  # e.g. product name, or "One-Time Setup & Integration", or a custom line
+    revenue: Optional[float] = None
+    distributor_count: Optional[float] = None
+    resource_lines: List[ResourceLine] = []
+
+class ProfitabilityAnalysisCreate(BaseModel):
+    title: str
+    proposal_id: Optional[str] = None
+    revenue_line_items: List[RevenueLineItem] = []
+    notes: Optional[str] = None
+
 class FinanceDetailsUpdate(BaseModel):
     about_customer: Optional[str] = None
     profitability: Optional[str] = None
@@ -1667,6 +1713,214 @@ async def get_monthly_proposals(request: Request, year: int = None, month: int =
         "by_status": status_counts,
         "is_current_month": (target_year == now.year and target_month == now.month)
     }
+
+# ============ Profitability Analyzer ============
+# Standalone tool, visible to every role by default. Not gated by the
+# approval workflow. Can optionally attach to a proposal for reference.
+
+def _compute_line_item(line_item: dict) -> dict:
+    # Manual resource lines: role_name looked up against the fixed rate card,
+    # allocation % still adjustable per line by the user
+    resolved_lines = []
+    manual_cost = 0.0
+    for rl in line_item.get("resource_lines", []):
+        role = rl.get("role_name")
+        monthly_cost = ROLE_RATE_CARD.get(role, 0)
+        pct = rl.get("allocation_percent") or 0
+        line_cost = monthly_cost * pct / 100
+        manual_cost += line_cost
+        resolved_lines.append({
+            "role_name": role,
+            "monthly_cost": monthly_cost,
+            "allocation_percent": pct,
+            "cost": line_cost,
+        })
+
+    # Distributor-driven costs: fully automatic, no allocation slider
+    distributor_count = line_item.get("distributor_count") or 0
+    auto_costs = None
+    auto_total = 0.0
+    if distributor_count:
+        l2_required = distributor_count * STAFFING_RATIO_PER_DISTRIBUTOR["L2"]
+        l3_required = distributor_count * STAFFING_RATIO_PER_DISTRIBUTOR["L3"]
+        l2_cost = l2_required * ROLE_RATE_CARD["L2"]
+        l3_cost = l3_required * ROLE_RATE_CARD["L3"]
+        aws_cost = distributor_count * PER_DISTRIBUTOR_MONTHLY_COSTS["AWS Cost"]
+        dms_cost = distributor_count * PER_DISTRIBUTOR_MONTHLY_COSTS["DMS License"]
+        sfa_cost = distributor_count * PER_DISTRIBUTOR_MONTHLY_COSTS["SFA License"]
+        auto_total = l2_cost + l3_cost + aws_cost + dms_cost + sfa_cost
+        auto_costs = {
+            "l2_required": round(l2_required, 4),
+            "l2_cost": l2_cost,
+            "l3_required": round(l3_required, 4),
+            "l3_cost": l3_cost,
+            "aws_cost": aws_cost,
+            "dms_cost": dms_cost,
+            "sfa_cost": sfa_cost,
+        }
+
+    total_cost = manual_cost + auto_total
+    revenue = line_item.get("revenue")
+    profit = (revenue - total_cost) if revenue is not None else None
+    margin_percent = (profit / revenue * 100) if (revenue and profit is not None) else None
+
+    return {
+        "resource_lines": resolved_lines,
+        "distributor_count": distributor_count if distributor_count else None,
+        "auto_costs": auto_costs,
+        "cost": total_cost,
+        "profit": profit,
+        "margin_percent": margin_percent,
+    }
+
+def _compute_profitability(revenue_line_items: List[dict]) -> dict:
+    items_out = []
+    total_revenue = 0.0
+    total_cost = 0.0
+    any_revenue_set = False
+
+    for item in revenue_line_items:
+        computed = _compute_line_item(item)
+        items_out.append({**item, **computed})
+        total_cost += computed["cost"]
+        if item.get("revenue") is not None:
+            total_revenue += item["revenue"]
+            any_revenue_set = True
+
+    total_profit = (total_revenue - total_cost) if any_revenue_set else None
+    total_margin_percent = (total_profit / total_revenue * 100) if (any_revenue_set and total_revenue) else None
+
+    return {
+        "line_items": items_out,
+        "total_revenue": total_revenue if any_revenue_set else None,
+        "total_cost": total_cost,
+        "total_profit": total_profit,
+        "total_margin_percent": total_margin_percent,
+    }
+
+@api_router.get("/profitability-analyses/rate-card")
+async def get_rate_card(request: Request):
+    await get_current_user(request)
+    return {
+        "roles": {role: ROLE_RATE_CARD[role] for role in MANUAL_ROLE_OPTIONS},
+        "auto_roles": {"L2": ROLE_RATE_CARD["L2"], "L3": ROLE_RATE_CARD["L3"]},
+        "per_distributor_costs": PER_DISTRIBUTOR_MONTHLY_COSTS,
+        "staffing_ratios": STAFFING_RATIO_PER_DISTRIBUTOR,
+    }
+
+def _validate_resource_roles(revenue_line_items):
+    for item in revenue_line_items:
+        for rl in item.resource_lines:
+            if rl.role_name not in MANUAL_ROLE_OPTIONS:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"'{rl.role_name}' is not a valid role. Valid roles: {', '.join(MANUAL_ROLE_OPTIONS)}"
+                )
+
+@api_router.post("/profitability-analyses")
+async def create_profitability_analysis(analysis: ProfitabilityAnalysisCreate, request: Request):
+    current_user = await get_current_user(request)
+    _validate_resource_roles(analysis.revenue_line_items)
+
+    if analysis.proposal_id:
+        proposal = await db.proposals.find_one({"_id": ObjectId(analysis.proposal_id)})
+        if not proposal:
+            raise HTTPException(status_code=404, detail="Linked proposal not found")
+
+    line_items_data = [li.dict() for li in analysis.revenue_line_items]
+    computed = _compute_profitability(line_items_data)
+    now = datetime.now(timezone.utc).isoformat()
+
+    doc = {
+        "title": analysis.title,
+        "proposal_id": analysis.proposal_id,
+        "revenue_line_items": computed["line_items"],
+        "notes": analysis.notes,
+        "total_revenue": computed["total_revenue"],
+        "total_cost": computed["total_cost"],
+        "profit": computed["total_profit"],
+        "margin_percent": computed["total_margin_percent"],
+        "created_by": {"id": current_user["id"], "name": current_user["name"], "role": current_user["role"]},
+        "created_at": now,
+        "updated_at": now,
+    }
+    result = await db.profitability_analyses.insert_one(doc)
+    doc["id"] = str(result.inserted_id)
+    del doc["_id"]
+    return doc
+
+@api_router.get("/profitability-analyses")
+async def list_profitability_analyses(request: Request, proposal_id: Optional[str] = None):
+    await get_current_user(request)  # any authenticated role can view
+
+    query = {}
+    if proposal_id:
+        query["proposal_id"] = proposal_id
+
+    items = await db.profitability_analyses.find(query).sort("created_at", -1).to_list(1000)
+    for item in items:
+        item["id"] = str(item["_id"])
+        del item["_id"]
+    return items
+
+@api_router.get("/profitability-analyses/{analysis_id}")
+async def get_profitability_analysis(analysis_id: str, request: Request):
+    await get_current_user(request)
+
+    item = await db.profitability_analyses.find_one({"_id": ObjectId(analysis_id)})
+    if not item:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+    item["id"] = str(item["_id"])
+    del item["_id"]
+    return item
+
+@api_router.put("/profitability-analyses/{analysis_id}")
+async def update_profitability_analysis(analysis_id: str, analysis: ProfitabilityAnalysisCreate, request: Request):
+    current_user = await get_current_user(request)
+    _validate_resource_roles(analysis.revenue_line_items)
+
+    existing = await db.profitability_analyses.find_one({"_id": ObjectId(analysis_id)})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+
+    if existing["created_by"]["id"] != current_user["id"] and current_user["role"] != "Admin":
+        raise HTTPException(status_code=403, detail="Only the creator or an Admin can edit this analysis")
+
+    if analysis.proposal_id:
+        proposal = await db.proposals.find_one({"_id": ObjectId(analysis.proposal_id)})
+        if not proposal:
+            raise HTTPException(status_code=404, detail="Linked proposal not found")
+
+    line_items_data = [li.dict() for li in analysis.revenue_line_items]
+    computed = _compute_profitability(line_items_data)
+
+    update_fields = {
+        "title": analysis.title,
+        "proposal_id": analysis.proposal_id,
+        "revenue_line_items": computed["line_items"],
+        "notes": analysis.notes,
+        "total_revenue": computed["total_revenue"],
+        "total_cost": computed["total_cost"],
+        "profit": computed["total_profit"],
+        "margin_percent": computed["total_margin_percent"],
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.profitability_analyses.update_one({"_id": ObjectId(analysis_id)}, {"$set": update_fields})
+    return {"message": "Analysis updated"}
+
+@api_router.delete("/profitability-analyses/{analysis_id}")
+async def delete_profitability_analysis(analysis_id: str, request: Request):
+    current_user = await get_current_user(request)
+
+    existing = await db.profitability_analyses.find_one({"_id": ObjectId(analysis_id)})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+
+    if existing["created_by"]["id"] != current_user["id"] and current_user["role"] != "Admin":
+        raise HTTPException(status_code=403, detail="Only the creator or an Admin can delete this analysis")
+
+    await db.profitability_analyses.delete_one({"_id": ObjectId(analysis_id)})
+    return {"message": "Analysis deleted"}
 
 app.include_router(api_router)
 
