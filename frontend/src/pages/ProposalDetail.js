@@ -393,7 +393,7 @@ const ProposalDetail = () => {
             </div>
 
             {/* Extended Fields */}
-            {(proposal.customer_name || proposal.industry || proposal.products?.length > 0 || proposal.deal_value || proposal.one_time_setup_fee || proposal.additional_fees?.length > 0 || proposal.comments) && (
+            {(proposal.customer_name || proposal.industry || proposal.products?.length > 0 || proposal.deal_value || proposal.one_time_setup_fee || proposal.additional_fees?.length > 0 || proposal.contract_years || proposal.price_escalation_percent || proposal.comments) && (
               <div className="border-t border-gray-200 pt-4 mt-4">
                 <h3 className="text-sm font-heading font-bold text-gray-900 mb-3">Proposal Details</h3>
                 <div className="grid grid-cols-2 gap-3 text-xs">
@@ -419,6 +419,18 @@ const ProposalDetail = () => {
                     <div className="bg-gray-50 p-2 rounded">
                       <span className="text-gray-500 font-medium block mb-1">Industry</span>
                       <span className="text-gray-900 font-semibold">{proposal.industry}</span>
+                    </div>
+                  )}
+                  {proposal.contract_years && (
+                    <div className="bg-amber-50 p-2 rounded border border-amber-200">
+                      <span className="text-amber-700 font-medium block mb-1">Contract Term</span>
+                      <span className="text-amber-900 font-semibold">{proposal.contract_years} year{proposal.contract_years > 1 ? 's' : ''}</span>
+                    </div>
+                  )}
+                  {proposal.price_escalation_percent && (
+                    <div className="bg-amber-50 p-2 rounded border border-amber-200">
+                      <span className="text-amber-700 font-medium block mb-1">Price Escalation / Year</span>
+                      <span className="text-amber-900 font-semibold">{proposal.price_escalation_percent}%</span>
                     </div>
                   )}
                 </div>
