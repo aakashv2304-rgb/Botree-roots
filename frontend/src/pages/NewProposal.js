@@ -23,7 +23,9 @@ const NewProposal = () => {
     industry: '',
     comments: '',
     deal_value: '',
-    one_time_setup_fee: ''
+    one_time_setup_fee: '',
+    contract_years: '',
+    price_escalation_percent: ''
   });
   const [fileName, setFileName] = useState('');
   const [additionalFees, setAdditionalFees] = useState([]);
@@ -117,6 +119,8 @@ const NewProposal = () => {
         deal_value: formData.deal_value ? parseFloat(formData.deal_value) : null,
         one_time_setup_fee: formData.one_time_setup_fee ? parseFloat(formData.one_time_setup_fee) : null,
         additional_fees: additionalFeesData,
+        contract_years: formData.contract_years ? parseInt(formData.contract_years) : null,
+        price_escalation_percent: formData.price_escalation_percent ? parseFloat(formData.price_escalation_percent) : null,
         products: productsData
       }, { withCredentials: true });
 
@@ -227,6 +231,39 @@ const NewProposal = () => {
                     className="h-12"
                   />
                   <p className="text-xs text-gray-500">Total value in Indian Rupees (₹)</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="contract_years" className="text-gray-700 font-semibold">
+                    Number of Years of Contract
+                  </Label>
+                  <Input
+                    id="contract_years"
+                    type="number"
+                    min="1"
+                    value={formData.contract_years}
+                    onChange={(e) => setFormData({ ...formData, contract_years: e.target.value })}
+                    placeholder="e.g., 3"
+                    className="h-12"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="price_escalation_percent" className="text-gray-700 font-semibold">
+                    Price Escalation % Each Year
+                  </Label>
+                  <Input
+                    id="price_escalation_percent"
+                    type="number"
+                    step="0.1"
+                    value={formData.price_escalation_percent}
+                    onChange={(e) => setFormData({ ...formData, price_escalation_percent: e.target.value })}
+                    placeholder="e.g., 5"
+                    className="h-12"
+                  />
+                  <p className="text-xs text-gray-500">Used to project price increases in subsequent contract years</p>
                 </div>
               </div>
 
