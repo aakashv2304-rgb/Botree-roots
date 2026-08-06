@@ -314,14 +314,19 @@ ROLE_RATE_CARD = {
 # L2 and L3 are auto-calculated from distributor count, not manually picked
 MANUAL_ROLE_OPTIONS = [r for r in ROLE_RATE_CARD.keys() if r not in ("L2", "L3")]
 
-# Per-distributor-per-month costs, auto-applied whenever a line item has a distributor count
+# Per-distributor-per-month costs. These are product-specific - only applied
+# to a line item when explicitly selected there (a deal for SFA alone should
+# not also carry DMS/FlexiDMS costs).
 PER_DISTRIBUTOR_MONTHLY_COSTS = {
     "AWS Cost": 120,
     "DMS License": 240,
     "SFA License": 80,
+    "FlexiDMS License": 0,  # TODO: placeholder - update once the real rate is provided
 }
 
-# Required headcount per distributor - drives automatic L2/L3 cost, no allocation slider
+# Required headcount per distributor - drives automatic L2/L3 cost, no allocation
+# slider. Unlike the per-distributor costs above, these apply to every line
+# item with a distributor count regardless of which product it is.
 STAFFING_RATIO_PER_DISTRIBUTOR = {
     "L2": 0.000333,
     "L3": 0.000667,
@@ -335,6 +340,7 @@ class RevenueLineItem(BaseModel):
     label: str  # e.g. product name, or "One-Time Setup & Integration", or a custom line
     revenue: Optional[float] = None
     distributor_count: Optional[float] = None
+    selected_distributor_costs: List[str] = []  # subset of PER_DISTRIBUTOR_MONTHLY_COSTS keys that apply to this line
     resource_lines: List[ResourceLine] = []
 
 class ProfitabilityAnalysisCreate(BaseModel):
@@ -1752,8 +1758,12 @@ def _compute_line_item(line_item: dict) -> dict:
             "cost": line_cost,
         })
 
-    # Distributor-driven costs: fully automatic, no allocation slider
+    # Distributor-driven costs: L2/L3 are fully automatic (apply regardless of
+    # which product this is), while AWS/DMS/SFA/FlexiDMS only apply if this
+    # line item explicitly selected them - a deal for SFA alone shouldn't
+    # also carry DMS or FlexiDMS costs.
     distributor_count = line_item.get("distributor_count") or 0
+    selected_costs = line_item.get("selected_distributor_costs", []) or []
     auto_costs = None
     auto_total = 0.0
     if distributor_count:
@@ -1761,18 +1771,22 @@ def _compute_line_item(line_item: dict) -> dict:
         l3_required = distributor_count * STAFFING_RATIO_PER_DISTRIBUTOR["L3"]
         l2_cost = l2_required * ROLE_RATE_CARD["L2"]
         l3_cost = l3_required * ROLE_RATE_CARD["L3"]
-        aws_cost = distributor_count * PER_DISTRIBUTOR_MONTHLY_COSTS["AWS Cost"]
-        dms_cost = distributor_count * PER_DISTRIBUTOR_MONTHLY_COSTS["DMS License"]
-        sfa_cost = distributor_count * PER_DISTRIBUTOR_MONTHLY_COSTS["SFA License"]
-        auto_total = l2_cost + l3_cost + aws_cost + dms_cost + sfa_cost
+
+        license_costs = {}
+        license_total = 0.0
+        for cost_name in selected_costs:
+            if cost_name in PER_DISTRIBUTOR_MONTHLY_COSTS:
+                cost_value = distributor_count * PER_DISTRIBUTOR_MONTHLY_COSTS[cost_name]
+                license_costs[cost_name] = cost_value
+                license_total += cost_value
+
+        auto_total = l2_cost + l3_cost + license_total
         auto_costs = {
             "l2_required": round(l2_required, 4),
             "l2_cost": l2_cost,
             "l3_required": round(l3_required, 4),
             "l3_cost": l3_cost,
-            "aws_cost": aws_cost,
-            "dms_cost": dms_cost,
-            "sfa_cost": sfa_cost,
+            "license_costs": license_costs,
         }
 
     total_cost = manual_cost + auto_total
@@ -1783,6 +1797,7 @@ def _compute_line_item(line_item: dict) -> dict:
     return {
         "resource_lines": resolved_lines,
         "distributor_count": distributor_count if distributor_count else None,
+        "selected_distributor_costs": selected_costs,
         "auto_costs": auto_costs,
         "cost": total_cost,
         "profit": profit,
