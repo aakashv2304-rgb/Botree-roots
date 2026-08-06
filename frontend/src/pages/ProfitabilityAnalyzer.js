@@ -13,7 +13,7 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const ALLOCATION_OPTIONS = Array.from({ length: 10 }, (_, i) => (i + 1) * 10); // 10,20,...100
 
 const emptyResourceLine = () => ({ role_name: '', allocation_percent: '100' });
-const emptyRevenueLineItem = (label = '') => ({ label, revenue: '', distributor_count: '', resource_lines: [] });
+const emptyRevenueLineItem = (label = '') => ({ label, revenue: '', distributor_count: '', selected_distributor_costs: [], resource_lines: [] });
 
 const ProfitabilityAnalyzer = () => {
   const { user } = useAuth();
@@ -85,11 +85,20 @@ const ProfitabilityAnalyzer = () => {
       const l3Required = distributors * rateCard.staffing_ratios.L3;
       const l2Cost = l2Required * rateCard.auto_roles.L2;
       const l3Cost = l3Required * rateCard.auto_roles.L3;
-      const awsCost = distributors * rateCard.per_distributor_costs['AWS Cost'];
-      const dmsCost = distributors * rateCard.per_distributor_costs['DMS License'];
-      const sfaCost = distributors * rateCard.per_distributor_costs['SFA License'];
-      autoCost = l2Cost + l3Cost + awsCost + dmsCost + sfaCost;
-      autoBreakdown = { l2Required, l2Cost, l3Required, l3Cost, awsCost, dmsCost, sfaCost };
+
+      const licenseCosts = {};
+      let licenseTotal = 0;
+      (item.selected_distributor_costs || []).forEach((costName) => {
+        const rate = rateCard.per_distributor_costs[costName];
+        if (rate !== undefined) {
+          const value = distributors * rate;
+          licenseCosts[costName] = value;
+          licenseTotal += value;
+        }
+      });
+
+      autoCost = l2Cost + l3Cost + licenseTotal;
+      autoBreakdown = { l2Required, l2Cost, l3Required, l3Cost, licenseCosts };
     }
 
     return { manualCost, autoCost, totalCost: manualCost + autoCost, autoBreakdown };
@@ -119,6 +128,7 @@ const ProfitabilityAnalyzer = () => {
             label: li.label,
             revenue: li.revenue ?? '',
             distributor_count: li.distributor_count ?? '',
+            selected_distributor_costs: li.selected_distributor_costs || [],
             resource_lines: (li.resource_lines || []).map((rl) => ({
               role_name: rl.role_name,
               allocation_percent: String(rl.allocation_percent)
@@ -161,6 +171,15 @@ const ProfitabilityAnalyzer = () => {
   const updateLineItemField = (index, field, value) => {
     const updated = [...lineItems];
     updated[index][field] = value;
+    setLineItems(updated);
+  };
+
+  const toggleDistributorCost = (itemIndex, costName) => {
+    const updated = [...lineItems];
+    const current = updated[itemIndex].selected_distributor_costs || [];
+    updated[itemIndex].selected_distributor_costs = current.includes(costName)
+      ? current.filter((c) => c !== costName)
+      : [...current, costName];
     setLineItems(updated);
   };
 
@@ -222,6 +241,7 @@ const ProfitabilityAnalyzer = () => {
             label: li.label,
             revenue: li.revenue !== '' ? parseFloat(li.revenue) : null,
             distributor_count: li.distributor_count !== '' ? parseFloat(li.distributor_count) : null,
+            selected_distributor_costs: li.selected_distributor_costs || [],
             resource_lines: li.resource_lines
               .filter((rl) => rl.role_name)
               .map((rl) => ({
@@ -376,7 +396,7 @@ const ProfitabilityAnalyzer = () => {
                           placeholder="e.g., 1000"
                           className="h-10 bg-white"
                         />
-                        <p className="text-[10px] text-gray-500">Auto-adds L2, L3, AWS, DMS, SFA costs below</p>
+                        <p className="text-[10px] text-gray-500">Auto-adds L2/L3 + any licenses you select below</p>
                       </div>
                     </div>
                     <Button
@@ -391,34 +411,48 @@ const ProfitabilityAnalyzer = () => {
                     </Button>
                   </div>
 
-                  {/* Auto-calculated distributor-driven costs */}
-                  {autoBreakdown && (
+                  {/* Distributor-driven costs: license checkboxes + auto L2/L3 */}
+                  {parseFloat(item.distributor_count) > 0 && rateCard && (
                     <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg p-3">
                       <p className="text-xs font-semibold text-amber-800 mb-2">
-                        Auto-calculated from {item.distributor_count} distributors
+                        Which licenses does this line item include?
                       </p>
-                      <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
-                        <div className="bg-white rounded px-2 py-1.5">
-                          <p className="text-gray-500">L2 ({autoBreakdown.l2Required.toFixed(3)})</p>
-                          <p className="font-semibold">{fmt(autoBreakdown.l2Cost)}</p>
-                        </div>
-                        <div className="bg-white rounded px-2 py-1.5">
-                          <p className="text-gray-500">L3 ({autoBreakdown.l3Required.toFixed(3)})</p>
-                          <p className="font-semibold">{fmt(autoBreakdown.l3Cost)}</p>
-                        </div>
-                        <div className="bg-white rounded px-2 py-1.5">
-                          <p className="text-gray-500">AWS</p>
-                          <p className="font-semibold">{fmt(autoBreakdown.awsCost)}</p>
-                        </div>
-                        <div className="bg-white rounded px-2 py-1.5">
-                          <p className="text-gray-500">DMS License</p>
-                          <p className="font-semibold">{fmt(autoBreakdown.dmsCost)}</p>
-                        </div>
-                        <div className="bg-white rounded px-2 py-1.5">
-                          <p className="text-gray-500">SFA License</p>
-                          <p className="font-semibold">{fmt(autoBreakdown.sfaCost)}</p>
-                        </div>
+                      <div className="flex flex-wrap gap-3 mb-3">
+                        {Object.keys(rateCard.per_distributor_costs).map((costName) => {
+                          const rate = rateCard.per_distributor_costs[costName];
+                          const checked = (item.selected_distributor_costs || []).includes(costName);
+                          return (
+                            <label key={costName} className="flex items-center gap-1.5 text-xs bg-white px-2.5 py-1.5 rounded border border-gray-200 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => toggleDistributorCost(itemIndex, costName)}
+                                className="accent-purple-600"
+                              />
+                              {costName} {rate === 0 && <span className="text-gray-400">(rate pending)</span>}
+                            </label>
+                          );
+                        })}
                       </div>
+
+                      {autoBreakdown && (
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
+                          <div className="bg-white rounded px-2 py-1.5">
+                            <p className="text-gray-500">L2 ({autoBreakdown.l2Required.toFixed(3)})</p>
+                            <p className="font-semibold">{fmt(autoBreakdown.l2Cost)}</p>
+                          </div>
+                          <div className="bg-white rounded px-2 py-1.5">
+                            <p className="text-gray-500">L3 ({autoBreakdown.l3Required.toFixed(3)})</p>
+                            <p className="font-semibold">{fmt(autoBreakdown.l3Cost)}</p>
+                          </div>
+                          {Object.entries(autoBreakdown.licenseCosts).map(([name, value]) => (
+                            <div key={name} className="bg-white rounded px-2 py-1.5">
+                              <p className="text-gray-500">{name}</p>
+                              <p className="font-semibold">{fmt(value)}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -634,9 +668,9 @@ const ProfitabilityAnalyzer = () => {
                                 <div>{li.distributor_count} distributors:</div>
                                 <div className="flex justify-between"><span>L2 ({li.auto_costs.l2_required.toFixed(3)})</span><span>{fmt(li.auto_costs.l2_cost)}</span></div>
                                 <div className="flex justify-between"><span>L3 ({li.auto_costs.l3_required.toFixed(3)})</span><span>{fmt(li.auto_costs.l3_cost)}</span></div>
-                                <div className="flex justify-between"><span>AWS</span><span>{fmt(li.auto_costs.aws_cost)}</span></div>
-                                <div className="flex justify-between"><span>DMS License</span><span>{fmt(li.auto_costs.dms_cost)}</span></div>
-                                <div className="flex justify-between"><span>SFA License</span><span>{fmt(li.auto_costs.sfa_cost)}</span></div>
+                                {Object.entries(li.auto_costs.license_costs || {}).map(([name, value]) => (
+                                  <div key={name} className="flex justify-between"><span>{name}</span><span>{fmt(value)}</span></div>
+                                ))}
                               </div>
                             )}
                             {li.resource_lines.length > 0 && (
