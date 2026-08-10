@@ -90,7 +90,9 @@ const PendingApprovals = () => {
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <h3 className="text-lg font-semibold mb-1" style={{ fontFamily: 'Cabinet Grotesk, system-ui, sans-serif' }}>{proposal.title}</h3>
-                    <p className="text-[#71717A] text-sm mb-3">{proposal.description}</p>
+                    {proposal.description && (
+                      <p className="text-[#71717A] text-sm mb-3">{proposal.description}</p>
+                    )}
                     <div className="flex items-center gap-4 text-xs text-[#71717A]">
                       <span>By {proposal.created_by.name}</span>
                       <span>•</span>
