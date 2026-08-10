@@ -139,6 +139,13 @@ const ProfitabilityAnalyzer = () => {
     setShowForm(true);
   };
 
+  // Extract a plain number out of a free-text "users" field like "50 users" or "50"
+  const parseUsersCount = (usersText) => {
+    if (!usersText) return null;
+    const match = String(usersText).match(/[\d,.]+/);
+    return match ? parseFloat(match[0].replace(/,/g, '')) : null;
+  };
+
   const handleProposalSelect = (id) => {
     setProposalId(id);
     if (!id) {
@@ -150,7 +157,32 @@ const ProfitabilityAnalyzer = () => {
 
     const items = [];
     (proposal.products || []).forEach((p) => {
-      items.push(emptyRevenueLineItem(p.product_name));
+      const item = emptyRevenueLineItem(p.product_name);
+
+      // Revenue = higher of (price/user x users) and minimum billing -
+      // standard SaaS minimum-commitment model
+      const usersCount = parseUsersCount(p.users);
+      const perUserRevenue = p.price_per_user && usersCount ? p.price_per_user * usersCount : null;
+      const minBilling = p.minimum_billing || null;
+      let suggestedRevenue = null;
+      if (perUserRevenue !== null && minBilling !== null) {
+        suggestedRevenue = Math.max(perUserRevenue, minBilling);
+      } else if (perUserRevenue !== null) {
+        suggestedRevenue = perUserRevenue;
+      } else if (minBilling !== null) {
+        suggestedRevenue = minBilling;
+      }
+      if (suggestedRevenue !== null) {
+        item.revenue = String(suggestedRevenue);
+      }
+      items.push(item);
+
+      // Training gets its own separate revenue line item
+      if (p.training) {
+        const trainingItem = emptyRevenueLineItem(`${p.product_name} - Training`);
+        trainingItem.revenue = String(p.training);
+        items.push(trainingItem);
+      }
     });
     if (proposal.one_time_setup_fee) {
       const item = emptyRevenueLineItem('One-Time Setup & Integration');
