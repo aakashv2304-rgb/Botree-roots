@@ -16,14 +16,13 @@ const NewProposal = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    title: '',
-    description: '',
     file: null,
     customer_name: '',
     industry: '',
     comments: '',
     deal_value: '',
     one_time_setup_fee: '',
+    integration_fee: '',
     contract_years: '',
     price_escalation_percent: ''
   });
@@ -108,16 +107,17 @@ const NewProposal = () => {
         .map(f => ({ name: f.name, value: parseFloat(f.value) || 0 }))
         .filter(f => f.name && f.value);
 
-      // Create proposal
+      // Create proposal - title is auto-derived from customer name since
+      // Title/Description are no longer manually entered
       await axios.post(`${API}/proposals`, {
-        title: formData.title,
-        description: formData.description,
+        title: formData.customer_name,
         file_id: fileUpload.data.id,
         customer_name: formData.customer_name,
         industry: formData.industry,
         comments: formData.comments,
         deal_value: formData.deal_value ? parseFloat(formData.deal_value) : null,
         one_time_setup_fee: formData.one_time_setup_fee ? parseFloat(formData.one_time_setup_fee) : null,
+        integration_fee: formData.integration_fee ? parseFloat(formData.integration_fee) : null,
         additional_fees: additionalFeesData,
         contract_years: formData.contract_years ? parseInt(formData.contract_years) : null,
         price_escalation_percent: formData.price_escalation_percent ? parseFloat(formData.price_escalation_percent) : null,
@@ -161,48 +161,19 @@ const NewProposal = () => {
               Basic Information
             </h2>
             <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="title" className="text-gray-700 font-semibold">
-                    Proposal Title <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="title"
-                    value={formData.title}
-                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                    placeholder="Enter proposal title"
-                    required
-                    className="h-12"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="customer_name" className="text-gray-700 font-semibold">
-                    Customer Name <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="customer_name"
-                    value={formData.customer_name}
-                    onChange={(e) => setFormData({ ...formData, customer_name: e.target.value })}
-                    placeholder="Enter customer name"
-                    required
-                    className="h-12"
-                  />
-                </div>
-              </div>
-
               <div className="space-y-2">
-                <Label htmlFor="description" className="text-gray-700 font-semibold">
-                  Description <span className="text-red-500">*</span>
+                <Label htmlFor="customer_name" className="text-gray-700 font-semibold">
+                  Customer Name <span className="text-red-500">*</span>
                 </Label>
-                <Textarea
-                  id="description"
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="Enter proposal description"
+                <Input
+                  id="customer_name"
+                  value={formData.customer_name}
+                  onChange={(e) => setFormData({ ...formData, customer_name: e.target.value })}
+                  placeholder="Enter customer name"
                   required
-                  rows={4}
+                  className="h-12"
                 />
+                <p className="text-xs text-gray-500">This is how the proposal will be labeled everywhere</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -237,7 +208,7 @@ const NewProposal = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="contract_years" className="text-gray-700 font-semibold">
-                    Number of Years of Contract
+                    Contract Tenure
                   </Label>
                   <Input
                     id="contract_years"
@@ -300,15 +271,27 @@ const NewProposal = () => {
               One-Time Setup & Integration
             </h2>
 
-            <div className="space-y-2 max-w-sm">
-              <Label className="text-gray-700 font-semibold">Setup & Integration Fee (₹)</Label>
-              <Input
-                type="number"
-                value={formData.one_time_setup_fee}
-                onChange={(e) => setFormData({ ...formData, one_time_setup_fee: e.target.value })}
-                placeholder="e.g., 50000"
-                className="h-11 bg-white"
-              />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl">
+              <div className="space-y-2">
+                <Label className="text-gray-700 font-semibold">One-Time Setup Fee (₹)</Label>
+                <Input
+                  type="number"
+                  value={formData.one_time_setup_fee}
+                  onChange={(e) => setFormData({ ...formData, one_time_setup_fee: e.target.value })}
+                  placeholder="e.g., 30000"
+                  className="h-11 bg-white"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-gray-700 font-semibold">Integration Fee (₹)</Label>
+                <Input
+                  type="number"
+                  value={formData.integration_fee}
+                  onChange={(e) => setFormData({ ...formData, integration_fee: e.target.value })}
+                  placeholder="e.g., 20000"
+                  className="h-11 bg-white"
+                />
+              </div>
             </div>
 
             {/* Extra Charges - unchanged mechanism, now proposal-level */}
