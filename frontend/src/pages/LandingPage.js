@@ -93,13 +93,13 @@ const LandingPage = () => {
             <br />
             <span className="text-emerald-400">Tracking System</span>
           </h1>
-          <p className="text-xl text-gray-400 mb-8 max-w-2xl mx-auto">
+          <p className="text-xl text-gray-400 mb-6 max-w-2xl mx-auto">
             Streamlined workflow management for proposal submissions, reviews, and approvals across Sales, CGO, Finance, Legal, and CFO.
           </p>
           <Button 
             onClick={() => navigate('/login')}
             size="lg"
-            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-8 py-6 text-lg shadow-xl"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-6 py-6 text-lg shadow-xl"
             data-testid="hero-signin-btn"
           >
             Access Dashboard
@@ -108,9 +108,9 @@ const LandingPage = () => {
         </div>
 
         {/* Key Features Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-20">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-20">
           <div className="bg-[#1E293B] border border-[#334155] rounded-lg p-6">
-            <div className="w-12 h-12 bg-emerald-600/20 rounded-lg flex items-center justify-center mb-4">
+            <div className="w-12 h-10 bg-emerald-600/20 rounded-lg flex items-center justify-center mb-4">
               <FileText size={24} className="text-emerald-400" />
             </div>
             <h3 className="text-lg font-bold mb-2">Multi-Stage Workflow</h3>
@@ -120,7 +120,7 @@ const LandingPage = () => {
           </div>
 
           <div className="bg-[#1E293B] border border-[#334155] rounded-lg p-6">
-            <div className="w-12 h-12 bg-amber-600/20 rounded-lg flex items-center justify-center mb-4">
+            <div className="w-12 h-10 bg-amber-600/20 rounded-lg flex items-center justify-center mb-4">
               <Clock size={24} className="text-amber-400" />
             </div>
             <h3 className="text-lg font-bold mb-2">Real-Time Tracking</h3>
@@ -130,7 +130,7 @@ const LandingPage = () => {
           </div>
 
           <div className="bg-[#1E293B] border border-[#334155] rounded-lg p-6">
-            <div className="w-12 h-12 bg-indigo-600/20 rounded-lg flex items-center justify-center mb-4">
+            <div className="w-12 h-10 bg-indigo-600/20 rounded-lg flex items-center justify-center mb-4">
               <CurrencyDollar size={24} className="text-indigo-400" />
             </div>
             <h3 className="text-lg font-bold mb-2">Deal Value Analytics</h3>
@@ -142,29 +142,29 @@ const LandingPage = () => {
 
         {/* Workflow Stages */}
         <div className="mt-20">
-          <h2 className="text-3xl font-bold text-center mb-10">Approval Workflow</h2>
+          <h2 className="text-2xl font-bold text-center mb-10">Approval Workflow</h2>
           <div className="flex items-center justify-center gap-3 flex-wrap">
-            <div className="px-5 py-3 bg-[#1E293B] border-2 border-emerald-500 rounded-lg">
+            <div className="px-5 py-3 bg-[#1E293B] border border-emerald-500 rounded-lg">
               <div className="text-xs text-gray-400 mb-1">Stage 1</div>
               <div className="font-bold">Sales</div>
             </div>
             <ArrowRight size={20} className="text-gray-600" />
-            <div className="px-5 py-3 bg-[#1E293B] border-2 border-indigo-500 rounded-lg">
+            <div className="px-5 py-3 bg-[#1E293B] border border-indigo-500 rounded-lg">
               <div className="text-xs text-gray-400 mb-1">Stage 2</div>
               <div className="font-bold">CGO</div>
             </div>
             <ArrowRight size={20} className="text-gray-600" />
-            <div className="px-5 py-3 bg-[#1E293B] border-2 border-purple-500 rounded-lg">
+            <div className="px-5 py-3 bg-[#1E293B] border border-purple-500 rounded-lg">
               <div className="text-xs text-gray-400 mb-1">Stage 3</div>
               <div className="font-bold">Finance</div>
             </div>
             <ArrowRight size={20} className="text-gray-600" />
-            <div className="px-5 py-3 bg-[#1E293B] border-2 border-amber-500 rounded-lg">
+            <div className="px-5 py-3 bg-[#1E293B] border border-amber-500 rounded-lg">
               <div className="text-xs text-gray-400 mb-1">Stage 4</div>
               <div className="font-bold">Legal</div>
             </div>
             <ArrowRight size={20} className="text-gray-600" />
-            <div className="px-5 py-3 bg-[#1E293B] border-2 border-emerald-500 rounded-lg">
+            <div className="px-5 py-3 bg-[#1E293B] border border-emerald-500 rounded-lg">
               <div className="text-xs text-gray-400 mb-1">Stage 5</div>
               <div className="font-bold">CFO</div>
             </div>
