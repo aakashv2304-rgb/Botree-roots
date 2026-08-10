@@ -338,7 +338,9 @@ const ProposalDetail = () => {
                     </Button>
                   )}
                 </div>
-                <p className="text-gray-600">{proposal.description}</p>
+                {proposal.description && (
+                  <p className="text-gray-600">{proposal.description}</p>
+                )}
               </div>
               <div className="flex items-center gap-3">
                 <Badge
@@ -393,7 +395,7 @@ const ProposalDetail = () => {
             </div>
 
             {/* Extended Fields */}
-            {(proposal.customer_name || proposal.industry || proposal.products?.length > 0 || proposal.deal_value || proposal.one_time_setup_fee || proposal.additional_fees?.length > 0 || proposal.contract_years || proposal.price_escalation_percent || proposal.comments) && (
+            {(proposal.customer_name || proposal.industry || proposal.products?.length > 0 || proposal.deal_value || proposal.one_time_setup_fee || proposal.integration_fee || proposal.additional_fees?.length > 0 || proposal.contract_years || proposal.price_escalation_percent || proposal.comments) && (
               <div className="border-t border-gray-200 pt-4 mt-4">
                 <h3 className="text-sm font-heading font-bold text-gray-900 mb-3">Proposal Details</h3>
                 <div className="grid grid-cols-2 gap-3 text-xs">
@@ -405,8 +407,14 @@ const ProposalDetail = () => {
                   )}
                   {proposal.one_time_setup_fee && (
                     <div className="bg-blue-50 p-2 rounded border border-blue-200">
-                      <span className="text-blue-700 font-medium block mb-1">One-Time Setup & Integration</span>
+                      <span className="text-blue-700 font-medium block mb-1">One-Time Setup</span>
                       <span className="text-blue-900 font-bold text-base">₹{proposal.one_time_setup_fee.toLocaleString('en-IN')}</span>
+                    </div>
+                  )}
+                  {proposal.integration_fee && (
+                    <div className="bg-blue-50 p-2 rounded border border-blue-200">
+                      <span className="text-blue-700 font-medium block mb-1">Integration</span>
+                      <span className="text-blue-900 font-bold text-base">₹{proposal.integration_fee.toLocaleString('en-IN')}</span>
                     </div>
                   )}
                   {proposal.customer_name && (
@@ -423,7 +431,7 @@ const ProposalDetail = () => {
                   )}
                   {proposal.contract_years && (
                     <div className="bg-amber-50 p-2 rounded border border-amber-200">
-                      <span className="text-amber-700 font-medium block mb-1">Contract Term</span>
+                      <span className="text-amber-700 font-medium block mb-1">Contract Tenure</span>
                       <span className="text-amber-900 font-semibold">{proposal.contract_years} year{proposal.contract_years > 1 ? 's' : ''}</span>
                     </div>
                   )}
