@@ -281,7 +281,7 @@ class Product(BaseModel):
 
 class ProposalCreate(BaseModel):
     title: str
-    description: str
+    description: Optional[str] = None
     file_id: str
     products: Optional[List[Product]] = []
     customer_name: Optional[str] = None
@@ -289,6 +289,7 @@ class ProposalCreate(BaseModel):
     comments: Optional[str] = None
     deal_value: Optional[float] = None
     one_time_setup_fee: Optional[float] = None
+    integration_fee: Optional[float] = None
     additional_fees: Optional[List[AdditionalFee]] = []
     contract_years: Optional[int] = None
     price_escalation_percent: Optional[float] = None
@@ -616,6 +617,7 @@ async def create_proposal(proposal: ProposalCreate, request: Request):
         "comments": proposal.comments,
         "deal_value": proposal.deal_value,
         "one_time_setup_fee": proposal.one_time_setup_fee,
+        "integration_fee": proposal.integration_fee,
         "additional_fees": [f.dict() for f in proposal.additional_fees] if proposal.additional_fees else [],
         "contract_years": proposal.contract_years,
         "price_escalation_percent": proposal.price_escalation_percent,
@@ -639,6 +641,7 @@ async def create_proposal(proposal: ProposalCreate, request: Request):
         "comments": proposal.comments,
         "deal_value": proposal.deal_value,
         "one_time_setup_fee": proposal.one_time_setup_fee,
+        "integration_fee": proposal.integration_fee,
         "additional_fees": [f.dict() for f in proposal.additional_fees] if proposal.additional_fees else [],
         "contract_years": proposal.contract_years,
         "price_escalation_percent": proposal.price_escalation_percent,
@@ -730,6 +733,7 @@ async def get_proposals(request: Request, status: Optional[str] = None, search: 
             "comments": p.get("comments"),
             "deal_value": p.get("deal_value"),
             "one_time_setup_fee": p.get("one_time_setup_fee"),
+            "integration_fee": p.get("integration_fee"),
             "additional_fees": p.get("additional_fees", []),
             "contract_years": p.get("contract_years"),
             "price_escalation_percent": p.get("price_escalation_percent"),
@@ -768,6 +772,7 @@ async def get_proposal(proposal_id: str, request: Request):
         "comments": proposal.get("comments"),
         "deal_value": proposal.get("deal_value"),
         "one_time_setup_fee": proposal.get("one_time_setup_fee"),
+        "integration_fee": proposal.get("integration_fee"),
         "additional_fees": proposal.get("additional_fees", []),
         "contract_years": proposal.get("contract_years"),
         "price_escalation_percent": proposal.get("price_escalation_percent"),
@@ -982,11 +987,12 @@ async def download_version_pdf(proposal_id: str, version_number: int, request: R
     data = [
         ['Field', 'Value'],
         ['Title', version['title']],
-        ['Description', version['description']],
+        ['Description', version.get('description') or 'N/A'],
         ['Customer Name', version.get('customer_name', 'N/A')],
         ['Industry', version.get('industry', 'N/A')],
         ['Deal Value (INR)', f"₹{version['deal_value']:,.2f}" if version.get('deal_value') else 'N/A'],
-        ['One-Time Setup & Integration (INR)', f"₹{version['one_time_setup_fee']:,.2f}" if version.get('one_time_setup_fee') else 'N/A'],
+        ['One-Time Setup (INR)', f"₹{version['one_time_setup_fee']:,.2f}" if version.get('one_time_setup_fee') else 'N/A'],
+        ['Integration (INR)', f"₹{version['integration_fee']:,.2f}" if version.get('integration_fee') else 'N/A'],
         ['Comments', version.get('comments', 'N/A')],
     ]
     
@@ -1148,6 +1154,7 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
     # already on the proposal rather than wiping it out with empty defaults.
     products_data = [p.dict() for p in proposal.products] if proposal.products else existing_proposal.get("products", [])
     one_time_setup_fee = proposal.one_time_setup_fee if proposal.one_time_setup_fee is not None else existing_proposal.get("one_time_setup_fee")
+    integration_fee = proposal.integration_fee if proposal.integration_fee is not None else existing_proposal.get("integration_fee")
     additional_fees_data = [f.dict() for f in proposal.additional_fees] if proposal.additional_fees else existing_proposal.get("additional_fees", [])
     contract_years = proposal.contract_years if proposal.contract_years is not None else existing_proposal.get("contract_years")
     price_escalation_percent = proposal.price_escalation_percent if proposal.price_escalation_percent is not None else existing_proposal.get("price_escalation_percent")
@@ -1170,6 +1177,7 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
         "comments": proposal.comments,
         "deal_value": proposal.deal_value,
         "one_time_setup_fee": one_time_setup_fee,
+        "integration_fee": integration_fee,
         "additional_fees": additional_fees_data,
         "contract_years": contract_years,
         "price_escalation_percent": price_escalation_percent,
@@ -1203,6 +1211,7 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
                 "comments": proposal.comments,
                 "deal_value": proposal.deal_value,
                 "one_time_setup_fee": one_time_setup_fee,
+                "integration_fee": integration_fee,
                 "additional_fees": additional_fees_data,
                 "contract_years": contract_years,
                 "price_escalation_percent": price_escalation_percent,
