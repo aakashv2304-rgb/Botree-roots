@@ -50,12 +50,12 @@ const Login = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#E8E4F8] via-[#F5E8F4] to-[#FDD7ED] relative">
       {/* Header with Logo */}
-      <div className="absolute top-0 left-0 right-0 px-8 py-6 animate-fade-in">
+      <div className="absolute top-0 left-0 right-0 px-6 py-6 animate-fade-in">
         <div className="flex items-center gap-3">
           <img 
             src="https://customer-assets-7cd3h4nn.emergentagent.net/job_proposal-tracker-app/artifacts/12kvgckj_Botree%20Logo-white-bg.webp" 
             alt="Botree Software Logo" 
-            className="h-12 w-auto"
+            className="h-10 w-auto"
           />
         </div>
       </div>
@@ -64,10 +64,10 @@ const Login = () => {
       <div className="flex items-center justify-center min-h-screen px-4 py-20">
         <div className="w-full max-w-md animate-fade-in-up">
           {/* Login Card */}
-          <div className="bg-white rounded-2xl shadow-2xl p-10 space-y-6">
+          <div className="bg-white rounded-2xl shadow-lg p-10 space-y-6">
             {/* Header */}
             <div className="text-center space-y-2 animate-fade-in" style={{animationDelay: '0.1s'}}>
-              <h2 className="text-3xl font-bold text-gray-900">
+              <h2 className="text-2xl font-bold text-gray-900">
                 Welcome Back
               </h2>
               <p className="text-gray-600">Sign in to Botree Roots</p>
@@ -85,7 +85,7 @@ const Login = () => {
                   placeholder="your.email@botree.com"
                   required
                   data-testid="email-input"
-                  className="h-12 border-gray-300 focus:border-[#9B30FF] focus:ring-[#9B30FF]"
+                  className="h-10 border-gray-300 focus:border-[#9B30FF] focus:ring-[#9B30FF]"
                 />
               </div>
 
@@ -100,7 +100,7 @@ const Login = () => {
                     placeholder="Enter your password"
                     required
                     data-testid="password-input"
-                    className="h-12 pr-12 border-gray-300 focus:border-[#9B30FF] focus:ring-[#9B30FF]"
+                    className="h-10 pr-12 border-gray-300 focus:border-[#9B30FF] focus:ring-[#9B30FF]"
                   />
                   <button
                     type="button"
@@ -116,7 +116,7 @@ const Login = () => {
                 type="submit"
                 disabled={loading}
                 data-testid="login-button"
-                className="w-full h-12 text-base font-bold text-white shadow-lg hover:shadow-xl transition-all duration-300 animate-slide-in-left"
+                className="w-full h-10 text-base font-bold text-white shadow-md hover:shadow-xl transition-all duration-300 animate-slide-in-left"
                 style={{
                   background: 'linear-gradient(135deg, #9B30FF 0%, #E64AD1 100%)',
                   animationDelay: '0.4s'
