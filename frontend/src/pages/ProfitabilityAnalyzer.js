@@ -185,8 +185,13 @@ const ProfitabilityAnalyzer = () => {
       }
     });
     if (proposal.one_time_setup_fee) {
-      const item = emptyRevenueLineItem('One-Time Setup & Integration');
+      const item = emptyRevenueLineItem('One-Time Setup');
       item.revenue = String(proposal.one_time_setup_fee);
+      items.push(item);
+    }
+    if (proposal.integration_fee) {
+      const item = emptyRevenueLineItem('Integration');
+      item.revenue = String(proposal.integration_fee);
       items.push(item);
     }
     (proposal.additional_fees || []).forEach((f) => {
