@@ -358,16 +358,16 @@ const ProfitabilityAnalyzer = () => {
   if (loading || !rateCard) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#0F172A]"></div>
+        <div className="animate-spin rounded-full h-10 w-12 border-t-2 border-b-2 border-[#0F172A]"></div>
       </div>
     );
   }
 
   return (
-    <div className="p-8" data-testid="profitability-analyzer-page">
-      <div className="mb-8 flex items-center justify-between">
+    <div className="p-6" data-testid="profitability-analyzer-page">
+      <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-4xl font-display font-black tracking-tight mb-2 flex items-center gap-3">
+          <h1 className="text-3xl font-display font-black tracking-tight mb-2 flex items-center gap-3">
             <Calculator size={36} className="text-purple-600" />
             Deal Profitability Analyzer
           </h1>
@@ -378,7 +378,7 @@ const ProfitabilityAnalyzer = () => {
         {!showForm && (
           <Button
             onClick={openNewForm}
-            className="text-white font-semibold shadow-lg"
+            className="text-white font-semibold shadow-md"
             style={{ background: 'linear-gradient(135deg, #9B30FF 0%, #E64AD1 100%)' }}
             data-testid="new-analysis-button"
           >
@@ -389,7 +389,7 @@ const ProfitabilityAnalyzer = () => {
       </div>
 
       {showForm && (
-        <div className="bg-white border border-[#E4E4E7] shadow-sm p-8 mb-8 animate-scale-in" data-testid="analysis-form">
+        <div className="bg-white border border-[#E4E4E7] shadow-sm p-6 mb-6 animate-scale-in" data-testid="analysis-form">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-bold">{editingId ? 'Edit Analysis' : 'New Analysis'}</h2>
             <Button variant="ghost" size="sm" onClick={() => { setShowForm(false); resetForm(); }}>
@@ -404,7 +404,7 @@ const ProfitabilityAnalyzer = () => {
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="e.g., Acme Corp - CRM Rollout"
-                className="h-11"
+                className="h-10"
               />
             </div>
 
@@ -438,7 +438,7 @@ const ProfitabilityAnalyzer = () => {
               const margin = revenueNum ? (profit / revenueNum) * 100 : null;
 
               return (
-                <div key={itemIndex} className="border-2 border-gray-200 rounded-lg p-5 bg-gray-50">
+                <div key={itemIndex} className="border border-gray-200 rounded-lg p-5 bg-gray-50">
                   <div className="flex items-start justify-between gap-4 mb-4">
                     <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-3">
                       <div className="space-y-1">
@@ -741,7 +741,7 @@ const ProfitabilityAnalyzer = () => {
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 cursor-pointer" onClick={() => setExpandedId(expandedId === analysis.id ? null : analysis.id)}>
-                      <h3 className="text-lg font-semibold" style={{ fontFamily: 'Cabinet Grotesk, system-ui, sans-serif' }}>
+                      <h3 className="text-lg font-semibold font-heading">
                         {analysis.title}
                       </h3>
                       {expandedId === analysis.id ? <CaretUp size={16} /> : <CaretDown size={16} />}
@@ -759,7 +759,7 @@ const ProfitabilityAnalyzer = () => {
                       <span>•</span>
                       <span>{analysis.revenue_line_items.length} line item(s)</span>
                     </div>
-                    <div className="flex items-center gap-6 text-sm">
+                    <div className="flex items-center gap-4 text-sm">
                       <span className="text-gray-600">
                         Revenue: <span className="font-semibold text-gray-900">{analysis.total_revenue ? fmt(analysis.total_revenue) : '—'}</span>
                       </span>
