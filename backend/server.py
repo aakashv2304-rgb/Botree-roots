@@ -333,9 +333,15 @@ STAFFING_RATIO_PER_DISTRIBUTOR = {
     "L3": 0.000667,
 }
 
+# Used to derive a day-rate or hour-rate from a role's fixed monthly cost
+WORKING_DAYS_PER_MONTH = 22
+WORKING_HOURS_PER_MONTH = 176  # 22 days x 8 hrs
+
 class ResourceLine(BaseModel):
     role_name: str  # must be one of MANUAL_ROLE_OPTIONS
     allocation_percent: float  # e.g. 10, 20, ... 100
+    quantity: Optional[float] = None  # e.g. 2 (months), 4 (days) - extra multiplier on top of allocation %
+    unit: Optional[str] = None  # "month" | "day" | "hrs" - if unset, no extra multiplier is applied
 
 class RevenueLineItem(BaseModel):
     label: str  # e.g. product name, or "One-Time Setup", or a custom line
@@ -1751,21 +1757,40 @@ async def get_monthly_proposals(request: Request, year: int = None, month: int =
 # Standalone tool, visible to every role by default. Not gated by the
 # approval workflow. Can optionally attach to a proposal for reference.
 
+def _quantity_multiplier(quantity, unit) -> float:
+    """Extra multiplier on top of allocation %, e.g. 2 months, 4 days, 8 hrs.
+    Defaults to 1 (no effect) if quantity/unit aren't both set."""
+    if not quantity or not unit:
+        return 1.0
+    if unit == "month":
+        return quantity
+    if unit == "day":
+        return quantity / WORKING_DAYS_PER_MONTH
+    if unit == "hrs":
+        return quantity / WORKING_HOURS_PER_MONTH
+    return 1.0
+
 def _compute_line_item(line_item: dict) -> dict:
     # Manual resource lines: role_name looked up against the fixed rate card,
-    # allocation % still adjustable per line by the user
+    # allocation % adjustable, plus an optional quantity+unit multiplier
+    # (e.g. "2 man-months" or "4 man-days") on top of that.
     resolved_lines = []
     manual_cost = 0.0
     for rl in line_item.get("resource_lines", []):
         role = rl.get("role_name")
         monthly_cost = ROLE_RATE_CARD.get(role, 0)
         pct = rl.get("allocation_percent") or 0
-        line_cost = monthly_cost * pct / 100
+        quantity = rl.get("quantity")
+        unit = rl.get("unit")
+        multiplier = _quantity_multiplier(quantity, unit)
+        line_cost = monthly_cost * pct / 100 * multiplier
         manual_cost += line_cost
         resolved_lines.append({
             "role_name": role,
             "monthly_cost": monthly_cost,
             "allocation_percent": pct,
+            "quantity": quantity,
+            "unit": unit,
             "cost": line_cost,
         })
 
@@ -1848,6 +1873,8 @@ async def get_rate_card(request: Request):
         "auto_roles": {"L2": ROLE_RATE_CARD["L2"], "L3": ROLE_RATE_CARD["L3"]},
         "per_distributor_costs": PER_DISTRIBUTOR_MONTHLY_COSTS,
         "staffing_ratios": STAFFING_RATIO_PER_DISTRIBUTOR,
+        "working_days_per_month": WORKING_DAYS_PER_MONTH,
+        "working_hours_per_month": WORKING_HOURS_PER_MONTH,
     }
 
 def _validate_resource_roles(revenue_line_items):
