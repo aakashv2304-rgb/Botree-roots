@@ -77,8 +77,8 @@ const UserManagement = () => {
 
   if (user?.role !== 'Admin') {
     return (
-      <div className="p-8">
-        <div className="bg-white border border-gray-200 rounded-lg p-8 text-center">
+      <div className="p-6">
+        <div className="bg-white border border-gray-200 rounded-lg p-6 text-center">
           <p className="text-gray-600">Access denied. Only Admin can manage users.</p>
         </div>
       </div>
@@ -88,21 +88,21 @@ const UserManagement = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#0066CC]"></div>
+        <div className="animate-spin rounded-full h-10 w-12 border-t-2 border-b-2 border-[#0066CC]"></div>
       </div>
     );
   }
 
   return (
-    <div className="p-8" data-testid="users-page">
-      <div className="mb-8 flex items-center justify-between">
+    <div className="p-6" data-testid="users-page">
+      <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-4xl font-display font-black text-gray-900 mb-2">User Management</h1>
+          <h1 className="text-3xl font-display font-black text-gray-900 mb-2">User Management</h1>
           <p className="text-gray-600 font-body">Manage system users and roles</p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button data-testid="add-user-button" className="text-white font-semibold shadow-lg" style={{background: 'linear-gradient(135deg, #F72585 0%, #7209B7 100%)'}}>
+            <Button data-testid="add-user-button" className="text-white font-semibold shadow-md" style={{background: 'linear-gradient(135deg, #F72585 0%, #7209B7 100%)'}}>
               <Plus size={20} className="mr-2" />
               Add User
             </Button>
@@ -176,7 +176,7 @@ const UserManagement = () => {
                   </SelectContent>
                 </Select>
               </div>
-              <Button type="submit" data-testid="submit-user-button" className="w-full text-white font-semibold shadow-lg" style={{background: 'linear-gradient(135deg, #F72585 0%, #7209B7 100%)'}}>
+              <Button type="submit" data-testid="submit-user-button" className="w-full text-white font-semibold shadow-md" style={{background: 'linear-gradient(135deg, #F72585 0%, #7209B7 100%)'}}>
                 Create User
               </Button>
             </form>
@@ -298,7 +298,7 @@ const UserManagement = () => {
               <Button variant="outline" onClick={() => setEditRoleOpen(false)} className="flex-1">
                 Cancel
               </Button>
-              <Button onClick={handleRoleChange} className="flex-1 text-white font-semibold shadow-lg" style={{background: 'linear-gradient(135deg, #F72585 0%, #7209B7 100%)'}}>
+              <Button onClick={handleRoleChange} className="flex-1 text-white font-semibold shadow-md" style={{background: 'linear-gradient(135deg, #F72585 0%, #7209B7 100%)'}}>
                 Update Role
               </Button>
             </div>
