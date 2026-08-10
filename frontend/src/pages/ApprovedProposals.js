@@ -52,15 +52,15 @@ const ApprovedProposals = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#0F172A]"></div>
+        <div className="animate-spin rounded-full h-10 w-12 border-t-2 border-b-2 border-[#0F172A]"></div>
       </div>
     );
   }
 
   return (
-    <div className="p-8" data-testid="approved-page">
-      <div className="mb-8">
-        <h1 className="text-4xl font-display font-black tracking-tight mb-2">Approved Proposals</h1>
+    <div className="p-6" data-testid="approved-page">
+      <div className="mb-6">
+        <h1 className="text-3xl font-display font-black tracking-tight mb-2">Approved Proposals</h1>
         <p className="text-gray-600 font-body">The final proposal document for each approved proposal</p>
       </div>
 
@@ -79,8 +79,7 @@ const ApprovedProposals = () => {
               >
                 <div className="flex-1 min-w-0">
                   <h3
-                    className="text-lg font-semibold truncate"
-                    style={{ fontFamily: 'Cabinet Grotesk, system-ui, sans-serif' }}
+                    className="text-lg font-semibold truncate font-heading"
                   >
                     {proposal.title}
                   </h3>
