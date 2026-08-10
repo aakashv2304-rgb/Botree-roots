@@ -66,8 +66,8 @@ const Overview = () => {
   };
 
   const filteredProposals = proposals.filter(p => {
-    const matchesSearch = p.title.toLowerCase().includes(search.toLowerCase()) ||
-                          p.description.toLowerCase().includes(search.toLowerCase()) ||
+    const matchesSearch = (p.title || '').toLowerCase().includes(search.toLowerCase()) ||
+                          (p.description || '').toLowerCase().includes(search.toLowerCase()) ||
                           (p.customer_name && p.customer_name.toLowerCase().includes(search.toLowerCase()));
     const matchesStatus = statusFilter === 'all' || p.status === statusFilter;
     return matchesSearch && matchesStatus;
