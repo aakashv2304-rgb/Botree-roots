@@ -338,8 +338,10 @@ class ResourceLine(BaseModel):
     allocation_percent: float  # e.g. 10, 20, ... 100
 
 class RevenueLineItem(BaseModel):
-    label: str  # e.g. product name, or "One-Time Setup & Integration", or a custom line
+    label: str  # e.g. product name, or "One-Time Setup", or a custom line
     revenue: Optional[float] = None
+    is_subscription: bool = False  # only subscription lines show the distributor/L2-L3/license section in the UI
+    reference_note: Optional[str] = None  # display-only info, e.g. "50 users" - no effect on calculation
     distributor_count: Optional[float] = None
     selected_distributor_costs: List[str] = []  # subset of PER_DISTRIBUTOR_MONTHLY_COSTS keys that apply to this line
     resource_lines: List[ResourceLine] = []
