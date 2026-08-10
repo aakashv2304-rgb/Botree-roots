@@ -8,7 +8,7 @@ const SplashScreen = () => {
       <div className="flex flex-col items-center gap-8">
         <div className="animate-float">
           <div
-            className="bg-white rounded-3xl shadow-2xl p-8 flex items-center justify-center"
+            className="bg-white rounded-3xl shadow-lg p-6 flex items-center justify-center"
             style={{ animation: 'splashLogoIn 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) both' }}
           >
             <img
