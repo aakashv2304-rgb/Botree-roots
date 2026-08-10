@@ -116,15 +116,15 @@ const EditProposal = () => {
   if (!proposal) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#0066CC]"></div>
+        <div className="animate-spin rounded-full h-10 w-12 border-t-2 border-b-2 border-[#0066CC]"></div>
       </div>
     );
   }
 
   if (user?.role !== 'Sales' || proposal.status !== 'needs_revision') {
     return (
-      <div className="p-8">
-        <div className="bg-white border border-gray-200 rounded-lg p-8 text-center">
+      <div className="p-6">
+        <div className="bg-white border border-gray-200 rounded-lg p-6 text-center">
           <p className="text-gray-600">You can only edit rejected proposals.</p>
         </div>
       </div>
@@ -132,7 +132,7 @@ const EditProposal = () => {
   }
 
   return (
-    <div className="p-8" data-testid="edit-proposal-page">
+    <div className="p-6" data-testid="edit-proposal-page">
       <Button
         onClick={() => navigate('/dashboard')}
         variant="ghost"
@@ -143,13 +143,13 @@ const EditProposal = () => {
         Back to Dashboard
       </Button>
 
-      <div className="mb-8">
-        <h1 className="text-4xl font-bold text-gray-900 mb-2">Edit & Resubmit Proposal</h1>
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Edit & Resubmit Proposal</h1>
         <p className="text-gray-600">Update your rejected proposal and resubmit for approval</p>
       </div>
 
       <div className="max-w-2xl">
-        <div className="bg-white border border-gray-200 rounded-lg p-8 shadow-sm">
+        <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
           <form onSubmit={handleSubmit} data-testid="edit-proposal-form" className="space-y-6">
             <div className="space-y-2">
               <Label htmlFor="title">Proposal Title</Label>
@@ -266,7 +266,7 @@ const EditProposal = () => {
                 type="submit"
                 disabled={loading}
                 data-testid="submit-proposal-button"
-                className="text-white font-semibold shadow-lg"
+                className="text-white font-semibold shadow-md"
                 style={{background: 'linear-gradient(135deg, #F72585 0%, #7209B7 100%)'}}
               >
                 {loading ? 'Updating...' : 'Update & Resubmit'}
