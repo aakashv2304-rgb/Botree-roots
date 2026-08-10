@@ -263,15 +263,15 @@ const ProposalDetail = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#0F172A]"></div>
+        <div className="animate-spin rounded-full h-10 w-12 border-t-2 border-b-2 border-[#0F172A]"></div>
       </div>
     );
   }
 
   if (!proposal) {
     return (
-      <div className="p-8">
-        <div className="bg-white border border-[#E4E4E7] p-8 text-center">
+      <div className="p-6">
+        <div className="bg-white border border-[#E4E4E7] p-6 text-center">
           <p className="text-[#71717A]">Proposal not found</p>
         </div>
       </div>
@@ -300,7 +300,7 @@ const ProposalDetail = () => {
   };
 
   return (
-    <div className="p-8" data-testid="proposal-detail-page">
+    <div className="p-6" data-testid="proposal-detail-page">
       <Button
         onClick={() => navigate('/dashboard')}
         variant="ghost"
@@ -311,13 +311,13 @@ const ProposalDetail = () => {
         Back to Dashboard
       </Button>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white border border-[#E4E4E7] p-8 shadow-sm">
+          <div className="bg-white border border-[#E4E4E7] p-6 shadow-sm">
             <div className="flex items-start justify-between mb-6">
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">
-                  <h1 className="text-3xl font-bold tracking-tight" data-testid="proposal-title">
+                  <h1 className="text-2xl font-bold tracking-tight" data-testid="proposal-title">
                     {proposal.title}
                   </h1>
                   <Badge className="bg-indigo-100 text-indigo-700 border border-indigo-300 flex items-center gap-1">
@@ -359,7 +359,7 @@ const ProposalDetail = () => {
                 {canEdit() && !proposal.is_closed && (
                   <Button
                     onClick={() => navigate(`/dashboard/proposal/${id}/edit`)}
-                    className="text-white font-semibold shadow-lg"
+                    className="text-white font-semibold shadow-md"
                     style={{background: 'linear-gradient(135deg, #F72585 0%, #7209B7 100%)'}}
                     data-testid="edit-proposal-button"
                   >
@@ -574,7 +574,7 @@ const ProposalDetail = () => {
 
           {/* Version History */}
           {showVersionHistory && versions.length > 1 && (
-            <div className="bg-white border border-[#E4E4E7] p-8 shadow-sm">
+            <div className="bg-white border border-[#E4E4E7] p-6 shadow-sm">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-bold tracking-tight flex items-center gap-2">
                   <GitBranch size={24} />
@@ -611,7 +611,7 @@ const ProposalDetail = () => {
 
               {/* Version Comparison View */}
               {compareMode && selectedVersions.length === 2 && getVersionComparison() && (
-                <div className="mb-6 p-6 bg-blue-50 border-2 border-blue-300 rounded-lg">
+                <div className="mb-6 p-6 bg-blue-50 border border-blue-300 rounded-lg">
                   <h3 className="text-lg font-bold mb-4 text-blue-900">Comparing Versions</h3>
                   {(() => {
                     const { older, newer } = getVersionComparison();
@@ -730,8 +730,8 @@ const ProposalDetail = () => {
             </div>
           )}
 
-          <div className="bg-white border border-[#E4E4E7] p-8 shadow-sm">
-            <h2 className="text-xl font-bold tracking-tight mb-6" style={{ fontFamily: 'Cabinet Grotesk, system-ui, sans-serif' }}>Workflow Progress</h2>
+          <div className="bg-white border border-[#E4E4E7] p-6 shadow-sm">
+            <h2 className="text-xl font-bold tracking-tight mb-6 font-heading">Workflow Progress</h2>
             
             <div className="space-y-6" data-testid="workflow-stepper">
               {WORKFLOW_STAGES.map((stage, index) => {
@@ -740,7 +740,7 @@ const ProposalDetail = () => {
                   <div key={stage.key} className="flex items-start gap-4" data-testid={`stage-${index}`}>
                     <div className="flex flex-col items-center">
                       <div
-                        className={`w-10 h-10 rounded-full border-2 flex items-center justify-center transition-all ${
+                        className={`w-10 h-10 rounded-full border flex items-center justify-center transition-all ${
                           status === 'completed'
                             ? 'bg-[#10B981] border-[#10B981] text-white'
                             : status === 'active'
@@ -752,7 +752,7 @@ const ProposalDetail = () => {
                         {status === 'completed' ? <Check size={20} weight="bold" /> : status === 'active' ? <Clock size={20} /> : index + 1}
                       </div>
                       {index < WORKFLOW_STAGES.length - 1 && (
-                        <div className={`w-0.5 h-12 ${status === 'completed' ? 'bg-[#10B981]' : 'bg-[#E4E4E7]'}`}></div>
+                        <div className={`w-0.5 h-10 ${status === 'completed' ? 'bg-[#10B981]' : 'bg-[#E4E4E7]'}`}></div>
                       )}
                     </div>
                     <div className="flex-1 pb-4">
@@ -772,8 +772,8 @@ const ProposalDetail = () => {
             </div>
           </div>
 
-          <div className="bg-white border border-[#E4E4E7] p-8 shadow-sm">
-            <h2 className="text-xl font-bold tracking-tight mb-6" style={{ fontFamily: 'Cabinet Grotesk, system-ui, sans-serif' }}>History</h2>
+          <div className="bg-white border border-[#E4E4E7] p-6 shadow-sm">
+            <h2 className="text-xl font-bold tracking-tight mb-6 font-heading">History</h2>
             <div className="space-y-4" data-testid="audit-trail">
               {proposal.history.map((entry, index) => (
                 <div key={index} className="flex gap-4 pb-4 border-b border-[#E4E4E7] last:border-0" data-testid={`history-${index}`}>
@@ -814,7 +814,7 @@ const ProposalDetail = () => {
         {canTakeAction() && (
           <div className="lg:col-span-1">
             <div className="bg-white border border-[#E4E4E7] p-6 shadow-sm sticky top-8" data-testid="action-panel">
-              <h2 className="text-xl font-bold tracking-tight mb-4" style={{ fontFamily: 'Cabinet Grotesk, system-ui, sans-serif' }}>Take Action</h2>
+              <h2 className="text-xl font-bold tracking-tight mb-4 font-heading">Take Action</h2>
               
               <div className="space-y-4">
                 <div className="space-y-2">
