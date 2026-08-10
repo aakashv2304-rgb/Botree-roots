@@ -61,15 +61,15 @@ const PendingApprovals = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#0F172A]"></div>
+        <div className="animate-spin rounded-full h-10 w-12 border-t-2 border-b-2 border-[#0F172A]"></div>
       </div>
     );
   }
 
   return (
-    <div className="p-8" data-testid="pending-page">
-      <div className="mb-8">
-        <h1 className="text-4xl font-display font-black tracking-tight mb-2">Pending Approvals</h1>
+    <div className="p-6" data-testid="pending-page">
+      <div className="mb-6">
+        <h1 className="text-3xl font-display font-black tracking-tight mb-2">Pending Approvals</h1>
         <p className="text-gray-600 font-body">Proposals awaiting your action</p>
       </div>
 
@@ -89,7 +89,7 @@ const PendingApprovals = () => {
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <h3 className="text-lg font-semibold mb-1" style={{ fontFamily: 'Cabinet Grotesk, system-ui, sans-serif' }}>{proposal.title}</h3>
+                    <h3 className="text-lg font-semibold mb-1 font-heading">{proposal.title}</h3>
                     {proposal.description && (
                       <p className="text-[#71717A] text-sm mb-3">{proposal.description}</p>
                     )}
