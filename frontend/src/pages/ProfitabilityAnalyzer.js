@@ -13,7 +13,15 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const ALLOCATION_OPTIONS = Array.from({ length: 10 }, (_, i) => (i + 1) * 10); // 10,20,...100
 
 const emptyResourceLine = () => ({ role_name: '', allocation_percent: '100' });
-const emptyRevenueLineItem = (label = '') => ({ label, revenue: '', distributor_count: '', selected_distributor_costs: [], resource_lines: [] });
+const emptyRevenueLineItem = (label = '') => ({
+  label,
+  revenue: '',
+  is_subscription: false,
+  reference_note: '',
+  distributor_count: '',
+  selected_distributor_costs: [],
+  resource_lines: []
+});
 
 const ProfitabilityAnalyzer = () => {
   const { user } = useAuth();
@@ -127,6 +135,8 @@ const ProfitabilityAnalyzer = () => {
         ? analysis.revenue_line_items.map((li) => ({
             label: li.label,
             revenue: li.revenue ?? '',
+            is_subscription: li.is_subscription || false,
+            reference_note: li.reference_note || '',
             distributor_count: li.distributor_count ?? '',
             selected_distributor_costs: li.selected_distributor_costs || [],
             resource_lines: (li.resource_lines || []).map((rl) => ({
@@ -157,7 +167,8 @@ const ProfitabilityAnalyzer = () => {
 
     const items = [];
     (proposal.products || []).forEach((p) => {
-      const item = emptyRevenueLineItem(p.product_name);
+      const item = emptyRevenueLineItem(`${p.product_name} - Subscription`);
+      item.is_subscription = true;
 
       // Revenue = higher of (price/user x users) and minimum billing -
       // standard SaaS minimum-commitment model
@@ -175,9 +186,18 @@ const ProfitabilityAnalyzer = () => {
       if (suggestedRevenue !== null) {
         item.revenue = String(suggestedRevenue);
       }
+
+      // L2/L3 requirement is auto-populated from this product's actual user
+      // count - shown as "Number of Users" on a subscription line, and still
+      // editable if the real distributor count should differ
+      if (usersCount) {
+        item.distributor_count = String(usersCount);
+      }
+      item.reference_note = p.users ? `${p.users}` : (usersCount ? `${usersCount} users` : '');
+
       items.push(item);
 
-      // Training gets its own separate revenue line item
+      // Training gets its own separate revenue line item - not a subscription line
       if (p.training) {
         const trainingItem = emptyRevenueLineItem(`${p.product_name} - Training`);
         trainingItem.revenue = String(p.training);
@@ -277,6 +297,8 @@ const ProfitabilityAnalyzer = () => {
           .map((li) => ({
             label: li.label,
             revenue: li.revenue !== '' ? parseFloat(li.revenue) : null,
+            is_subscription: !!li.is_subscription,
+            reference_note: li.reference_note || null,
             distributor_count: li.distributor_count !== '' ? parseFloat(li.distributor_count) : null,
             selected_distributor_costs: li.selected_distributor_costs || [],
             resource_lines: li.resource_lines
@@ -406,13 +428,29 @@ const ProfitabilityAnalyzer = () => {
                   <div className="flex items-start justify-between gap-4 mb-4">
                     <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-3">
                       <div className="space-y-1">
-                        <Label className="text-xs text-gray-600">Revenue Line Item</Label>
+                        <Label className="text-xs text-gray-600 flex items-center gap-2">
+                          Revenue Line Item
+                          {item.is_subscription && item.reference_note && (
+                            <span className="text-[10px] font-semibold text-purple-700 bg-purple-100 px-2 py-0.5 rounded">
+                              {item.reference_note}
+                            </span>
+                          )}
+                        </Label>
                         <Input
                           value={item.label}
                           onChange={(e) => updateLineItemField(itemIndex, 'label', e.target.value)}
-                          placeholder="e.g., DMS Software"
+                          placeholder="e.g., DMS Software - Subscription"
                           className="h-10 bg-white font-semibold"
                         />
+                        <label className="flex items-center gap-1.5 text-[11px] text-gray-600 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={!!item.is_subscription}
+                            onChange={(e) => updateLineItemField(itemIndex, 'is_subscription', e.target.checked)}
+                            className="accent-purple-600"
+                          />
+                          Subscription line (enables auto L2/L3 by users)
+                        </label>
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs text-gray-600">Revenue (₹)</Label>
@@ -424,17 +462,19 @@ const ProfitabilityAnalyzer = () => {
                           className="h-10 bg-white"
                         />
                       </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs text-gray-600">Number of Distributors</Label>
-                        <Input
-                          type="number"
-                          value={item.distributor_count}
-                          onChange={(e) => updateLineItemField(itemIndex, 'distributor_count', e.target.value)}
-                          placeholder="e.g., 1000"
-                          className="h-10 bg-white"
-                        />
-                        <p className="text-[10px] text-gray-500">Auto-adds L2/L3 + any licenses you select below</p>
-                      </div>
+                      {item.is_subscription && (
+                        <div className="space-y-1">
+                          <Label className="text-xs text-gray-600">Number of Users / Distributors</Label>
+                          <Input
+                            type="number"
+                            value={item.distributor_count}
+                            onChange={(e) => updateLineItemField(itemIndex, 'distributor_count', e.target.value)}
+                            placeholder="e.g., 1000"
+                            className="h-10 bg-white"
+                          />
+                          <p className="text-[10px] text-gray-500">Auto-adds L2/L3 + any licenses you select below</p>
+                        </div>
+                      )}
                     </div>
                     <Button
                       type="button"
@@ -448,8 +488,8 @@ const ProfitabilityAnalyzer = () => {
                     </Button>
                   </div>
 
-                  {/* Distributor-driven costs: license checkboxes + auto L2/L3 */}
-                  {parseFloat(item.distributor_count) > 0 && rateCard && (
+                  {/* Distributor-driven costs: subscription lines only */}
+                  {item.is_subscription && parseFloat(item.distributor_count) > 0 && rateCard && (
                     <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg p-3">
                       <p className="text-xs font-semibold text-amber-800 mb-2">
                         Which licenses does this line item include?
@@ -694,7 +734,10 @@ const ProfitabilityAnalyzer = () => {
                         {analysis.revenue_line_items.map((li, i) => (
                           <div key={i} className="bg-gray-50 rounded p-3 text-xs">
                             <div className="flex justify-between font-semibold mb-1">
-                              <span>{li.label}</span>
+                              <span>
+                                {li.label}
+                                {li.reference_note && <span className="ml-2 text-[10px] font-normal text-purple-600">({li.reference_note})</span>}
+                              </span>
                               <span>{li.revenue !== null ? fmt(li.revenue) : '—'} revenue</span>
                             </div>
                             <div className="text-gray-600">
