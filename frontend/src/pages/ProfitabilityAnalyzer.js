@@ -12,7 +12,7 @@ import { Calculator, Plus, X, Trash, PencilSimple, CaretDown, CaretUp } from '@p
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const ALLOCATION_OPTIONS = Array.from({ length: 10 }, (_, i) => (i + 1) * 10); // 10,20,...100
 
-const emptyResourceLine = () => ({ role_name: '', allocation_percent: '100' });
+const emptyResourceLine = () => ({ role_name: '', allocation_percent: '100', quantity: '', unit: '' });
 const emptyRevenueLineItem = (label = '') => ({
   label,
   revenue: '',
@@ -76,13 +76,23 @@ const ProfitabilityAnalyzer = () => {
 
   // Client-side mirror of the backend calculation, for live preview only.
   // The backend recomputes authoritatively on save using the same fixed rates.
+  const quantityMultiplier = (quantity, unit) => {
+    const qty = parseFloat(quantity);
+    if (!qty || !unit || !rateCard) return 1;
+    if (unit === 'month') return qty;
+    if (unit === 'day') return qty / rateCard.working_days_per_month;
+    if (unit === 'hrs') return qty / rateCard.working_hours_per_month;
+    return 1;
+  };
+
   const computeLineItem = (item) => {
     if (!rateCard) return { manualCost: 0, autoCost: 0, totalCost: 0, autoBreakdown: null };
 
     const manualCost = item.resource_lines.reduce((sum, rl) => {
       const monthlyCost = rateCard.roles[rl.role_name] || 0;
       const pct = parseFloat(rl.allocation_percent) || 0;
-      return sum + (monthlyCost * pct) / 100;
+      const multiplier = quantityMultiplier(rl.quantity, rl.unit);
+      return sum + (monthlyCost * pct) / 100 * multiplier;
     }, 0);
 
     const distributors = parseFloat(item.distributor_count) || 0;
@@ -141,7 +151,9 @@ const ProfitabilityAnalyzer = () => {
             selected_distributor_costs: li.selected_distributor_costs || [],
             resource_lines: (li.resource_lines || []).map((rl) => ({
               role_name: rl.role_name,
-              allocation_percent: String(rl.allocation_percent)
+              allocation_percent: String(rl.allocation_percent),
+              quantity: rl.quantity ?? '',
+              unit: rl.unit || ''
             }))
           }))
         : [emptyRevenueLineItem()]
@@ -305,7 +317,9 @@ const ProfitabilityAnalyzer = () => {
               .filter((rl) => rl.role_name)
               .map((rl) => ({
                 role_name: rl.role_name,
-                allocation_percent: parseFloat(rl.allocation_percent) || 0
+                allocation_percent: parseFloat(rl.allocation_percent) || 0,
+                quantity: rl.quantity !== '' ? parseFloat(rl.quantity) : null,
+                unit: rl.unit || null
               }))
           })),
         notes: notes || null
@@ -551,56 +565,87 @@ const ProfitabilityAnalyzer = () => {
 
                     {item.resource_lines.map((rl, lineIndex) => {
                       const monthlyCost = rateCard.roles[rl.role_name] || 0;
-                      const rlCost = (monthlyCost * (parseFloat(rl.allocation_percent) || 0)) / 100;
+                      const multiplier = quantityMultiplier(rl.quantity, rl.unit);
+                      const rlCost = (monthlyCost * (parseFloat(rl.allocation_percent) || 0)) / 100 * multiplier;
                       return (
-                        <div key={lineIndex} className="grid grid-cols-1 md:grid-cols-[2fr_1.2fr_1fr_1fr_auto] gap-2 items-end bg-white p-2.5 rounded-lg border border-gray-200">
-                          <div className="space-y-1">
-                            <Label className="text-[11px] text-gray-500">Role</Label>
-                            <Select value={rl.role_name} onValueChange={(v) => updateResourceLine(itemIndex, lineIndex, 'role_name', v)}>
-                              <SelectTrigger className="h-9 text-sm" data-testid={`role-select-${itemIndex}-${lineIndex}`}>
-                                <SelectValue placeholder="Select role" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {Object.keys(rateCard.roles).map((role) => (
-                                  <SelectItem key={role} value={role}>{role}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                        <div key={lineIndex} className="bg-white p-2.5 rounded-lg border border-gray-200 space-y-2">
+                          <div className="grid grid-cols-1 md:grid-cols-[2fr_1.2fr_1fr_auto] gap-2 items-end">
+                            <div className="space-y-1">
+                              <Label className="text-[11px] text-gray-500">Role</Label>
+                              <Select value={rl.role_name} onValueChange={(v) => updateResourceLine(itemIndex, lineIndex, 'role_name', v)}>
+                                <SelectTrigger className="h-9 text-sm" data-testid={`role-select-${itemIndex}-${lineIndex}`}>
+                                  <SelectValue placeholder="Select role" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {Object.keys(rateCard.roles).map((role) => (
+                                    <SelectItem key={role} value={role}>{role}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-[11px] text-gray-500">Monthly Cost (fixed)</Label>
+                              <div className="h-9 flex items-center px-2 bg-gray-50 border border-gray-200 rounded-md text-sm text-gray-700">
+                                {rl.role_name ? fmt(monthlyCost) : '—'}
+                              </div>
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-[11px] text-gray-500">Allocation</Label>
+                              <Select value={rl.allocation_percent} onValueChange={(v) => updateResourceLine(itemIndex, lineIndex, 'allocation_percent', v)}>
+                                <SelectTrigger className="h-9 text-sm" data-testid={`allocation-select-${itemIndex}-${lineIndex}`}>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {ALLOCATION_OPTIONS.map((pct) => (
+                                    <SelectItem key={pct} value={String(pct)}>{pct}%</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <Button
+                              type="button"
+                              onClick={() => removeResourceLine(itemIndex, lineIndex)}
+                              variant="ghost"
+                              size="sm"
+                              className="text-red-500 hover:text-red-700 h-9"
+                            >
+                              <X size={16} />
+                            </Button>
                           </div>
-                          <div className="space-y-1">
-                            <Label className="text-[11px] text-gray-500">Monthly Cost (fixed)</Label>
-                            <div className="h-9 flex items-center px-2 bg-gray-50 border border-gray-200 rounded-md text-sm text-gray-700">
-                              {rl.role_name ? fmt(monthlyCost) : '—'}
+
+                          <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1fr] gap-2 items-end pl-1 border-l-2 border-gray-100">
+                            <div className="space-y-1">
+                              <Label className="text-[11px] text-gray-500">Quantity (optional)</Label>
+                              <Input
+                                type="number"
+                                value={rl.quantity}
+                                onChange={(e) => updateResourceLine(itemIndex, lineIndex, 'quantity', e.target.value)}
+                                placeholder="e.g., 2"
+                                className="h-9 text-sm"
+                                data-testid={`quantity-input-${itemIndex}-${lineIndex}`}
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-[11px] text-gray-500">Unit</Label>
+                              <Select value={rl.unit || 'none'} onValueChange={(v) => updateResourceLine(itemIndex, lineIndex, 'unit', v === 'none' ? '' : v)}>
+                                <SelectTrigger className="h-9 text-sm" data-testid={`unit-select-${itemIndex}-${lineIndex}`}>
+                                  <SelectValue placeholder="—" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">None</SelectItem>
+                                  <SelectItem value="month">Month(s)</SelectItem>
+                                  <SelectItem value="day">Day(s)</SelectItem>
+                                  <SelectItem value="hrs">Hour(s)</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-[11px] text-gray-500">Line Cost</Label>
+                              <div className="h-9 flex items-center px-2 bg-gray-50 border border-gray-200 rounded-md text-xs font-semibold text-gray-800">
+                                {fmt(rlCost)}
+                              </div>
                             </div>
                           </div>
-                          <div className="space-y-1">
-                            <Label className="text-[11px] text-gray-500">Allocation</Label>
-                            <Select value={rl.allocation_percent} onValueChange={(v) => updateResourceLine(itemIndex, lineIndex, 'allocation_percent', v)}>
-                              <SelectTrigger className="h-9 text-sm" data-testid={`allocation-select-${itemIndex}-${lineIndex}`}>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {ALLOCATION_OPTIONS.map((pct) => (
-                                  <SelectItem key={pct} value={String(pct)}>{pct}%</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-[11px] text-gray-500">Line Cost</Label>
-                            <div className="h-9 flex items-center px-2 bg-gray-50 border border-gray-200 rounded-md text-xs font-semibold text-gray-800">
-                              {fmt(rlCost)}
-                            </div>
-                          </div>
-                          <Button
-                            type="button"
-                            onClick={() => removeResourceLine(itemIndex, lineIndex)}
-                            variant="ghost"
-                            size="sm"
-                            className="text-red-500 hover:text-red-700 h-9"
-                          >
-                            <X size={16} />
-                          </Button>
                         </div>
                       );
                     })}
@@ -757,7 +802,10 @@ const ProfitabilityAnalyzer = () => {
                               <div className="mt-2 pl-3 border-l-2 border-purple-200 space-y-0.5">
                                 {li.resource_lines.map((rl, j) => (
                                   <div key={j} className="flex justify-between text-gray-500">
-                                    <span>{rl.role_name} ({rl.allocation_percent}%)</span>
+                                    <span>
+                                      {rl.role_name} ({rl.allocation_percent}%)
+                                      {rl.quantity && rl.unit && <span> · {rl.quantity} {rl.unit}</span>}
+                                    </span>
                                     <span>{fmt(rl.cost)}</span>
                                   </div>
                                 ))}
