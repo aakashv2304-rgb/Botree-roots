@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Playfair+Display:wght@700;800;900&family=Arvo:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap');
 
 * {
   margin: 0;
@@ -10,17 +10,20 @@ body {
   font-family: 'Manrope', system-ui, sans-serif;
   background: #FFFFFF;
   color: #111827;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 h1 {
-  font-family: 'Playfair Display', serif;
-  font-weight: 800;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
   letter-spacing: -0.02em;
 }
 
 h2, h3 {
-  font-family: 'Arvo', serif;
-  font-weight: 700;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 h4, h5, h6 {
@@ -45,11 +48,11 @@ h4, h5, h6 {
 
 /* Font classes */
 .font-display {
-  font-family: 'Playfair Display', serif;
+  font-family: 'Space Grotesk', sans-serif;
 }
 
 .font-heading {
-  font-family: 'Arvo', serif;
+  font-family: 'Space Grotesk', sans-serif;
 }
 
 .font-body {
