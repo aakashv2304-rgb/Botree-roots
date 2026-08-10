@@ -138,7 +138,7 @@ const Overview = () => {
     <div className="min-h-screen bg-[#111827] text-white" data-testid="overview-page">
       {/* Top Utility Bar */}
       <div className="bg-[#1F2937] border-b border-[#374151] px-6 py-3 sticky top-0 z-20">
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-4">
           <div className="flex-1 flex items-center gap-3 bg-[#111827] border border-[#374151] rounded-lg px-4 py-2">
             <MagnifyingGlass size={18} className="text-gray-400" />
             <Input
@@ -212,13 +212,13 @@ const Overview = () => {
 
         <div className="grid grid-cols-4 gap-4 stagger-children">
           {/* Monthly Proposals Count */}
-          <div className="bg-gradient-to-br from-purple-900/30 to-pink-900/30 border-2 border-purple-500/50 rounded-lg p-3 hover-lift transition-colors-smooth">
+          <div className="bg-gradient-to-br from-purple-900/30 to-pink-900/30 border border-purple-500/50 rounded-lg p-3 hover-lift transition-colors-smooth">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-semibold text-purple-300 uppercase tracking-wider">Proposals This Month</span>
               <FileText size={16} className="text-purple-400" />
             </div>
             <div className="flex items-baseline gap-3">
-              <span className="text-3xl font-bold text-white">{analytics.monthlyData?.total_proposals || 0}</span>
+              <span className="text-2xl font-bold text-white">{analytics.monthlyData?.total_proposals || 0}</span>
               <div className="text-xs text-purple-300">
                 {analytics.monthlyData?.is_current_month ? 'So Far' : 'Total'}
               </div>
@@ -299,7 +299,7 @@ const Overview = () => {
                 <tbody className="divide-y divide-[#374151]">
                   {filteredProposals.length === 0 ? (
                     <tr>
-                      <td colSpan="6" className="py-8 text-center text-gray-500 text-sm">
+                      <td colSpan="6" className="py-6 text-center text-gray-500 text-sm">
                         No proposals found
                       </td>
                     </tr>
@@ -311,7 +311,7 @@ const Overview = () => {
                           key={proposal.id}
                           onClick={() => navigate(`/dashboard/proposal/${proposal.id}`)}
                           data-testid={`proposal-${proposal.id}`}
-                          className="hover:bg-[#374151]/30 cursor-pointer transition-all duration-200 hover:scale-[1.01] hover:shadow-lg"
+                          className="hover:bg-[#374151]/30 cursor-pointer transition-all duration-200 hover:scale-[1.01] hover:shadow-md"
                         >
                           <td className="py-2 px-3 text-gray-300 font-mono text-xs">#{String(index + 1).padStart(3, '0')}</td>
                           <td className="py-2 px-3">
