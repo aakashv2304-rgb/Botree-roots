@@ -27,7 +27,7 @@ const Sidebar = () => {
   }
 
   return (
-    <div className="w-64 text-white flex flex-col shadow-2xl" style={{background: 'linear-gradient(180deg, #F72585 0%, #7209B7 100%)'}}>
+    <div className="w-64 text-white flex flex-col shadow-lg" style={{background: 'linear-gradient(180deg, #F72585 0%, #7209B7 100%)'}}>
       <div className="p-6 border-b border-white/20">
         <div className="text-white">
           <BotreeLogo size="sm" />
@@ -48,7 +48,7 @@ const Sidebar = () => {
             className={({ isActive }) =>
               `flex items-center gap-3 px-4 py-3 transition-all ${
                 isActive
-                  ? 'bg-white/25 text-white border-l-4 border-white font-semibold shadow-lg'
+                  ? 'bg-white/25 text-white border-l-4 border-white font-semibold shadow-md'
                   : 'text-white/80 hover:bg-white/15 hover:text-white'
               }`
             }
