@@ -73,6 +73,7 @@ COOKIE_SECURE = IS_PRODUCTION
 COOKIE_SAMESITE = "lax"
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
 SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "noreply@botree.co.in")
+APP_URL = os.environ.get("APP_URL", "https://botree-roots.onrender.com").rstrip("/")
 
 # Initialize Resend
 resend.api_key = RESEND_API_KEY
@@ -214,7 +215,9 @@ async def send_workflow_notification(
                     <p><strong>Proposal:</strong> {proposal_title}</p>
                     <p><strong>Stage:</strong> {stage}</p>
                     {f'<div class="comment-box"><strong>Comment:</strong><br>{comment}</div>' if comment else ''}
-                    <p>Please log in to Botree Roots to review and take action on this proposal.</p>
+                    <p>Click below to review and take action on this proposal.</p>
+                    <a href="{APP_URL}/dashboard/proposal/{proposal_id}" class="btn" target="_blank" rel="noopener noreferrer" style="color: white;">View Proposal</a>
+                    <p style="font-size: 12px; color: #666;">If the button doesn't work, copy and paste this link into your browser:<br>{APP_URL}/dashboard/proposal/{proposal_id}</p>
                 </div>
                 <div class="footer">
                     <p>&copy; 2026 Botree Software Solutions. All rights reserved.</p>
