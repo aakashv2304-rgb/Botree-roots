@@ -85,6 +85,9 @@ const ApprovedProposals = () => {
                   </h3>
                   <p className="text-[#71717A] text-xs mt-1 truncate">
                     {proposal.file_info?.filename || 'Document'}
+                    <span className="ml-2 font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded" data-testid={`approved-version-${proposal.id}`}>
+                      v{proposal.current_version || 1}
+                    </span>
                   </p>
                 </div>
                 <Badge className="bg-[#10B981] text-white flex-shrink-0" data-testid={`approved-status-${proposal.id}`}>
