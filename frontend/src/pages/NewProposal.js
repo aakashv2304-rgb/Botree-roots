@@ -7,6 +7,7 @@ import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
 import { Label } from '../components/ui/label';
 import { toast } from 'sonner';
+import ValidationModal from '../components/ValidationModal';
 import { ArrowLeft, Upload, Plus, X, CurrencyDollar, Users, Package } from '@phosphor-icons/react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -15,6 +16,7 @@ const NewProposal = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [validationError, setValidationError] = useState(null);
   const [formData, setFormData] = useState({
     file: null,
     customer_name: '',
@@ -82,8 +84,13 @@ const NewProposal = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (!formData.customer_name || !formData.customer_name.trim()) {
+      setValidationError('Customer Name is not filled');
+      return;
+    }
     if (!formData.file) {
-      toast.error('Please upload a proposal document');
+      setValidationError('Proposal not attached');
       return;
     }
 
@@ -170,7 +177,6 @@ const NewProposal = () => {
                   value={formData.customer_name}
                   onChange={(e) => setFormData({ ...formData, customer_name: e.target.value })}
                   placeholder="Enter customer name"
-                  required
                   className="h-10"
                 />
                 <p className="text-xs text-gray-500">This is how the proposal will be labeled everywhere</p>
@@ -256,7 +262,6 @@ const NewProposal = () => {
                     onChange={handleFileChange}
                     accept=".pdf,.doc,.docx"
                     className="hidden"
-                    required
                   />
                   {fileName && <span className="text-sm text-gray-600">{fileName}</span>}
                 </div>
@@ -486,6 +491,7 @@ const NewProposal = () => {
           </div>
         </form>
       </div>
+      <ValidationModal message={validationError} onClose={() => setValidationError(null)} />
     </div>
   );
 };
