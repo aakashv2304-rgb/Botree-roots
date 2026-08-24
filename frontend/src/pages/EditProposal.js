@@ -21,21 +21,38 @@ const EditProposal = () => {
     title: '', 
     description: '', 
     file: null,
-    one_time: '',
-    product: '',
-    users: '',
-    rate: '',
     customer_name: '',
     industry: '',
     comments: '',
     deal_value: '',
+    one_time_setup_fee: '',
+    integration_fee: '',
     change_note: ''
   });
+  const [ongoingCharges, setOngoingCharges] = useState({
+    flexidms_distributor_charge: { quantity: '', rate_per_user_month: '', monthly_minimum_billing: '' },
+    dms_distributor_charge: { quantity: '', rate_per_user_month: '', monthly_minimum_billing: '' },
+    sfa_user_charge: { quantity: '', rate_per_user_month: '', monthly_minimum_billing: '' },
+    shared_l1_support_charge: { quantity: '', rate_per_user_month: '', monthly_minimum_billing: '' },
+  });
   const [fileName, setFileName] = useState('');
+
+  const updateOngoingCharge = (key, field, value) => {
+    setOngoingCharges({
+      ...ongoingCharges,
+      [key]: { ...ongoingCharges[key], [field]: value }
+    });
+  };
 
   useEffect(() => {
     fetchProposal();
   }, [id]);
+
+  const chargeToStrings = (c) => ({
+    quantity: c?.quantity ?? '',
+    rate_per_user_month: c?.rate_per_user_month ?? '',
+    monthly_minimum_billing: c?.monthly_minimum_billing ?? '',
+  });
 
   const fetchProposal = async () => {
     try {
@@ -45,17 +62,22 @@ const EditProposal = () => {
         title: data.title, 
         description: data.description, 
         file: null,
-        one_time: data.one_time || '',
-        product: data.product || '',
-        users: data.users || '',
-        rate: data.rate || '',
         customer_name: data.customer_name || '',
         industry: data.industry || '',
         comments: data.comments || '',
         deal_value: data.deal_value || '',
+        one_time_setup_fee: data.one_time_setup_fee || '',
+        integration_fee: data.integration_fee || '',
         change_note: ''
       });
-      setFileName(data.file_info.filename);
+      setOngoingCharges({
+        flexidms_distributor_charge: chargeToStrings(data.flexidms_distributor_charge),
+        dms_distributor_charge: chargeToStrings(data.dms_distributor_charge),
+        sfa_user_charge: chargeToStrings(data.sfa_user_charge),
+        shared_l1_support_charge: chargeToStrings(data.shared_l1_support_charge),
+      });
+      // No document may be attached at all - guard against that.
+      setFileName(data.file_info?.filename || '');
     } catch (error) {
       toast.error('Failed to load proposal');
       navigate('/dashboard');
@@ -75,9 +97,10 @@ const EditProposal = () => {
     
     setLoading(true);
     try {
-      let fileId = proposal.file_info.id;
-      
-      // Upload new file if changed
+      // Only send a file_id if a *new* file was chosen - the backend keeps
+      // the existing attachment (if any) when file_id is omitted, and
+      // re-runs the commercials merge automatically either way.
+      let fileId = null;
       if (formData.file) {
         const fileFormData = new FormData();
         fileFormData.append('file', formData.file);
@@ -89,18 +112,30 @@ const EditProposal = () => {
         fileId = fileUpload.data.id;
       }
 
+      const buildCharge = (key) => {
+        const c = ongoingCharges[key];
+        if (!c.quantity && !c.rate_per_user_month && !c.monthly_minimum_billing) return null;
+        return {
+          quantity: c.quantity ? parseFloat(c.quantity) : null,
+          rate_per_user_month: c.rate_per_user_month ? parseFloat(c.rate_per_user_month) : null,
+          monthly_minimum_billing: c.monthly_minimum_billing ? parseFloat(c.monthly_minimum_billing) : null,
+        };
+      };
+
       await axios.put(`${API}/proposals/${id}`, {
         title: formData.title,
         description: formData.description,
         file_id: fileId,
-        one_time: formData.one_time,
-        product: formData.product,
-        users: formData.users,
-        rate: formData.rate,
         customer_name: formData.customer_name,
         industry: formData.industry,
         comments: formData.comments,
         deal_value: formData.deal_value ? parseFloat(formData.deal_value) : null,
+        one_time_setup_fee: formData.one_time_setup_fee ? parseFloat(formData.one_time_setup_fee) : null,
+        integration_fee: formData.integration_fee ? parseFloat(formData.integration_fee) : null,
+        flexidms_distributor_charge: buildCharge('flexidms_distributor_charge'),
+        dms_distributor_charge: buildCharge('dms_distributor_charge'),
+        sfa_user_charge: buildCharge('sfa_user_charge'),
+        shared_l1_support_charge: buildCharge('shared_l1_support_charge'),
         change_note: formData.change_note
       }, { withCredentials: true });
 
@@ -205,15 +240,64 @@ const EditProposal = () => {
                   placeholder="e.g., Healthcare"
                 />
               </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="product">Product</Label>
+                <Label htmlFor="one_time_setup_fee">One-Time Setup Fee (₹)</Label>
                 <Input
-                  id="product"
-                  value={formData.product}
-                  onChange={(e) => setFormData({ ...formData, product: e.target.value })}
-                  placeholder="Product name"
+                  id="one_time_setup_fee"
+                  type="number"
+                  value={formData.one_time_setup_fee}
+                  onChange={(e) => setFormData({ ...formData, one_time_setup_fee: e.target.value })}
+                  placeholder="e.g., 275000"
                 />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="integration_fee">Integration Fee (₹)</Label>
+                <Input
+                  id="integration_fee"
+                  type="number"
+                  value={formData.integration_fee}
+                  onChange={(e) => setFormData({ ...formData, integration_fee: e.target.value })}
+                  placeholder="e.g., 425000"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <Label>Ongoing / Recurring &amp; Subscription Charges</Label>
+              <p className="text-xs text-gray-500 -mt-2">Leave a row blank to keep it as-is.</p>
+              {[
+                { key: 'flexidms_distributor_charge', label: 'Flexi DMS – Distributor Users' },
+                { key: 'dms_distributor_charge', label: 'No. of Distributors for DMS' },
+                { key: 'sfa_user_charge', label: 'No. of SFA Users' },
+                { key: 'shared_l1_support_charge', label: 'Shared L1 Support Fee (if required)' },
+              ].map(({ key, label }) => (
+                <div key={key} className="p-3 border border-gray-200 rounded bg-gray-50">
+                  <p className="text-sm font-semibold text-gray-800 mb-2">{label}</p>
+                  <div className="grid grid-cols-3 gap-3">
+                    <Input
+                      type="number"
+                      value={ongoingCharges[key].quantity}
+                      onChange={(e) => updateOngoingCharge(key, 'quantity', e.target.value)}
+                      placeholder="Quantity"
+                    />
+                    <Input
+                      type="number"
+                      value={ongoingCharges[key].rate_per_user_month}
+                      onChange={(e) => updateOngoingCharge(key, 'rate_per_user_month', e.target.value)}
+                      placeholder="Rate ₹/user/month"
+                    />
+                    <Input
+                      type="number"
+                      value={ongoingCharges[key].monthly_minimum_billing}
+                      onChange={(e) => updateOngoingCharge(key, 'monthly_minimum_billing', e.target.value)}
+                      placeholder="Monthly minimum billing ₹"
+                    />
+                  </div>
+                </div>
+              ))}
             </div>
 
             <div className="space-y-2">
@@ -230,7 +314,14 @@ const EditProposal = () => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="file">Proposal Document {formData.file ? '(New file selected)' : '(Keep existing or upload new)'}</Label>
+              <Label htmlFor="file">
+                Proposal Document{' '}
+                {formData.file
+                  ? '(New file selected)'
+                  : fileName
+                    ? '(Keep existing or upload new)'
+                    : '(optional - none attached)'}
+              </Label>
               <div className="flex items-center gap-4">
                 <label
                   htmlFor="file"
@@ -248,8 +339,9 @@ const EditProposal = () => {
                   className="hidden"
                   data-testid="proposal-file-input"
                 />
-                <span className="text-sm text-gray-600">{fileName}</span>
+                <span className="text-sm text-gray-600">{fileName || 'No document attached'}</span>
               </div>
+              <p className="text-xs text-gray-500">If a .docx is attached, the fee fields above are automatically filled into its Fees tables when you resubmit.</p>
             </div>
 
             <div className="flex gap-4 pt-4">
