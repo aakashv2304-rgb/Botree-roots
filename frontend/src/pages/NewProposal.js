@@ -30,6 +30,21 @@ const NewProposal = () => {
   });
   const [fileName, setFileName] = useState('');
   const [additionalFees, setAdditionalFees] = useState([]);
+  // Table B.2 "Ongoing Charges" in the base proposal document - quantity,
+  // rate/user/month, and monthly minimum billing per license type.
+  const [ongoingCharges, setOngoingCharges] = useState({
+    flexidms_distributor_charge: { quantity: '', rate_per_user_month: '', monthly_minimum_billing: '' },
+    dms_distributor_charge: { quantity: '', rate_per_user_month: '', monthly_minimum_billing: '' },
+    sfa_user_charge: { quantity: '', rate_per_user_month: '', monthly_minimum_billing: '' },
+    shared_l1_support_charge: { quantity: '', rate_per_user_month: '', monthly_minimum_billing: '' },
+  });
+
+  const updateOngoingCharge = (key, field, value) => {
+    setOngoingCharges({
+      ...ongoingCharges,
+      [key]: { ...ongoingCharges[key], [field]: value }
+    });
+  };
   const [products, setProducts] = useState([{
     product_name: '',
     users: '',
@@ -89,17 +104,19 @@ const NewProposal = () => {
       setValidationError('Customer Name is not filled');
       return;
     }
-    if (!formData.file) {
-      setValidationError('Proposal not attached');
-      return;
-    }
+    // Proposal document upload is optional - commercial fields below are
+    // still captured and, if a document is attached, auto-filled into it.
 
     setLoading(true);
     try {
-      // Upload file
-      const fileFormData = new FormData();
-      fileFormData.append('file', formData.file);
-      const fileUpload = await axios.post(`${API}/proposals/upload`, fileFormData, { withCredentials: true });
+      // Upload file (only if one was chosen)
+      let fileId = null;
+      if (formData.file) {
+        const fileFormData = new FormData();
+        fileFormData.append('file', formData.file);
+        const fileUpload = await axios.post(`${API}/proposals/upload`, fileFormData, { withCredentials: true });
+        fileId = fileUpload.data.id;
+      }
 
       // Prepare products data
       const productsData = products.map(p => ({
@@ -114,11 +131,24 @@ const NewProposal = () => {
         .map(f => ({ name: f.name, value: parseFloat(f.value) || 0 }))
         .filter(f => f.name && f.value);
 
+      // Table B.2 ongoing charges - only send a line if at least one of its
+      // three values was actually entered, otherwise send null so the
+      // document's original placeholder is left untouched.
+      const buildCharge = (key) => {
+        const c = ongoingCharges[key];
+        if (!c.quantity && !c.rate_per_user_month && !c.monthly_minimum_billing) return null;
+        return {
+          quantity: c.quantity ? parseFloat(c.quantity) : null,
+          rate_per_user_month: c.rate_per_user_month ? parseFloat(c.rate_per_user_month) : null,
+          monthly_minimum_billing: c.monthly_minimum_billing ? parseFloat(c.monthly_minimum_billing) : null,
+        };
+      };
+
       // Create proposal - title is auto-derived from customer name since
       // Title/Description are no longer manually entered
       await axios.post(`${API}/proposals`, {
         title: formData.customer_name,
-        file_id: fileUpload.data.id,
+        file_id: fileId,
         customer_name: formData.customer_name,
         industry: formData.industry,
         comments: formData.comments,
@@ -128,6 +158,10 @@ const NewProposal = () => {
         additional_fees: additionalFeesData,
         contract_years: formData.contract_years ? parseInt(formData.contract_years) : null,
         price_escalation_percent: formData.price_escalation_percent ? parseFloat(formData.price_escalation_percent) : null,
+        flexidms_distributor_charge: buildCharge('flexidms_distributor_charge'),
+        dms_distributor_charge: buildCharge('dms_distributor_charge'),
+        sfa_user_charge: buildCharge('sfa_user_charge'),
+        shared_l1_support_charge: buildCharge('shared_l1_support_charge'),
         products: productsData
       }, { withCredentials: true });
 
@@ -246,7 +280,7 @@ const NewProposal = () => {
 
               <div className="space-y-2">
                 <Label htmlFor="file" className="text-gray-700 font-semibold">
-                  Proposal Document <span className="text-red-500">*</span>
+                  Proposal Document <span className="text-gray-400 font-normal">(optional)</span>
                 </Label>
                 <div className="flex items-center gap-4">
                   <label
@@ -265,6 +299,7 @@ const NewProposal = () => {
                   />
                   {fileName && <span className="text-sm text-gray-600">{fileName}</span>}
                 </div>
+                <p className="text-xs text-gray-500">If you attach the base proposal .docx, the commercial numbers below are automatically filled into its Fees tables - no other content is changed.</p>
               </div>
             </div>
           </div>
@@ -349,6 +384,60 @@ const NewProposal = () => {
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* Ongoing / Recurring Charges Section */}
+          <div className="bg-white p-6 shadow-sm border border-gray-200 card-enter" style={{animationDelay: '0.08s'}}>
+            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2 mb-2">
+              <CurrencyDollar size={24} className="text-purple-600" />
+              Ongoing / Recurring &amp; Subscription Charges
+            </h2>
+            <p className="text-sm text-gray-500 mb-6">Quantity, rate per user/month, and monthly minimum billing for each license type. Leave a row blank to skip it.</p>
+
+            <div className="space-y-6">
+              {[
+                { key: 'flexidms_distributor_charge', label: 'Flexi DMS – Distributor Users' },
+                { key: 'dms_distributor_charge', label: 'No. of Distributors for DMS' },
+                { key: 'sfa_user_charge', label: 'No. of SFA Users' },
+                { key: 'shared_l1_support_charge', label: 'Shared L1 Support Fee (if required)' },
+              ].map(({ key, label }) => (
+                <div key={key} className="p-4 border border-gray-200 rounded-lg bg-gray-50">
+                  <h3 className="text-sm font-bold text-gray-900 mb-3">{label}</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-gray-700 font-semibold">Quantity</Label>
+                      <Input
+                        type="number"
+                        value={ongoingCharges[key].quantity}
+                        onChange={(e) => updateOngoingCharge(key, 'quantity', e.target.value)}
+                        placeholder="e.g., 350"
+                        className="h-10 bg-white"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-gray-700 font-semibold">Rate (₹ / user / month)</Label>
+                      <Input
+                        type="number"
+                        value={ongoingCharges[key].rate_per_user_month}
+                        onChange={(e) => updateOngoingCharge(key, 'rate_per_user_month', e.target.value)}
+                        placeholder="e.g., 80"
+                        className="h-10 bg-white"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-gray-700 font-semibold">Monthly Minimum Billing (₹)</Label>
+                      <Input
+                        type="number"
+                        value={ongoingCharges[key].monthly_minimum_billing}
+                        onChange={(e) => updateOngoingCharge(key, 'monthly_minimum_billing', e.target.value)}
+                        placeholder="e.g., 28000"
+                        className="h-10 bg-white"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 
