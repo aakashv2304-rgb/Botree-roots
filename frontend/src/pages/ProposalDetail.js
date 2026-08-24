@@ -222,6 +222,10 @@ const ProposalDetail = () => {
   };
 
   const handleDownload = async () => {
+    if (!proposal?.file_info) {
+      toast.error('No document is attached to this proposal');
+      return;
+    }
     try {
       const response = await axios.get(`${API}/proposals/${id}/download`, {
         withCredentials: true,
@@ -382,20 +386,24 @@ const ProposalDetail = () => {
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-gray-500 text-xs font-medium">Document:</span>
-                <Button
-                  onClick={handleDownload}
-                  variant="link"
-                  className="h-auto p-0 text-pink-600 hover:text-pink-700 text-xs"
-                  data-testid="download-button"
-                >
-                  <Download size={14} className="mr-1" />
-                  {proposal.file_info.filename}
-                </Button>
+                {proposal.file_info ? (
+                  <Button
+                    onClick={handleDownload}
+                    variant="link"
+                    className="h-auto p-0 text-pink-600 hover:text-pink-700 text-xs"
+                    data-testid="download-button"
+                  >
+                    <Download size={14} className="mr-1" />
+                    {proposal.file_info.filename}
+                  </Button>
+                ) : (
+                  <span className="text-xs text-gray-400 italic">No document attached</span>
+                )}
               </div>
             </div>
 
             {/* Extended Fields */}
-            {(proposal.customer_name || proposal.industry || proposal.products?.length > 0 || proposal.deal_value || proposal.one_time_setup_fee || proposal.integration_fee || proposal.additional_fees?.length > 0 || proposal.contract_years || proposal.price_escalation_percent || proposal.comments) && (
+            {(proposal.customer_name || proposal.industry || proposal.products?.length > 0 || proposal.deal_value || proposal.one_time_setup_fee || proposal.integration_fee || proposal.additional_fees?.length > 0 || proposal.contract_years || proposal.price_escalation_percent || proposal.comments || proposal.flexidms_distributor_charge || proposal.dms_distributor_charge || proposal.sfa_user_charge || proposal.shared_l1_support_charge) && (
               <div className="border-t border-gray-200 pt-4 mt-4">
                 <h3 className="text-sm font-heading font-bold text-gray-900 mb-3">Proposal Details</h3>
                 <div className="grid grid-cols-2 gap-3 text-xs">
@@ -492,6 +500,41 @@ const ProposalDetail = () => {
                         <div key={fIndex} className="flex justify-between text-xs bg-blue-50 border border-blue-200 rounded px-3 py-2">
                           <span className="text-gray-700">{fee.name}</span>
                           <span className="text-gray-900 font-semibold">₹{fee.value.toLocaleString('en-IN')}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Ongoing / Recurring & Subscription Charges (Table B.2) */}
+                {[
+                  { key: 'flexidms_distributor_charge', label: 'Flexi DMS – Distributor Users' },
+                  { key: 'dms_distributor_charge', label: 'No. of Distributors for DMS' },
+                  { key: 'sfa_user_charge', label: 'No. of SFA Users' },
+                  { key: 'shared_l1_support_charge', label: 'Shared L1 Support Fee' },
+                ].some(({ key }) => proposal[key]) && (
+                  <div className="mt-4">
+                    <h4 className="font-bold text-gray-900 mb-2 text-sm">Ongoing / Recurring &amp; Subscription Charges</h4>
+                    <div className="space-y-2">
+                      {[
+                        { key: 'flexidms_distributor_charge', label: 'Flexi DMS – Distributor Users' },
+                        { key: 'dms_distributor_charge', label: 'No. of Distributors for DMS' },
+                        { key: 'sfa_user_charge', label: 'No. of SFA Users' },
+                        { key: 'shared_l1_support_charge', label: 'Shared L1 Support Fee' },
+                      ].filter(({ key }) => proposal[key]).map(({ key, label }) => (
+                        <div key={key} className="bg-teal-50 border border-teal-200 rounded px-3 py-2 text-xs">
+                          <span className="text-teal-800 font-semibold block mb-1">{label}</span>
+                          <div className="grid grid-cols-3 gap-2 text-teal-900">
+                            {proposal[key].quantity != null && (
+                              <span>Qty: <span className="font-semibold">{proposal[key].quantity}</span></span>
+                            )}
+                            {proposal[key].rate_per_user_month != null && (
+                              <span>Rate: <span className="font-semibold">₹{proposal[key].rate_per_user_month.toLocaleString('en-IN')}/mo</span></span>
+                            )}
+                            {proposal[key].monthly_minimum_billing != null && (
+                              <span>Min. Billing: <span className="font-semibold">₹{proposal[key].monthly_minimum_billing.toLocaleString('en-IN')}</span></span>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>
