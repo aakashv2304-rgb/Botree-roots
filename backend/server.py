@@ -26,6 +26,7 @@ from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from io import BytesIO
+from commercials_merge import fill_commercials
 
 # Register DejaVuSans font for Unicode support (₹ symbol)
 try:
@@ -148,6 +149,63 @@ async def get_object(path: str) -> tuple:
     data = await grid_out.read()
     content_type = (grid_out.metadata or {}).get("content_type", "application/octet-stream")
     return data, content_type
+
+def _build_commercial_data(proposal: "ProposalCreate") -> dict:
+    """Flatten the commercial fields off a ProposalCreate into the plain
+    dict shape commercials_merge.fill_commercials expects."""
+    def charge(line):
+        return line.dict() if line is not None else None
+    return {
+        "one_time_setup_fee": proposal.one_time_setup_fee,
+        "integration_fee": proposal.integration_fee,
+        "flexidms_distributor_charge": charge(proposal.flexidms_distributor_charge),
+        "dms_distributor_charge": charge(proposal.dms_distributor_charge),
+        "sfa_user_charge": charge(proposal.sfa_user_charge),
+        "shared_l1_support_charge": charge(proposal.shared_l1_support_charge),
+    }
+
+async def apply_commercials_to_file(file_doc: dict, commercial_data: dict, uploaded_by: str) -> dict:
+    """
+    If the uploaded base proposal document is a .docx, fill the sales-entered
+    commercial fields into Table B.1 / B.2 and store the result as a new
+    GridFS file + db.files record. Returns the file_doc to use for this
+    proposal version - the merged one if the merge ran, otherwise the
+    original file_doc unchanged (e.g. non-docx upload, or merge failure).
+
+    commercial_data is the already-resolved dict of values to write (see
+    _build_commercial_data for the create-proposal shape) - callers that
+    fall back to previously-saved values on revision should pass the
+    *resolved* values here, not the raw incoming payload.
+    """
+    filename = (file_doc.get("original_filename") or "").lower()
+    if not filename.endswith(".docx"):
+        return file_doc
+
+    try:
+        original_bytes, _ = await get_object(file_doc["storage_path"])
+        merged_bytes = fill_commercials(original_bytes, commercial_data)
+    except Exception:
+        logger.exception("Commercials merge failed, falling back to original uploaded file")
+        return file_doc
+
+    path = f"{APP_NAME}/proposals/{uploaded_by}/{uuid.uuid4()}_merged.docx"
+    result = await put_object(
+        path, merged_bytes,
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    )
+    merged_file_doc = {
+        "id": str(uuid.uuid4()),
+        "storage_path": result["path"],
+        "original_filename": file_doc["original_filename"],
+        "content_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "size": result["size"],
+        "uploaded_by": uploaded_by,
+        "is_deleted": False,
+        "source_file_id": file_doc["id"],  # audit trail back to the sales upload
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.files.insert_one(merged_file_doc)
+    return merged_file_doc
 
 # Email notification functions
 async def send_workflow_notification(
@@ -282,10 +340,17 @@ class Product(BaseModel):
     minimum_billing: Optional[float] = None
     training: Optional[float] = None
 
+class OngoingChargeLine(BaseModel):
+    """One row of Table B.2 (Ongoing Charges) in the base proposal document -
+    quantity, per-user-per-month rate, and monthly minimum billing."""
+    quantity: Optional[float] = None
+    rate_per_user_month: Optional[float] = None
+    monthly_minimum_billing: Optional[float] = None
+
 class ProposalCreate(BaseModel):
     title: str
     description: Optional[str] = None
-    file_id: str
+    file_id: Optional[str] = None  # base proposal document upload is optional
     products: Optional[List[Product]] = []
     customer_name: Optional[str] = None
     industry: Optional[str] = None
@@ -297,6 +362,11 @@ class ProposalCreate(BaseModel):
     contract_years: Optional[int] = None
     price_escalation_percent: Optional[float] = None
     change_note: Optional[str] = None
+    # Table B.2 (Ongoing Charges) - recurring/subscription commercial fields
+    flexidms_distributor_charge: Optional[OngoingChargeLine] = None
+    dms_distributor_charge: Optional[OngoingChargeLine] = None
+    sfa_user_charge: Optional[OngoingChargeLine] = None
+    shared_l1_support_charge: Optional[OngoingChargeLine] = None
 
 class ProposalAction(BaseModel):
     comment: Optional[str] = None
@@ -372,7 +442,7 @@ class ProposalResponse(BaseModel):
     status: str
     current_stage: int
     created_by: Dict[str, str]
-    file_info: Dict[str, Any]
+    file_info: Optional[Dict[str, Any]] = None
     history: List[Dict[str, Any]]
     created_at: str
     updated_at: str
@@ -602,26 +672,38 @@ async def create_proposal(proposal: ProposalCreate, request: Request):
     
     if current_user["role"] != "Sales":
         raise HTTPException(status_code=403, detail="Only Sales can create proposals")
-    
-    file_doc = await db.files.find_one({"id": proposal.file_id, "is_deleted": False})
-    if not file_doc:
-        raise HTTPException(status_code=404, detail="File not found")
-    
+
+    file_info = None
+    if proposal.file_id:
+        file_doc = await db.files.find_one({"id": proposal.file_id, "is_deleted": False})
+        if not file_doc:
+            raise HTTPException(status_code=404, detail="File not found")
+
+        # Auto-fill sales-entered commercial numbers into the base document
+        # (Table B.1/B.2). No-op if it's not a .docx or the merge fails -
+        # the original upload is used as a safe fallback either way.
+        file_doc = await apply_commercials_to_file(file_doc, _build_commercial_data(proposal), current_user["id"])
+
+        file_info = {
+            "id": file_doc["id"],
+            "filename": file_doc["original_filename"],
+            "size": file_doc["size"],
+            "storage_path": file_doc["storage_path"]
+        }
+
     now = datetime.now(timezone.utc)
     version_label = f"v1_{now.strftime('%Y-%m-%d')}"
-    
+
+    def _charge_dict(line):
+        return line.dict() if line is not None else None
+
     # Create first version
     version_data = {
         "version_number": 1,
         "version_label": version_label,
         "title": proposal.title,
         "description": proposal.description,
-        "file_info": {
-            "id": file_doc["id"],
-            "filename": file_doc["original_filename"],
-            "size": file_doc["size"],
-            "storage_path": file_doc["storage_path"]
-        },
+        "file_info": file_info,
         "products": [p.dict() for p in proposal.products] if proposal.products else [],
         "customer_name": proposal.customer_name,
         "industry": proposal.industry,
@@ -632,6 +714,10 @@ async def create_proposal(proposal: ProposalCreate, request: Request):
         "additional_fees": [f.dict() for f in proposal.additional_fees] if proposal.additional_fees else [],
         "contract_years": proposal.contract_years,
         "price_escalation_percent": proposal.price_escalation_percent,
+        "flexidms_distributor_charge": _charge_dict(proposal.flexidms_distributor_charge),
+        "dms_distributor_charge": _charge_dict(proposal.dms_distributor_charge),
+        "sfa_user_charge": _charge_dict(proposal.sfa_user_charge),
+        "shared_l1_support_charge": _charge_dict(proposal.shared_l1_support_charge),
         "created_by": current_user["id"],
         "created_at": now.isoformat(),
         "change_note": "Initial version"
@@ -656,6 +742,10 @@ async def create_proposal(proposal: ProposalCreate, request: Request):
         "additional_fees": [f.dict() for f in proposal.additional_fees] if proposal.additional_fees else [],
         "contract_years": proposal.contract_years,
         "price_escalation_percent": proposal.price_escalation_percent,
+        "flexidms_distributor_charge": version_data["flexidms_distributor_charge"],
+        "dms_distributor_charge": version_data["dms_distributor_charge"],
+        "sfa_user_charge": version_data["sfa_user_charge"],
+        "shared_l1_support_charge": version_data["shared_l1_support_charge"],
         "versions": [version_data],
         "history": [{
             "action": "created",
@@ -737,7 +827,7 @@ async def get_proposals(request: Request, status: Optional[str] = None, search: 
             "current_version": p.get("current_version", 1),
             "is_closed": p.get("is_closed", False),
             "created_by": {"id": str(creator["_id"]), "name": creator["name"], "role": creator["role"]},
-            "file_info": p["file_info"],
+            "file_info": p.get("file_info"),
             "products": p.get("products", []),
             "customer_name": p.get("customer_name"),
             "industry": p.get("industry"),
@@ -776,7 +866,7 @@ async def get_proposal(proposal_id: str, request: Request):
         "current_version": proposal.get("current_version", 1),
         "is_closed": proposal.get("is_closed", False),
         "created_by": {"id": str(creator["_id"]), "name": creator["name"], "role": creator["role"]},
-        "file_info": proposal["file_info"],
+        "file_info": proposal.get("file_info"),
         "products": proposal.get("products", []),
         "customer_name": proposal.get("customer_name"),
         "industry": proposal.get("industry"),
@@ -787,6 +877,10 @@ async def get_proposal(proposal_id: str, request: Request):
         "additional_fees": proposal.get("additional_fees", []),
         "contract_years": proposal.get("contract_years"),
         "price_escalation_percent": proposal.get("price_escalation_percent"),
+        "flexidms_distributor_charge": proposal.get("flexidms_distributor_charge"),
+        "dms_distributor_charge": proposal.get("dms_distributor_charge"),
+        "sfa_user_charge": proposal.get("sfa_user_charge"),
+        "shared_l1_support_charge": proposal.get("shared_l1_support_charge"),
         "versions": proposal.get("versions", []),
         "history": proposal["history"],
         "created_at": proposal["created_at"],
@@ -1085,7 +1179,7 @@ async def download_version_pdf(proposal_id: str, version_number: int, request: R
         ['Created By', f"{creator_name} ({creator_role})"],
         ['Created On', datetime.fromisoformat(version['created_at'].replace('Z', '+00:00')).strftime('%B %d, %Y at %I:%M %p')],
         ['Change Note', version.get('change_note', 'N/A')],
-        ['File Name', version['file_info']['filename']],
+        ['File Name', (version.get('file_info') or {}).get('filename', 'No document attached')],
     ]
     
     metadata_table = Table(metadata_data, colWidths=[2*inch, 4*inch])
@@ -1152,11 +1246,6 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
     if existing_proposal.get("is_closed", False):
         raise HTTPException(status_code=400, detail="Cannot edit a closed/rejected proposal")
     
-    # Verify new file if provided
-    file_doc = await db.files.find_one({"id": proposal.file_id, "is_deleted": False})
-    if not file_doc:
-        raise HTTPException(status_code=404, detail="File not found")
-    
     now = datetime.now(timezone.utc)
     new_version_number = existing_proposal.get("current_version", 1) + 1
     version_label = f"v{new_version_number}_{now.strftime('%Y-%m-%d')}"
@@ -1170,18 +1259,49 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
     contract_years = proposal.contract_years if proposal.contract_years is not None else existing_proposal.get("contract_years")
     price_escalation_percent = proposal.price_escalation_percent if proposal.price_escalation_percent is not None else existing_proposal.get("price_escalation_percent")
 
+    def _charge_dict(line):
+        return line.dict() if line is not None else None
+
+    flexidms_distributor_charge = _charge_dict(proposal.flexidms_distributor_charge) or existing_proposal.get("flexidms_distributor_charge")
+    dms_distributor_charge = _charge_dict(proposal.dms_distributor_charge) or existing_proposal.get("dms_distributor_charge")
+    sfa_user_charge = _charge_dict(proposal.sfa_user_charge) or existing_proposal.get("sfa_user_charge")
+    shared_l1_support_charge = _charge_dict(proposal.shared_l1_support_charge) or existing_proposal.get("shared_l1_support_charge")
+
+    # File is optional: a new upload replaces the old one, otherwise keep
+    # whatever was already attached (which may itself be None).
+    if proposal.file_id:
+        file_doc = await db.files.find_one({"id": proposal.file_id, "is_deleted": False})
+        if not file_doc:
+            raise HTTPException(status_code=404, detail="File not found")
+
+        # Re-run the commercials merge with the resolved fee values (new
+        # values where sent, otherwise whatever was already on the
+        # proposal) against the freshly uploaded base document.
+        resolved_commercial_data = {
+            "one_time_setup_fee": one_time_setup_fee,
+            "integration_fee": integration_fee,
+            "flexidms_distributor_charge": flexidms_distributor_charge,
+            "dms_distributor_charge": dms_distributor_charge,
+            "sfa_user_charge": sfa_user_charge,
+            "shared_l1_support_charge": shared_l1_support_charge,
+        }
+        file_doc = await apply_commercials_to_file(file_doc, resolved_commercial_data, current_user["id"])
+        file_info = {
+            "id": file_doc["id"],
+            "filename": file_doc["original_filename"],
+            "size": file_doc["size"],
+            "storage_path": file_doc["storage_path"]
+        }
+    else:
+        file_info = existing_proposal.get("file_info")
+
     # Create new version
     new_version = {
         "version_number": new_version_number,
         "version_label": version_label,
         "title": proposal.title,
         "description": proposal.description,
-        "file_info": {
-            "id": file_doc["id"],
-            "filename": file_doc["original_filename"],
-            "size": file_doc["size"],
-            "storage_path": file_doc["storage_path"]
-        },
+        "file_info": file_info,
         "products": products_data,
         "customer_name": proposal.customer_name,
         "industry": proposal.industry,
@@ -1192,6 +1312,10 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
         "additional_fees": additional_fees_data,
         "contract_years": contract_years,
         "price_escalation_percent": price_escalation_percent,
+        "flexidms_distributor_charge": flexidms_distributor_charge,
+        "dms_distributor_charge": dms_distributor_charge,
+        "sfa_user_charge": sfa_user_charge,
+        "shared_l1_support_charge": shared_l1_support_charge,
         "created_by": current_user["id"],
         "created_at": now.isoformat(),
         "change_note": proposal.change_note or "Revised after review feedback"
@@ -1215,7 +1339,7 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
                 "status": "sales_submitted",
                 "current_stage": 1,
                 "current_version": new_version_number,
-                "file_info": new_version["file_info"],
+                "file_info": file_info,
                 "products": products_data,
                 "customer_name": proposal.customer_name,
                 "industry": proposal.industry,
@@ -1226,6 +1350,10 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
                 "additional_fees": additional_fees_data,
                 "contract_years": contract_years,
                 "price_escalation_percent": price_escalation_percent,
+                "flexidms_distributor_charge": flexidms_distributor_charge,
+                "dms_distributor_charge": dms_distributor_charge,
+                "sfa_user_charge": sfa_user_charge,
+                "shared_l1_support_charge": shared_l1_support_charge,
                 "updated_at": now.isoformat()
             },
             "$push": {
@@ -1464,7 +1592,9 @@ async def download_proposal_file(proposal_id: str, request: Request):
     if not proposal:
         raise HTTPException(status_code=404, detail="Proposal not found")
     
-    file_info = proposal["file_info"]
+    file_info = proposal.get("file_info")
+    if not file_info:
+        raise HTTPException(status_code=404, detail="No document was attached to this proposal")
     data, content_type = await get_object(file_info["storage_path"])
     
     return FastAPIResponse(
