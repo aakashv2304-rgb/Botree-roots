@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -17,6 +17,7 @@ const NewProposal = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [validationError, setValidationError] = useState(null);
+  const [baseTemplate, setBaseTemplate] = useState(null); // { configured, filename, updated_at }
   const [formData, setFormData] = useState({
     file: null,
     customer_name: '',
@@ -45,6 +46,12 @@ const NewProposal = () => {
       [key]: { ...ongoingCharges[key], [field]: value }
     });
   };
+
+  useEffect(() => {
+    axios.get(`${API}/base-template`, { withCredentials: true })
+      .then(({ data }) => setBaseTemplate(data))
+      .catch(() => setBaseTemplate({ configured: false }));
+  }, []);
   const [products, setProducts] = useState([{
     product_name: '',
     users: '',
@@ -280,7 +287,7 @@ const NewProposal = () => {
 
               <div className="space-y-2">
                 <Label htmlFor="file" className="text-gray-700 font-semibold">
-                  Proposal Document <span className="text-gray-400 font-normal">(optional)</span>
+                  Proposal Document <span className="text-gray-400 font-normal">(optional override)</span>
                 </Label>
                 <div className="flex items-center gap-4">
                   <label
@@ -299,7 +306,15 @@ const NewProposal = () => {
                   />
                   {fileName && <span className="text-sm text-gray-600">{fileName}</span>}
                 </div>
-                <p className="text-xs text-gray-500">If you attach the base proposal .docx, the commercial numbers below are automatically filled into its Fees tables - no other content is changed.</p>
+                {baseTemplate?.configured ? (
+                  <p className="text-xs text-gray-500">
+                    Uses the company base template ({baseTemplate.filename}) by default - the commercial numbers below get filled into it automatically. Only attach a file here if this proposal needs a different document.
+                  </p>
+                ) : (
+                  <p className="text-xs text-amber-600">
+                    No company base template is set up yet (Admin can add one in User Management). Attach a document here if this proposal needs one.
+                  </p>
+                )}
               </div>
             </div>
           </div>
