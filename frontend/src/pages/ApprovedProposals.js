@@ -52,7 +52,7 @@ const ApprovedProposals = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-10 w-12 border-t-2 border-b-2 border-[#0F172A]"></div>
+        <div className="animate-spin rounded-full h-10 w-12 border-t-2 border-b-2 border-emerald-500"></div>
       </div>
     );
   }
@@ -61,13 +61,13 @@ const ApprovedProposals = () => {
     <div className="p-6" data-testid="approved-page">
       <div className="mb-6">
         <h1 className="text-3xl font-display font-black tracking-tight mb-2">Approved Proposals</h1>
-        <p className="text-gray-600 font-body">The final proposal document for each approved proposal</p>
+        <p className="text-gray-400 font-body">The final proposal document for each approved proposal</p>
       </div>
 
-      <div className="bg-white border border-[#E4E4E7] shadow-sm">
-        <div className="divide-y divide-[#E4E4E7]">
+      <div className="bg-[#1F2937] border border-[#374151] shadow-sm">
+        <div className="divide-y divide-[#374151]">
           {proposals.length === 0 ? (
-            <div className="p-12 text-center text-[#71717A]" data-testid="no-approved">
+            <div className="p-12 text-center text-gray-400" data-testid="no-approved">
               <p>No approved proposals yet</p>
             </div>
           ) : (
@@ -83,9 +83,9 @@ const ApprovedProposals = () => {
                   >
                     {proposal.title}
                   </h3>
-                  <p className="text-[#71717A] text-xs mt-1 truncate">
+                  <p className="text-gray-400 text-xs mt-1 truncate">
                     {proposal.file_info?.filename || 'Document'}
-                    <span className="ml-2 font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded" data-testid={`approved-version-${proposal.id}`}>
+                    <span className="ml-2 font-semibold text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded" data-testid={`approved-version-${proposal.id}`}>
                       v{proposal.current_version || 1}
                     </span>
                   </p>
@@ -97,7 +97,7 @@ const ApprovedProposals = () => {
                   onClick={() => handleDownload(proposal)}
                   disabled={downloadingId === proposal.id}
                   data-testid={`approved-download-${proposal.id}`}
-                  className="flex-shrink-0 bg-[#0F172A] hover:bg-[#1E293B] text-white"
+                  className="flex-shrink-0 bg-[#374151] hover:bg-[#4B5563] text-white border border-[#4B5563]"
                 >
                   <Download size={18} className="mr-2" />
                   {downloadingId === proposal.id ? 'Downloading...' : 'Download Document'}
