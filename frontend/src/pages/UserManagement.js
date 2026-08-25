@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../components/ui/alert-dialog';
 import { toast } from 'sonner';
-import { Plus, Trash, PencilSimple } from '@phosphor-icons/react';
+import { Plus, Trash, PencilSimple, Upload, FileText } from '@phosphor-icons/react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -21,12 +21,46 @@ const UserManagement = () => {
   const [selectedUser, setSelectedUser] = useState(null);
   const [newRole, setNewRole] = useState('');
   const [formData, setFormData] = useState({ email: '', password: '', name: '', role: 'Sales', department: 'Sales' });
+  const [baseTemplate, setBaseTemplate] = useState(null);
+  const [templateUploading, setTemplateUploading] = useState(false);
 
   useEffect(() => {
     if (user?.role === 'Admin') {
       fetchUsers();
+      fetchBaseTemplate();
     }
   }, [user]);
+
+  const fetchBaseTemplate = async () => {
+    try {
+      const { data } = await axios.get(`${API}/base-template`, { withCredentials: true });
+      setBaseTemplate(data);
+    } catch (error) {
+      // non-fatal - template management just won't show current status
+    }
+  };
+
+  const handleBaseTemplateUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.docx')) {
+      toast.error('Base template must be a .docx file');
+      return;
+    }
+    setTemplateUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const { data } = await axios.post(`${API}/base-template/upload`, fd, { withCredentials: true });
+      toast.success('Base proposal template updated');
+      setBaseTemplate({ configured: true, filename: data.filename, updated_at: data.updated_at });
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to upload base template');
+    } finally {
+      setTemplateUploading(false);
+      e.target.value = '';
+    }
+  };
 
   const fetchUsers = async () => {
     try {
@@ -182,6 +216,43 @@ const UserManagement = () => {
             </form>
           </DialogContent>
         </Dialog>
+      </div>
+
+      {/* Base Proposal Template */}
+      <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 mb-6">
+        <h2 className="text-lg font-bold text-gray-900 mb-1">Base Proposal Template</h2>
+        <p className="text-sm text-gray-600 mb-4">
+          Every new proposal that doesn't have its own document attached automatically uses this .docx as its base -
+          the commercial fields Sales enters get filled into its Fees tables (Table B.1/B.2) with nothing else changed.
+        </p>
+        <div className="flex items-center gap-4">
+          <label
+            htmlFor="base-template-file"
+            className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded hover:bg-gray-50 cursor-pointer transition-colors"
+          >
+            <Upload size={18} />
+            <span className="text-sm">{templateUploading ? 'Uploading...' : 'Upload / Replace'}</span>
+          </label>
+          <input
+            id="base-template-file"
+            type="file"
+            accept=".docx"
+            onChange={handleBaseTemplateUpload}
+            disabled={templateUploading}
+            className="hidden"
+          />
+          {baseTemplate?.configured ? (
+            <span className="flex items-center gap-2 text-sm text-gray-700">
+              <FileText size={16} className="text-purple-600" />
+              {baseTemplate.filename}
+              <span className="text-gray-400 text-xs">
+                (updated {new Date(baseTemplate.updated_at).toLocaleDateString()})
+              </span>
+            </span>
+          ) : (
+            <span className="text-sm text-amber-600">No base template configured yet</span>
+          )}
+        </div>
       </div>
 
       <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
