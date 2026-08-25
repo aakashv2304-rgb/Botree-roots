@@ -27,8 +27,32 @@ const EditProposal = () => {
     deal_value: '',
     one_time_setup_fee: '',
     integration_fee: '',
+    contract_years: '',
+    price_escalation_percent: '',
     change_note: ''
   });
+  const [oneTimeToggles, setOneTimeToggles] = useState({
+    include_dms_training: false,
+    include_sfa_training: false,
+    include_flexidms_deployment: false,
+  });
+  const [oneTimeOptionalFees, setOneTimeOptionalFees] = useState({
+    customization_fee: '',
+    workshop_fee: '',
+  });
+  const [additionalFees, setAdditionalFees] = useState([]);
+
+  const addAdditionalFee = () => {
+    setAdditionalFees([...additionalFees, { name: '', value: '' }]);
+  };
+  const removeAdditionalFee = (feeIndex) => {
+    setAdditionalFees(additionalFees.filter((_, i) => i !== feeIndex));
+  };
+  const updateAdditionalFee = (feeIndex, field, value) => {
+    const updated = [...additionalFees];
+    updated[feeIndex][field] = value;
+    setAdditionalFees(updated);
+  };
   const [ongoingCharges, setOngoingCharges] = useState({
     flexidms_distributor_charge: { quantity: '', rate_per_user_month: '', monthly_minimum_billing: '' },
     dms_distributor_charge: { quantity: '', rate_per_user_month: '', monthly_minimum_billing: '' },
@@ -68,8 +92,20 @@ const EditProposal = () => {
         deal_value: data.deal_value || '',
         one_time_setup_fee: data.one_time_setup_fee || '',
         integration_fee: data.integration_fee || '',
+        contract_years: data.contract_years || '',
+        price_escalation_percent: data.price_escalation_percent || '',
         change_note: ''
       });
+      setOneTimeToggles({
+        include_dms_training: !!data.include_dms_training,
+        include_sfa_training: !!data.include_sfa_training,
+        include_flexidms_deployment: !!data.include_flexidms_deployment,
+      });
+      setOneTimeOptionalFees({
+        customization_fee: data.customization_fee || '',
+        workshop_fee: data.workshop_fee || '',
+      });
+      setAdditionalFees(data.additional_fees || []);
       setOngoingCharges({
         flexidms_distributor_charge: chargeToStrings(data.flexidms_distributor_charge),
         dms_distributor_charge: chargeToStrings(data.dms_distributor_charge),
@@ -122,6 +158,10 @@ const EditProposal = () => {
         };
       };
 
+      const additionalFeesData = additionalFees
+        .map(f => ({ name: f.name, value: parseFloat(f.value) || 0 }))
+        .filter(f => f.name && f.value);
+
       await axios.put(`${API}/proposals/${id}`, {
         title: formData.title,
         description: formData.description,
@@ -132,6 +172,14 @@ const EditProposal = () => {
         deal_value: formData.deal_value ? parseFloat(formData.deal_value) : null,
         one_time_setup_fee: formData.one_time_setup_fee ? parseFloat(formData.one_time_setup_fee) : null,
         integration_fee: formData.integration_fee ? parseFloat(formData.integration_fee) : null,
+        additional_fees: additionalFeesData,
+        contract_years: formData.contract_years ? parseInt(formData.contract_years) : null,
+        price_escalation_percent: formData.price_escalation_percent ? parseFloat(formData.price_escalation_percent) : null,
+        include_dms_training: oneTimeToggles.include_dms_training,
+        include_sfa_training: oneTimeToggles.include_sfa_training,
+        include_flexidms_deployment: oneTimeToggles.include_flexidms_deployment,
+        customization_fee: oneTimeOptionalFees.customization_fee ? parseFloat(oneTimeOptionalFees.customization_fee) : null,
+        workshop_fee: oneTimeOptionalFees.workshop_fee ? parseFloat(oneTimeOptionalFees.workshop_fee) : null,
         flexidms_distributor_charge: buildCharge('flexidms_distributor_charge'),
         dms_distributor_charge: buildCharge('dms_distributor_charge'),
         sfa_user_charge: buildCharge('sfa_user_charge'),
@@ -266,6 +314,51 @@ const EditProposal = () => {
             </div>
 
             <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Extra Charges</Label>
+                <Button
+                  type="button"
+                  onClick={addAdditionalFee}
+                  variant="ghost"
+                  size="sm"
+                  className="text-purple-600 hover:text-purple-700"
+                >
+                  Add Extra Charge
+                </Button>
+              </div>
+              {additionalFees.length > 0 && (
+                <div className="space-y-2">
+                  {additionalFees.map((fee, fIndex) => (
+                    <div key={fIndex} className="flex gap-3 items-center bg-gray-50 p-3 rounded border border-gray-200">
+                      <Input
+                        value={fee.name}
+                        onChange={(e) => updateAdditionalFee(fIndex, 'name', e.target.value)}
+                        placeholder="Fee name (e.g., Customization, Data Migration)"
+                        className="flex-1"
+                      />
+                      <Input
+                        type="number"
+                        value={fee.value}
+                        onChange={(e) => updateAdditionalFee(fIndex, 'value', e.target.value)}
+                        placeholder="Amount (₹)"
+                        className="w-40"
+                      />
+                      <Button
+                        type="button"
+                        onClick={() => removeAdditionalFee(fIndex)}
+                        variant="ghost"
+                        size="sm"
+                        className="text-red-500 hover:text-red-700"
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-3">
               <Label>Ongoing / Recurring &amp; Subscription Charges</Label>
               <p className="text-xs text-gray-500 -mt-2">Leave a row blank to keep it as-is.</p>
               {[
@@ -298,6 +391,67 @@ const EditProposal = () => {
                   </div>
                 </div>
               ))}
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="contract_years">Contract Tenure (years)</Label>
+                <Input
+                  id="contract_years"
+                  type="number"
+                  min="1"
+                  value={formData.contract_years}
+                  onChange={(e) => setFormData({ ...formData, contract_years: e.target.value })}
+                  placeholder="e.g., 5"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="price_escalation_percent">Price Escalation % Each Year</Label>
+                <Input
+                  id="price_escalation_percent"
+                  type="number"
+                  step="0.1"
+                  value={formData.price_escalation_percent}
+                  onChange={(e) => setFormData({ ...formData, price_escalation_percent: e.target.value })}
+                  placeholder="e.g., 8"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <Label>Other One-Time Line Items</Label>
+              <p className="text-xs text-gray-500 -mt-2">Standard-rate rows in the base document - toggle on to include, off to remove from the document.</p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {[
+                  { key: 'include_dms_training', label: 'DMS Training' },
+                  { key: 'include_sfa_training', label: 'SFA Training' },
+                  { key: 'include_flexidms_deployment', label: 'Flexi DMS Deployment' },
+                ].map(({ key, label }) => (
+                  <label key={key} className="flex items-center gap-2 p-3 border border-gray-200 rounded bg-gray-50 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={oneTimeToggles[key]}
+                      onChange={(e) => setOneTimeToggles({ ...oneTimeToggles, [key]: e.target.checked })}
+                      className="h-4 w-4"
+                    />
+                    <span className="text-sm font-medium text-gray-800">{label}</span>
+                  </label>
+                ))}
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <Input
+                  type="number"
+                  value={oneTimeOptionalFees.customization_fee}
+                  onChange={(e) => setOneTimeOptionalFees({ ...oneTimeOptionalFees, customization_fee: e.target.value })}
+                  placeholder="Customization Fee ₹ (blank = not required)"
+                />
+                <Input
+                  type="number"
+                  value={oneTimeOptionalFees.workshop_fee}
+                  onChange={(e) => setOneTimeOptionalFees({ ...oneTimeOptionalFees, workshop_fee: e.target.value })}
+                  placeholder="Workshop/Data Migration Fee ₹ (blank = not required)"
+                />
+              </div>
             </div>
 
             <div className="space-y-2">
