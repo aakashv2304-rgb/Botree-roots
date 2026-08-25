@@ -117,17 +117,15 @@ def _clone_row_after(table, anchor_row, cell_texts: list):
 
 
 # Row label (lowercased, substring match against col-0 text) -> the
-# ProposalCreate field(s) that supply the value(s) for that row.
+# ProposalCreate field(s) that supply the value(s) for that row. All of
+# these Table B.1 rows work the same way: a numeric amount fills the
+# Fees-INR cell, and a blank/missing value removes the row entirely.
 ONE_TIME_FEE_ROWS = {
     "one-time setup fee": "one_time_setup_fee",
     "integration fee": "integration_fee",
-}
-ONE_TIME_TOGGLE_ROWS = {
-    "dms training": "include_dms_training",
-    "sfa training": "include_sfa_training",
-    "flexi dms -": "include_flexidms_deployment",   # "Flexi DMS - Deployment / ..."
-}
-ONE_TIME_TBD_ROWS = {
+    "dms training": "dms_training_fee",
+    "sfa training": "sfa_training_fee",
+    "flexi dms -": "flexidms_deployment_fee",   # "Flexi DMS - Deployment / ..."
     "any customization fee": "customization_fee",
     "workshop fee": "workshop_fee",
 }
@@ -167,25 +165,6 @@ def _merge_one_time_table(doc: Document, commercial_data: dict):
                 elif fees_col is not None:
                     _set_cell_text(row.cells[fees_col], _format_inr(value))
                 break
-
-        if not matched:
-            for key, field in ONE_TIME_TOGGLE_ROWS.items():
-                if label.startswith(key):
-                    matched = True
-                    if not commercial_data.get(field):
-                        rows_to_remove.append(row)
-                    break
-
-        if not matched:
-            for key, field in ONE_TIME_TBD_ROWS.items():
-                if label.startswith(key):
-                    matched = True
-                    value = commercial_data.get(field)
-                    if value is None:
-                        rows_to_remove.append(row)
-                    elif fees_col is not None:
-                        _set_cell_text(row.cells[fees_col], _format_inr(value))
-                    break
 
         if row not in rows_to_remove:
             last_kept_row = row
@@ -290,7 +269,7 @@ def fill_commercials(docx_bytes: bytes, commercial_data: dict) -> bytes:
     """
     commercial_data keys (all optional):
       one_time_setup_fee, integration_fee: float
-      include_dms_training, include_sfa_training, include_flexidms_deployment: bool
+      dms_training_fee, sfa_training_fee, flexidms_deployment_fee: float
       customization_fee, workshop_fee: float
       flexidms_distributor_charge / dms_distributor_charge /
       sfa_user_charge / shared_l1_support_charge: dict with
