@@ -8,7 +8,7 @@ import { Textarea } from '../components/ui/textarea';
 import { Label } from '../components/ui/label';
 import { toast } from 'sonner';
 import ValidationModal from '../components/ValidationModal';
-import { ArrowLeft, Upload, Plus, X, CurrencyDollar, Package } from '@phosphor-icons/react';
+import { ArrowLeft, Plus, X, CurrencyInr, Package } from '@phosphor-icons/react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -19,7 +19,6 @@ const NewProposal = () => {
   const [validationError, setValidationError] = useState(null);
   const [baseTemplate, setBaseTemplate] = useState(null); // { configured, filename, updated_at }
   const [formData, setFormData] = useState({
-    file: null,
     customer_name: '',
     industry: '',
     comments: '',
@@ -29,7 +28,6 @@ const NewProposal = () => {
     contract_years: '',
     price_escalation_percent: ''
   });
-  const [fileName, setFileName] = useState('');
   const [additionalFees, setAdditionalFees] = useState([]);
   // Table B.2 "Ongoing Charges" in the base proposal document - quantity,
   // rate/user/month, and monthly minimum billing per license type.
@@ -53,25 +51,15 @@ const NewProposal = () => {
       .catch(() => setBaseTemplate({ configured: false }));
   }, []);
 
-  // Table B.1 line items with standard fixed rates - include/exclude only
-  const [oneTimeToggles, setOneTimeToggles] = useState({
-    include_dms_training: false,
-    include_sfa_training: false,
-    include_flexidms_deployment: false,
-  });
-  // Table B.1 TBD line items - blank means "not required", removed from doc
+  // Table B.1 optional line items - blank means "not required", removed
+  // from the document; a value replaces the row's standard fixed rate.
   const [oneTimeOptionalFees, setOneTimeOptionalFees] = useState({
+    dms_training_fee: '',
+    sfa_training_fee: '',
+    flexidms_deployment_fee: '',
     customization_fee: '',
     workshop_fee: '',
   });
-
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setFormData({ ...formData, file });
-      setFileName(file.name);
-    }
-  };
 
   const addAdditionalFee = () => {
     setAdditionalFees([...additionalFees, { name: '', value: '' }]);
@@ -94,20 +82,12 @@ const NewProposal = () => {
       setValidationError('Customer Name is not filled');
       return;
     }
-    // Proposal document upload is optional - commercial fields below are
-    // still captured and, if a document is attached, auto-filled into it.
+    // No document upload here - every proposal automatically uses the
+    // company's base template (configured by Admin) and the commercial
+    // fields below get filled into it.
 
     setLoading(true);
     try {
-      // Upload file (only if one was chosen)
-      let fileId = null;
-      if (formData.file) {
-        const fileFormData = new FormData();
-        fileFormData.append('file', formData.file);
-        const fileUpload = await axios.post(`${API}/proposals/upload`, fileFormData, { withCredentials: true });
-        fileId = fileUpload.data.id;
-      }
-
       // Prepare Extra Charges
       const additionalFeesData = additionalFees
         .map(f => ({ name: f.name, value: parseFloat(f.value) || 0 }))
@@ -130,7 +110,6 @@ const NewProposal = () => {
       // Title/Description are no longer manually entered
       await axios.post(`${API}/proposals`, {
         title: formData.customer_name,
-        file_id: fileId,
         customer_name: formData.customer_name,
         industry: formData.industry,
         comments: formData.comments,
@@ -144,9 +123,9 @@ const NewProposal = () => {
         dms_distributor_charge: buildCharge('dms_distributor_charge'),
         sfa_user_charge: buildCharge('sfa_user_charge'),
         shared_l1_support_charge: buildCharge('shared_l1_support_charge'),
-        include_dms_training: oneTimeToggles.include_dms_training,
-        include_sfa_training: oneTimeToggles.include_sfa_training,
-        include_flexidms_deployment: oneTimeToggles.include_flexidms_deployment,
+        dms_training_fee: oneTimeOptionalFees.dms_training_fee ? parseFloat(oneTimeOptionalFees.dms_training_fee) : null,
+        sfa_training_fee: oneTimeOptionalFees.sfa_training_fee ? parseFloat(oneTimeOptionalFees.sfa_training_fee) : null,
+        flexidms_deployment_fee: oneTimeOptionalFees.flexidms_deployment_fee ? parseFloat(oneTimeOptionalFees.flexidms_deployment_fee) : null,
         customization_fee: oneTimeOptionalFees.customization_fee ? parseFloat(oneTimeOptionalFees.customization_fee) : null,
         workshop_fee: oneTimeOptionalFees.workshop_fee ? parseFloat(oneTimeOptionalFees.workshop_fee) : null
       }, { withCredentials: true });
@@ -216,7 +195,7 @@ const NewProposal = () => {
 
                 <div className="space-y-2">
                   <Label htmlFor="deal_value" className="text-gray-700 font-semibold flex items-center gap-2">
-                    <CurrencyDollar size={16} />
+                    <CurrencyInr size={16} />
                     Total Deal Value (INR)
                   </Label>
                   <Input
@@ -265,33 +244,13 @@ const NewProposal = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="file" className="text-gray-700 font-semibold">
-                  Proposal Document <span className="text-gray-400 font-normal">(optional override)</span>
-                </Label>
-                <div className="flex items-center gap-4">
-                  <label
-                    htmlFor="file"
-                    className="flex items-center gap-2 px-6 py-3 border border-dashed border-purple-300 rounded-lg hover:bg-purple-50 cursor-pointer transition-all"
-                  >
-                    <Upload size={20} className="text-purple-600" />
-                    <span className="text-sm font-semibold text-purple-600">Choose File</span>
-                  </label>
-                  <input
-                    id="file"
-                    type="file"
-                    onChange={handleFileChange}
-                    accept=".pdf,.doc,.docx"
-                    className="hidden"
-                  />
-                  {fileName && <span className="text-sm text-gray-600">{fileName}</span>}
-                </div>
                 {baseTemplate?.configured ? (
-                  <p className="text-xs text-gray-500">
-                    Uses the company base template ({baseTemplate.filename}) by default - the commercial numbers below get filled into it automatically. Only attach a file here if this proposal needs a different document.
+                  <p className="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded p-3">
+                    This proposal will use the company base template ({baseTemplate.filename}) - the commercial numbers below are filled into it automatically.
                   </p>
                 ) : (
-                  <p className="text-xs text-amber-600">
-                    No company base template is set up yet (Admin can add one in User Management). Attach a document here if this proposal needs one.
+                  <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded p-3">
+                    No company base template is set up yet. Ask an Admin to add one in User Management before submitting proposals.
                   </p>
                 )}
               </div>
@@ -301,7 +260,7 @@ const NewProposal = () => {
           {/* One-Time Setup & Integration Section */}
           <div className="bg-white p-6 shadow-sm border border-gray-200 card-enter" style={{animationDelay: '0.05s'}}>
             <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2 mb-6">
-              <CurrencyDollar size={24} className="text-purple-600" />
+              <CurrencyInr size={24} className="text-purple-600" />
               One-Time Setup & Integration
             </h2>
 
@@ -384,7 +343,7 @@ const NewProposal = () => {
           {/* Ongoing / Recurring Charges Section */}
           <div className="bg-white p-6 shadow-sm border border-gray-200 card-enter" style={{animationDelay: '0.08s'}}>
             <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2 mb-2">
-              <CurrencyDollar size={24} className="text-purple-600" />
+              <CurrencyInr size={24} className="text-purple-600" />
               Ongoing / Recurring &amp; Subscription Charges
             </h2>
             <p className="text-sm text-gray-500 mb-6">Quantity, rate per user/month, and monthly minimum billing for each license type. Leave a row blank to skip it.</p>
@@ -438,33 +397,42 @@ const NewProposal = () => {
           {/* Other One-Time Line Items (Table B.1 rows not covered above) */}
           <div className="bg-white p-6 shadow-sm border border-gray-200 card-enter" style={{animationDelay: '0.09s'}}>
             <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2 mb-2">
-              <CurrencyDollar size={24} className="text-purple-600" />
+              <CurrencyInr size={24} className="text-purple-600" />
               Other One-Time Line Items
             </h2>
-            <p className="text-sm text-gray-500 mb-6">These rows exist in the base document at standard rates. Toggle on to include them; leave off and they're removed from the document entirely.</p>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
-              {[
-                { key: 'include_dms_training', label: 'DMS Training', hint: '₹12,500 per man day' },
-                { key: 'include_sfa_training', label: 'SFA Training', hint: '₹12,500 per man day' },
-                { key: 'include_flexidms_deployment', label: 'Flexi DMS Deployment', hint: '₹3,500 per site' },
-              ].map(({ key, label, hint }) => (
-                <label key={key} className="flex items-start gap-3 p-4 border border-gray-200 rounded-lg bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={oneTimeToggles[key]}
-                    onChange={(e) => setOneTimeToggles({ ...oneTimeToggles, [key]: e.target.checked })}
-                    className="mt-1 h-4 w-4"
-                  />
-                  <span>
-                    <span className="block text-sm font-semibold text-gray-900">{label}</span>
-                    <span className="block text-xs text-gray-500">{hint}</span>
-                  </span>
-                </label>
-              ))}
-            </div>
+            <p className="text-sm text-gray-500 mb-6">Enter an amount to include a row in the document; leave blank and it's removed entirely.</p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl">
+              <div className="space-y-2">
+                <Label className="text-gray-700 font-semibold">DMS Training Fee (₹)</Label>
+                <Input
+                  type="number"
+                  value={oneTimeOptionalFees.dms_training_fee}
+                  onChange={(e) => setOneTimeOptionalFees({ ...oneTimeOptionalFees, dms_training_fee: e.target.value })}
+                  placeholder="e.g., 12500 — leave blank if not required"
+                  className="h-10 bg-white"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-gray-700 font-semibold">SFA Training Fee (₹)</Label>
+                <Input
+                  type="number"
+                  value={oneTimeOptionalFees.sfa_training_fee}
+                  onChange={(e) => setOneTimeOptionalFees({ ...oneTimeOptionalFees, sfa_training_fee: e.target.value })}
+                  placeholder="e.g., 12500 — leave blank if not required"
+                  className="h-10 bg-white"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-gray-700 font-semibold">Flexi DMS Deployment Fee (₹)</Label>
+                <Input
+                  type="number"
+                  value={oneTimeOptionalFees.flexidms_deployment_fee}
+                  onChange={(e) => setOneTimeOptionalFees({ ...oneTimeOptionalFees, flexidms_deployment_fee: e.target.value })}
+                  placeholder="e.g., 3500 — leave blank if not required"
+                  className="h-10 bg-white"
+                />
+              </div>
               <div className="space-y-2">
                 <Label className="text-gray-700 font-semibold">Customization Fee (₹)</Label>
                 <Input
