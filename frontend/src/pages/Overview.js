@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { MagnifyingGlass, FileText, Clock, TrendUp, Warning, CheckCircle, X, Funnel, CurrencyDollar, CalendarBlank, CaretLeft, CaretRight } from '@phosphor-icons/react';
+import { MagnifyingGlass, FileText, Clock, TrendUp, Warning, CheckCircle, X, Funnel, CurrencyInr, CalendarBlank, CaretLeft, CaretRight } from '@phosphor-icons/react';
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
@@ -263,7 +263,7 @@ const Overview = () => {
           <div className="bg-[#111827] border border-[#374151] rounded-lg p-3 hover-lift transition-colors-smooth">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Pipeline Value</span>
-              <CurrencyDollar size={16} className="text-emerald-400" />
+              <CurrencyInr size={16} className="text-emerald-400" />
             </div>
             <div className="flex items-baseline gap-2">
               <span className="text-2xl font-bold text-white">{formatCurrency(analytics.dealValue?.active_pipeline_value)}</span>
