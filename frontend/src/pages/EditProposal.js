@@ -7,7 +7,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { toast } from 'sonner';
-import { Upload, ArrowLeft } from '@phosphor-icons/react';
+import { ArrowLeft } from '@phosphor-icons/react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -20,7 +20,6 @@ const EditProposal = () => {
   const [formData, setFormData] = useState({ 
     title: '', 
     description: '', 
-    file: null,
     customer_name: '',
     industry: '',
     comments: '',
@@ -31,12 +30,10 @@ const EditProposal = () => {
     price_escalation_percent: '',
     change_note: ''
   });
-  const [oneTimeToggles, setOneTimeToggles] = useState({
-    include_dms_training: false,
-    include_sfa_training: false,
-    include_flexidms_deployment: false,
-  });
   const [oneTimeOptionalFees, setOneTimeOptionalFees] = useState({
+    dms_training_fee: '',
+    sfa_training_fee: '',
+    flexidms_deployment_fee: '',
     customization_fee: '',
     workshop_fee: '',
   });
@@ -85,7 +82,6 @@ const EditProposal = () => {
       setFormData({ 
         title: data.title, 
         description: data.description, 
-        file: null,
         customer_name: data.customer_name || '',
         industry: data.industry || '',
         comments: data.comments || '',
@@ -96,12 +92,10 @@ const EditProposal = () => {
         price_escalation_percent: data.price_escalation_percent || '',
         change_note: ''
       });
-      setOneTimeToggles({
-        include_dms_training: !!data.include_dms_training,
-        include_sfa_training: !!data.include_sfa_training,
-        include_flexidms_deployment: !!data.include_flexidms_deployment,
-      });
       setOneTimeOptionalFees({
+        dms_training_fee: data.dms_training_fee || '',
+        sfa_training_fee: data.sfa_training_fee || '',
+        flexidms_deployment_fee: data.flexidms_deployment_fee || '',
         customization_fee: data.customization_fee || '',
         workshop_fee: data.workshop_fee || '',
       });
@@ -120,35 +114,11 @@ const EditProposal = () => {
     }
   };
 
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setFormData({ ...formData, file });
-      setFileName(file.name);
-    }
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     
     setLoading(true);
-    try {
-      // Only send a file_id if a *new* file was chosen - the backend keeps
-      // the existing attachment (if any) when file_id is omitted, and
-      // re-runs the commercials merge automatically either way.
-      let fileId = null;
-      if (formData.file) {
-        const fileFormData = new FormData();
-        fileFormData.append('file', formData.file);
-
-        const fileUpload = await axios.post(`${API}/proposals/upload`, fileFormData, {
-          withCredentials: true,
-          headers: { 'Content-Type': 'multipart/form-data' }
-        });
-        fileId = fileUpload.data.id;
-      }
-
-      const buildCharge = (key) => {
+    try {      const buildCharge = (key) => {
         const c = ongoingCharges[key];
         if (!c.quantity && !c.rate_per_user_month && !c.monthly_minimum_billing) return null;
         return {
@@ -165,7 +135,6 @@ const EditProposal = () => {
       await axios.put(`${API}/proposals/${id}`, {
         title: formData.title,
         description: formData.description,
-        file_id: fileId,
         customer_name: formData.customer_name,
         industry: formData.industry,
         comments: formData.comments,
@@ -175,9 +144,9 @@ const EditProposal = () => {
         additional_fees: additionalFeesData,
         contract_years: formData.contract_years ? parseInt(formData.contract_years) : null,
         price_escalation_percent: formData.price_escalation_percent ? parseFloat(formData.price_escalation_percent) : null,
-        include_dms_training: oneTimeToggles.include_dms_training,
-        include_sfa_training: oneTimeToggles.include_sfa_training,
-        include_flexidms_deployment: oneTimeToggles.include_flexidms_deployment,
+        dms_training_fee: oneTimeOptionalFees.dms_training_fee ? parseFloat(oneTimeOptionalFees.dms_training_fee) : null,
+        sfa_training_fee: oneTimeOptionalFees.sfa_training_fee ? parseFloat(oneTimeOptionalFees.sfa_training_fee) : null,
+        flexidms_deployment_fee: oneTimeOptionalFees.flexidms_deployment_fee ? parseFloat(oneTimeOptionalFees.flexidms_deployment_fee) : null,
         customization_fee: oneTimeOptionalFees.customization_fee ? parseFloat(oneTimeOptionalFees.customization_fee) : null,
         workshop_fee: oneTimeOptionalFees.workshop_fee ? parseFloat(oneTimeOptionalFees.workshop_fee) : null,
         flexidms_distributor_charge: buildCharge('flexidms_distributor_charge'),
@@ -420,25 +389,26 @@ const EditProposal = () => {
 
             <div className="space-y-3">
               <Label>Other One-Time Line Items</Label>
-              <p className="text-xs text-gray-500 -mt-2">Standard-rate rows in the base document - toggle on to include, off to remove from the document.</p>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                {[
-                  { key: 'include_dms_training', label: 'DMS Training' },
-                  { key: 'include_sfa_training', label: 'SFA Training' },
-                  { key: 'include_flexidms_deployment', label: 'Flexi DMS Deployment' },
-                ].map(({ key, label }) => (
-                  <label key={key} className="flex items-center gap-2 p-3 border border-gray-200 rounded bg-gray-50 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={oneTimeToggles[key]}
-                      onChange={(e) => setOneTimeToggles({ ...oneTimeToggles, [key]: e.target.checked })}
-                      className="h-4 w-4"
-                    />
-                    <span className="text-sm font-medium text-gray-800">{label}</span>
-                  </label>
-                ))}
-              </div>
-              <div className="grid grid-cols-2 gap-4">
+              <p className="text-xs text-gray-500 -mt-2">Enter an amount to include a row in the document; leave blank and it's removed.</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input
+                  type="number"
+                  value={oneTimeOptionalFees.dms_training_fee}
+                  onChange={(e) => setOneTimeOptionalFees({ ...oneTimeOptionalFees, dms_training_fee: e.target.value })}
+                  placeholder="DMS Training Fee ₹ (blank = not required)"
+                />
+                <Input
+                  type="number"
+                  value={oneTimeOptionalFees.sfa_training_fee}
+                  onChange={(e) => setOneTimeOptionalFees({ ...oneTimeOptionalFees, sfa_training_fee: e.target.value })}
+                  placeholder="SFA Training Fee ₹ (blank = not required)"
+                />
+                <Input
+                  type="number"
+                  value={oneTimeOptionalFees.flexidms_deployment_fee}
+                  onChange={(e) => setOneTimeOptionalFees({ ...oneTimeOptionalFees, flexidms_deployment_fee: e.target.value })}
+                  placeholder="Flexi DMS Deployment Fee ₹ (blank = not required)"
+                />
                 <Input
                   type="number"
                   value={oneTimeOptionalFees.customization_fee}
@@ -468,34 +438,9 @@ const EditProposal = () => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="file">
-                Proposal Document{' '}
-                {formData.file
-                  ? '(New file selected)'
-                  : fileName
-                    ? '(Keep existing or upload new)'
-                    : '(optional - none attached)'}
-              </Label>
-              <div className="flex items-center gap-4">
-                <label
-                  htmlFor="file"
-                  className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded hover:bg-gray-50 cursor-pointer transition-colors"
-                  data-testid="file-upload-label"
-                >
-                  <Upload size={20} />
-                  <span className="text-sm">Choose File</span>
-                </label>
-                <input
-                  id="file"
-                  type="file"
-                  onChange={handleFileChange}
-                  accept=".pdf,.doc,.docx"
-                  className="hidden"
-                  data-testid="proposal-file-input"
-                />
-                <span className="text-sm text-gray-600">{fileName || 'No document attached'}</span>
-              </div>
-              <p className="text-xs text-gray-500">If a .docx is attached, the fee fields above are automatically filled into its Fees tables when you resubmit.</p>
+              <Label>Proposal Document</Label>
+              <p className="text-sm text-gray-600">{fileName || 'No document attached'}</p>
+              <p className="text-xs text-gray-500">The document is generated automatically from the company base template using the fee fields above - there's nothing to upload here.</p>
             </div>
 
             <div className="flex gap-4 pt-4">
