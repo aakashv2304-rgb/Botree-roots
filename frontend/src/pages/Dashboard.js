@@ -18,7 +18,7 @@ const Dashboard = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="flex min-h-screen bg-[#F4F4F5]">
+    <div className="flex min-h-screen bg-[#111827]">
       <Sidebar />
       <div className="flex-1">
         <PageTransition key={location.pathname}>
