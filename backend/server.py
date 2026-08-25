@@ -150,6 +150,15 @@ async def get_object(path: str) -> tuple:
     content_type = (grid_out.metadata or {}).get("content_type", "application/octet-stream")
     return data, content_type
 
+def build_proposal_filename(customer_name: Optional[str], version_number: int, dt: datetime, source_filename: str) -> str:
+    """Proposal document naming convention: {Company}_v{N}_{YYYY-MM-DD}.ext"""
+    import re as _re
+    ext = os.path.splitext(source_filename or "")[1] or ".docx"
+    safe_name = _re.sub(r'[^A-Za-z0-9 _-]', '', customer_name or "Proposal").strip()
+    safe_name = _re.sub(r'\s+', '_', safe_name) or "Proposal"
+    date_str = dt.strftime("%Y-%m-%d")
+    return f"{safe_name}_v{version_number}_{date_str}{ext}"
+
 def _build_commercial_data(proposal: "ProposalCreate") -> dict:
     """Flatten the commercial fields off a ProposalCreate into the plain
     dict shape commercials_merge.fill_commercials expects."""
@@ -158,10 +167,18 @@ def _build_commercial_data(proposal: "ProposalCreate") -> dict:
     return {
         "one_time_setup_fee": proposal.one_time_setup_fee,
         "integration_fee": proposal.integration_fee,
+        "include_dms_training": proposal.include_dms_training,
+        "include_sfa_training": proposal.include_sfa_training,
+        "include_flexidms_deployment": proposal.include_flexidms_deployment,
+        "customization_fee": proposal.customization_fee,
+        "workshop_fee": proposal.workshop_fee,
         "flexidms_distributor_charge": charge(proposal.flexidms_distributor_charge),
         "dms_distributor_charge": charge(proposal.dms_distributor_charge),
         "sfa_user_charge": charge(proposal.sfa_user_charge),
         "shared_l1_support_charge": charge(proposal.shared_l1_support_charge),
+        "additional_fees": [f.dict() for f in proposal.additional_fees] if proposal.additional_fees else [],
+        "price_escalation_percent": proposal.price_escalation_percent,
+        "contract_years": proposal.contract_years,
     }
 
 async def get_base_template_file_doc() -> Optional[dict]:
@@ -373,6 +390,14 @@ class ProposalCreate(BaseModel):
     contract_years: Optional[int] = None
     price_escalation_percent: Optional[float] = None
     change_note: Optional[str] = None
+    # Table B.1 line items not covered by one_time_setup_fee/integration_fee.
+    # DMS/SFA training and FlexiDMS deployment have standard fixed rates in
+    # the base document - these are include/exclude toggles, not amounts.
+    include_dms_training: Optional[bool] = None
+    include_sfa_training: Optional[bool] = None
+    include_flexidms_deployment: Optional[bool] = None
+    customization_fee: Optional[float] = None
+    workshop_fee: Optional[float] = None
     # Table B.2 (Ongoing Charges) - recurring/subscription commercial fields
     flexidms_distributor_charge: Optional[OngoingChargeLine] = None
     dms_distributor_charge: Optional[OngoingChargeLine] = None
@@ -762,7 +787,7 @@ async def create_proposal(proposal: ProposalCreate, request: Request):
 
         file_info = {
             "id": file_doc["id"],
-            "filename": file_doc["original_filename"],
+            "filename": build_proposal_filename(proposal.customer_name, 1, datetime.now(timezone.utc), file_doc["original_filename"]),
             "size": file_doc["size"],
             "storage_path": file_doc["storage_path"]
         }
@@ -790,6 +815,11 @@ async def create_proposal(proposal: ProposalCreate, request: Request):
         "additional_fees": [f.dict() for f in proposal.additional_fees] if proposal.additional_fees else [],
         "contract_years": proposal.contract_years,
         "price_escalation_percent": proposal.price_escalation_percent,
+        "include_dms_training": proposal.include_dms_training,
+        "include_sfa_training": proposal.include_sfa_training,
+        "include_flexidms_deployment": proposal.include_flexidms_deployment,
+        "customization_fee": proposal.customization_fee,
+        "workshop_fee": proposal.workshop_fee,
         "flexidms_distributor_charge": _charge_dict(proposal.flexidms_distributor_charge),
         "dms_distributor_charge": _charge_dict(proposal.dms_distributor_charge),
         "sfa_user_charge": _charge_dict(proposal.sfa_user_charge),
@@ -818,6 +848,11 @@ async def create_proposal(proposal: ProposalCreate, request: Request):
         "additional_fees": [f.dict() for f in proposal.additional_fees] if proposal.additional_fees else [],
         "contract_years": proposal.contract_years,
         "price_escalation_percent": proposal.price_escalation_percent,
+        "include_dms_training": version_data["include_dms_training"],
+        "include_sfa_training": version_data["include_sfa_training"],
+        "include_flexidms_deployment": version_data["include_flexidms_deployment"],
+        "customization_fee": version_data["customization_fee"],
+        "workshop_fee": version_data["workshop_fee"],
         "flexidms_distributor_charge": version_data["flexidms_distributor_charge"],
         "dms_distributor_charge": version_data["dms_distributor_charge"],
         "sfa_user_charge": version_data["sfa_user_charge"],
@@ -957,6 +992,11 @@ async def get_proposal(proposal_id: str, request: Request):
         "dms_distributor_charge": proposal.get("dms_distributor_charge"),
         "sfa_user_charge": proposal.get("sfa_user_charge"),
         "shared_l1_support_charge": proposal.get("shared_l1_support_charge"),
+        "include_dms_training": proposal.get("include_dms_training"),
+        "include_sfa_training": proposal.get("include_sfa_training"),
+        "include_flexidms_deployment": proposal.get("include_flexidms_deployment"),
+        "customization_fee": proposal.get("customization_fee"),
+        "workshop_fee": proposal.get("workshop_fee"),
         "versions": proposal.get("versions", []),
         "history": proposal["history"],
         "created_at": proposal["created_at"],
@@ -1343,6 +1383,12 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
     sfa_user_charge = _charge_dict(proposal.sfa_user_charge) or existing_proposal.get("sfa_user_charge")
     shared_l1_support_charge = _charge_dict(proposal.shared_l1_support_charge) or existing_proposal.get("shared_l1_support_charge")
 
+    include_dms_training = proposal.include_dms_training if proposal.include_dms_training is not None else existing_proposal.get("include_dms_training")
+    include_sfa_training = proposal.include_sfa_training if proposal.include_sfa_training is not None else existing_proposal.get("include_sfa_training")
+    include_flexidms_deployment = proposal.include_flexidms_deployment if proposal.include_flexidms_deployment is not None else existing_proposal.get("include_flexidms_deployment")
+    customization_fee = proposal.customization_fee if proposal.customization_fee is not None else existing_proposal.get("customization_fee")
+    workshop_fee = proposal.workshop_fee if proposal.workshop_fee is not None else existing_proposal.get("workshop_fee")
+
     # Resolve which document to (re-)merge from: an explicit new upload,
     # otherwise whatever's already attached to this proposal (re-merging is
     # safe/idempotent - it always overwrites the same target cells),
@@ -1350,10 +1396,18 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
     resolved_commercial_data = {
         "one_time_setup_fee": one_time_setup_fee,
         "integration_fee": integration_fee,
+        "include_dms_training": include_dms_training,
+        "include_sfa_training": include_sfa_training,
+        "include_flexidms_deployment": include_flexidms_deployment,
+        "customization_fee": customization_fee,
+        "workshop_fee": workshop_fee,
         "flexidms_distributor_charge": flexidms_distributor_charge,
         "dms_distributor_charge": dms_distributor_charge,
         "sfa_user_charge": sfa_user_charge,
         "shared_l1_support_charge": shared_l1_support_charge,
+        "additional_fees": additional_fees_data,
+        "price_escalation_percent": price_escalation_percent,
+        "contract_years": contract_years,
     }
 
     if proposal.file_id:
@@ -1369,7 +1423,7 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
         file_doc = await apply_commercials_to_file(source_file_doc, resolved_commercial_data, current_user["id"])
         file_info = {
             "id": file_doc["id"],
-            "filename": file_doc["original_filename"],
+            "filename": build_proposal_filename(proposal.customer_name or existing_proposal.get("customer_name"), new_version_number, now, file_doc["original_filename"]),
             "size": file_doc["size"],
             "storage_path": file_doc["storage_path"]
         }
@@ -1393,6 +1447,11 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
         "additional_fees": additional_fees_data,
         "contract_years": contract_years,
         "price_escalation_percent": price_escalation_percent,
+        "include_dms_training": include_dms_training,
+        "include_sfa_training": include_sfa_training,
+        "include_flexidms_deployment": include_flexidms_deployment,
+        "customization_fee": customization_fee,
+        "workshop_fee": workshop_fee,
         "flexidms_distributor_charge": flexidms_distributor_charge,
         "dms_distributor_charge": dms_distributor_charge,
         "sfa_user_charge": sfa_user_charge,
@@ -1431,6 +1490,11 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
                 "additional_fees": additional_fees_data,
                 "contract_years": contract_years,
                 "price_escalation_percent": price_escalation_percent,
+                "include_dms_training": include_dms_training,
+                "include_sfa_training": include_sfa_training,
+                "include_flexidms_deployment": include_flexidms_deployment,
+                "customization_fee": customization_fee,
+                "workshop_fee": workshop_fee,
                 "flexidms_distributor_charge": flexidms_distributor_charge,
                 "dms_distributor_charge": dms_distributor_charge,
                 "sfa_user_charge": sfa_user_charge,
