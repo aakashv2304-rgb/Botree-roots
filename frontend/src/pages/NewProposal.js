@@ -32,10 +32,10 @@ const NewProposal = () => {
   // Table B.2 "Ongoing Charges" in the base proposal document - quantity,
   // rate/user/month, and monthly minimum billing per license type.
   const [ongoingCharges, setOngoingCharges] = useState({
-    flexidms_distributor_charge: { quantity: '', rate_per_user_month: '', monthly_minimum_billing: '' },
-    dms_distributor_charge: { quantity: '', rate_per_user_month: '', monthly_minimum_billing: '' },
-    sfa_user_charge: { quantity: '', rate_per_user_month: '', monthly_minimum_billing: '' },
-    shared_l1_support_charge: { quantity: '', rate_per_user_month: '', monthly_minimum_billing: '' },
+    flexidms_distributor_charge: { quantity: '', rate_per_user_month: '', monthly_minimum_billing: '', description: '' },
+    dms_distributor_charge: { quantity: '', rate_per_user_month: '', monthly_minimum_billing: '', description: '' },
+    sfa_user_charge: { quantity: '', rate_per_user_month: '', monthly_minimum_billing: '', description: '' },
+    shared_l1_support_charge: { quantity: '', rate_per_user_month: '', monthly_minimum_billing: '', description: '' },
   });
 
   const updateOngoingCharge = (key, field, value) => {
@@ -47,12 +47,37 @@ const NewProposal = () => {
 
   useEffect(() => {
     axios.get(`${API}/base-template`, { withCredentials: true })
-      .then(({ data }) => setBaseTemplate(data))
+      .then(({ data }) => {
+        setBaseTemplate(data);
+        if (data.row_defaults) {
+          setOneTimeLineItemText(prev => {
+            const next = { ...prev };
+            for (const key of Object.keys(next)) {
+              if (data.row_defaults[key]) {
+                next[key] = {
+                  description: data.row_defaults[key].description || '',
+                  invoicing: data.row_defaults[key].invoicing || '',
+                };
+              }
+            }
+            return next;
+          });
+          setOngoingCharges(prev => {
+            const next = { ...prev };
+            for (const key of Object.keys(next)) {
+              if (data.row_defaults[key]?.description) {
+                next[key] = { ...next[key], description: data.row_defaults[key].description };
+              }
+            }
+            return next;
+          });
+        }
+      })
       .catch(() => setBaseTemplate({ configured: false }));
   }, []);
 
-  // Table B.1 optional line items - blank means "not required", removed
-  // from the document; a value replaces the row's standard fixed rate.
+  // Table B.1 optional line items - blank amount means "not required",
+  // removed from the document; a value replaces the row's standard rate.
   const [oneTimeOptionalFees, setOneTimeOptionalFees] = useState({
     dms_training_fee: '',
     sfa_training_fee: '',
@@ -61,8 +86,37 @@ const NewProposal = () => {
     workshop_fee: '',
   });
 
+  // Description/Invoicing text per Table B.1 row - pre-filled from the base
+  // template once it loads (see useEffect above), editable from there.
+  const [oneTimeLineItemText, setOneTimeLineItemText] = useState({
+    one_time_setup_fee: { description: '', invoicing: '' },
+    integration_fee: { description: '', invoicing: '' },
+    dms_training_fee: { description: '', invoicing: '' },
+    sfa_training_fee: { description: '', invoicing: '' },
+    flexidms_deployment_fee: { description: '', invoicing: '' },
+    customization_fee: { description: '', invoicing: '' },
+    workshop_fee: { description: '', invoicing: '' },
+  });
+
+  const updateOneTimeLineItemText = (key, field, value) => {
+    setOneTimeLineItemText({
+      ...oneTimeLineItemText,
+      [key]: { ...oneTimeLineItemText[key], [field]: value }
+    });
+  };
+
+  const ONE_TIME_ROWS = [
+    { key: 'one_time_setup_fee', label: 'One-Time Setup Fee', amountPlaceholder: 'e.g., 275000', getAmount: () => formData.one_time_setup_fee, setAmount: (v) => setFormData({ ...formData, one_time_setup_fee: v }) },
+    { key: 'integration_fee', label: 'Integration Fee', amountPlaceholder: 'e.g., 425000', getAmount: () => formData.integration_fee, setAmount: (v) => setFormData({ ...formData, integration_fee: v }) },
+    { key: 'dms_training_fee', label: 'DMS Training Fee', amountPlaceholder: 'e.g., 12500 — leave blank if not required', getAmount: () => oneTimeOptionalFees.dms_training_fee, setAmount: (v) => setOneTimeOptionalFees({ ...oneTimeOptionalFees, dms_training_fee: v }) },
+    { key: 'sfa_training_fee', label: 'SFA Training Fee', amountPlaceholder: 'e.g., 12500 — leave blank if not required', getAmount: () => oneTimeOptionalFees.sfa_training_fee, setAmount: (v) => setOneTimeOptionalFees({ ...oneTimeOptionalFees, sfa_training_fee: v }) },
+    { key: 'flexidms_deployment_fee', label: 'Flexi DMS Deployment Fee', amountPlaceholder: 'e.g., 3500 — leave blank if not required', getAmount: () => oneTimeOptionalFees.flexidms_deployment_fee, setAmount: (v) => setOneTimeOptionalFees({ ...oneTimeOptionalFees, flexidms_deployment_fee: v }) },
+    { key: 'customization_fee', label: 'Customization Fee', amountPlaceholder: 'Leave blank if not required', getAmount: () => oneTimeOptionalFees.customization_fee, setAmount: (v) => setOneTimeOptionalFees({ ...oneTimeOptionalFees, customization_fee: v }) },
+    { key: 'workshop_fee', label: 'Workshop / Data Migration / Audit Fee', amountPlaceholder: 'Leave blank if not required', getAmount: () => oneTimeOptionalFees.workshop_fee, setAmount: (v) => setOneTimeOptionalFees({ ...oneTimeOptionalFees, workshop_fee: v }) },
+  ];
+
   const addAdditionalFee = () => {
-    setAdditionalFees([...additionalFees, { name: '', value: '' }]);
+    setAdditionalFees([...additionalFees, { name: '', value: '', description: '' }]);
   };
 
   const removeAdditionalFee = (feeIndex) => {
@@ -90,7 +144,7 @@ const NewProposal = () => {
     try {
       // Prepare Extra Charges
       const additionalFeesData = additionalFees
-        .map(f => ({ name: f.name, value: parseFloat(f.value) || 0 }))
+        .map(f => ({ name: f.name, value: parseFloat(f.value) || 0, description: f.description || null }))
         .filter(f => f.name && f.value);
 
       // Table B.2 ongoing charges - only send a line if at least one of its
@@ -103,6 +157,7 @@ const NewProposal = () => {
           quantity: c.quantity ? parseFloat(c.quantity) : null,
           rate_per_user_month: c.rate_per_user_month ? parseFloat(c.rate_per_user_month) : null,
           monthly_minimum_billing: c.monthly_minimum_billing ? parseFloat(c.monthly_minimum_billing) : null,
+          description: c.description || null,
         };
       };
 
@@ -127,7 +182,8 @@ const NewProposal = () => {
         sfa_training_fee: oneTimeOptionalFees.sfa_training_fee ? parseFloat(oneTimeOptionalFees.sfa_training_fee) : null,
         flexidms_deployment_fee: oneTimeOptionalFees.flexidms_deployment_fee ? parseFloat(oneTimeOptionalFees.flexidms_deployment_fee) : null,
         customization_fee: oneTimeOptionalFees.customization_fee ? parseFloat(oneTimeOptionalFees.customization_fee) : null,
-        workshop_fee: oneTimeOptionalFees.workshop_fee ? parseFloat(oneTimeOptionalFees.workshop_fee) : null
+        workshop_fee: oneTimeOptionalFees.workshop_fee ? parseFloat(oneTimeOptionalFees.workshop_fee) : null,
+        one_time_line_item_text: oneTimeLineItemText
       }, { withCredentials: true });
 
       toast.success('Proposal created successfully!');
@@ -257,37 +313,56 @@ const NewProposal = () => {
             </div>
           </div>
 
-          {/* One-Time Setup & Integration Section */}
+          {/* One-Time Charges Section - mirrors Table B.1 in the document:
+              Type of fees / Description / Fees-INR / Invoicing */}
           <div className="bg-white p-6 shadow-sm border border-gray-200 card-enter" style={{animationDelay: '0.05s'}}>
-            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2 mb-6">
+            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2 mb-2">
               <CurrencyInr size={24} className="text-purple-600" />
-              One-Time Setup & Integration
+              One-Time Charges
             </h2>
+            <p className="text-sm text-gray-500 mb-6">Description and Invoicing are pre-filled from the base template and can be edited. Leave a row's amount blank and it's removed from the document.</p>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl">
-              <div className="space-y-2">
-                <Label className="text-gray-700 font-semibold">One-Time Setup Fee (₹)</Label>
-                <Input
-                  type="number"
-                  value={formData.one_time_setup_fee}
-                  onChange={(e) => setFormData({ ...formData, one_time_setup_fee: e.target.value })}
-                  placeholder="e.g., 30000"
-                  className="h-10 bg-white"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-gray-700 font-semibold">Integration Fee (₹)</Label>
-                <Input
-                  type="number"
-                  value={formData.integration_fee}
-                  onChange={(e) => setFormData({ ...formData, integration_fee: e.target.value })}
-                  placeholder="e.g., 20000"
-                  className="h-10 bg-white"
-                />
-              </div>
+            <div className="space-y-4">
+              {ONE_TIME_ROWS.map(({ key, label, amountPlaceholder, getAmount, setAmount }) => (
+                <div key={key} className="p-4 border border-gray-200 rounded-lg bg-gray-50">
+                  <h3 className="text-sm font-bold text-gray-900 mb-3">{label}</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-gray-700 font-semibold">Amount (₹)</Label>
+                      <Input
+                        type="number"
+                        value={getAmount()}
+                        onChange={(e) => setAmount(e.target.value)}
+                        placeholder={amountPlaceholder}
+                        className="h-10 bg-white"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-gray-700 font-semibold">Description</Label>
+                      <Textarea
+                        value={oneTimeLineItemText[key].description}
+                        onChange={(e) => updateOneTimeLineItemText(key, 'description', e.target.value)}
+                        placeholder="Description shown in the document"
+                        rows={2}
+                        className="bg-white"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-gray-700 font-semibold">Invoicing</Label>
+                      <Textarea
+                        value={oneTimeLineItemText[key].invoicing}
+                        onChange={(e) => updateOneTimeLineItemText(key, 'invoicing', e.target.value)}
+                        placeholder="Invoicing terms shown in the document"
+                        rows={2}
+                        className="bg-white"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
 
-            {/* Extra Charges - unchanged mechanism, now proposal-level */}
+            {/* Extra Charges - appended as new rows in the document */}
             <div className="mt-6 pt-6 border-t border-gray-300">
               <div className="flex items-center justify-between mb-4">
                 <Label className="text-gray-700 font-semibold">Extra Charges</Label>
@@ -311,8 +386,15 @@ const NewProposal = () => {
                         <Input
                           value={fee.name}
                           onChange={(e) => updateAdditionalFee(fIndex, 'name', e.target.value)}
-                          placeholder="Fee name (e.g., Customization, Data Migration)"
+                          placeholder="Fee name (e.g., Custom Report Module)"
                           className="h-10 bg-white"
+                        />
+                        <Textarea
+                          value={fee.description || ''}
+                          onChange={(e) => updateAdditionalFee(fIndex, 'description', e.target.value)}
+                          placeholder="Description (optional)"
+                          rows={2}
+                          className="bg-white"
                         />
                       </div>
                       <div className="w-40 space-y-2">
@@ -357,6 +439,16 @@ const NewProposal = () => {
               ].map(({ key, label }) => (
                 <div key={key} className="p-4 border border-gray-200 rounded-lg bg-gray-50">
                   <h3 className="text-sm font-bold text-gray-900 mb-3">{label}</h3>
+                  <div className="space-y-2 mb-4">
+                    <Label className="text-gray-700 font-semibold">Description</Label>
+                    <Textarea
+                      value={ongoingCharges[key].description}
+                      onChange={(e) => updateOngoingCharge(key, 'description', e.target.value)}
+                      placeholder="Pre-filled from the base template - edit as needed"
+                      rows={2}
+                      className="bg-white text-sm"
+                    />
+                  </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-2">
                       <Label className="text-gray-700 font-semibold">Quantity</Label>
@@ -391,68 +483,6 @@ const NewProposal = () => {
                   </div>
                 </div>
               ))}
-            </div>
-          </div>
-
-          {/* Other One-Time Line Items (Table B.1 rows not covered above) */}
-          <div className="bg-white p-6 shadow-sm border border-gray-200 card-enter" style={{animationDelay: '0.09s'}}>
-            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2 mb-2">
-              <CurrencyInr size={24} className="text-purple-600" />
-              Other One-Time Line Items
-            </h2>
-            <p className="text-sm text-gray-500 mb-6">Enter an amount to include a row in the document; leave blank and it's removed entirely.</p>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl">
-              <div className="space-y-2">
-                <Label className="text-gray-700 font-semibold">DMS Training Fee (₹)</Label>
-                <Input
-                  type="number"
-                  value={oneTimeOptionalFees.dms_training_fee}
-                  onChange={(e) => setOneTimeOptionalFees({ ...oneTimeOptionalFees, dms_training_fee: e.target.value })}
-                  placeholder="e.g., 12500 — leave blank if not required"
-                  className="h-10 bg-white"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-gray-700 font-semibold">SFA Training Fee (₹)</Label>
-                <Input
-                  type="number"
-                  value={oneTimeOptionalFees.sfa_training_fee}
-                  onChange={(e) => setOneTimeOptionalFees({ ...oneTimeOptionalFees, sfa_training_fee: e.target.value })}
-                  placeholder="e.g., 12500 — leave blank if not required"
-                  className="h-10 bg-white"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-gray-700 font-semibold">Flexi DMS Deployment Fee (₹)</Label>
-                <Input
-                  type="number"
-                  value={oneTimeOptionalFees.flexidms_deployment_fee}
-                  onChange={(e) => setOneTimeOptionalFees({ ...oneTimeOptionalFees, flexidms_deployment_fee: e.target.value })}
-                  placeholder="e.g., 3500 — leave blank if not required"
-                  className="h-10 bg-white"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-gray-700 font-semibold">Customization Fee (₹)</Label>
-                <Input
-                  type="number"
-                  value={oneTimeOptionalFees.customization_fee}
-                  onChange={(e) => setOneTimeOptionalFees({ ...oneTimeOptionalFees, customization_fee: e.target.value })}
-                  placeholder="Leave blank if not required"
-                  className="h-10 bg-white"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-gray-700 font-semibold">Workshop / Data Migration / Audit Fee (₹)</Label>
-                <Input
-                  type="number"
-                  value={oneTimeOptionalFees.workshop_fee}
-                  onChange={(e) => setOneTimeOptionalFees({ ...oneTimeOptionalFees, workshop_fee: e.target.value })}
-                  placeholder="Leave blank if not required"
-                  className="h-10 bg-white"
-                />
-              </div>
             </div>
           </div>
 
