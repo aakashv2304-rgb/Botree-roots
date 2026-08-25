@@ -591,6 +591,9 @@ const ProposalDetail = () => {
                       ].filter(({ key }) => proposal[key]).map(({ key, label }) => (
                         <div key={key} className="bg-teal-50 border border-teal-200 rounded px-3 py-2 text-xs">
                           <span className="text-teal-800 font-semibold block mb-1">{label}</span>
+                          {proposal[key].description && (
+                            <p className="text-teal-800 mb-2">{proposal[key].description}</p>
+                          )}
                           <div className="grid grid-cols-3 gap-2 text-teal-900">
                             {proposal[key].quantity != null && (
                               <span>Qty: <span className="font-semibold">{proposal[key].quantity}</span></span>
