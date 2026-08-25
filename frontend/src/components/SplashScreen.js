@@ -4,7 +4,7 @@ const BOTREE_LOGO = "https://customer-assets-7cd3h4nn.emergentagent.net/job_prop
 
 const SplashScreen = () => {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#E8E4F8] via-[#F5E8F4] to-[#FDD7ED] flex items-center justify-center fixed inset-0 z-50">
+    <div className="min-h-screen bg-[#111827] flex items-center justify-center fixed inset-0 z-50">
       <div className="flex flex-col items-center gap-8">
         <div className="animate-float">
           <div
