@@ -164,18 +164,29 @@ def _build_commercial_data(proposal: "ProposalCreate") -> dict:
         "shared_l1_support_charge": charge(proposal.shared_l1_support_charge),
     }
 
+async def get_base_template_file_doc() -> Optional[dict]:
+    """Fetch the org-wide default base proposal document, if an Admin has
+    configured one. Used as the fallback source for the commercials merge
+    when a proposal doesn't have its own document attached."""
+    setting = await db.settings.find_one({"key": "base_proposal_template"})
+    if not setting or not setting.get("file_id"):
+        return None
+    return await db.files.find_one({"id": setting["file_id"], "is_deleted": False})
+
 async def apply_commercials_to_file(file_doc: dict, commercial_data: dict, uploaded_by: str) -> dict:
     """
-    If the uploaded base proposal document is a .docx, fill the sales-entered
-    commercial fields into Table B.1 / B.2 and store the result as a new
-    GridFS file + db.files record. Returns the file_doc to use for this
-    proposal version - the merged one if the merge ran, otherwise the
-    original file_doc unchanged (e.g. non-docx upload, or merge failure).
+    If the source document is a .docx, fill the sales-entered commercial
+    fields into Table B.1 / B.2 and store the result as a new GridFS file +
+    db.files record. Returns the file_doc to use for this proposal version -
+    the merged one if the merge ran, otherwise the source file_doc unchanged
+    (e.g. non-docx source, or merge failure). The source document itself
+    (whether a per-proposal upload or the shared base template) is never
+    modified - each merge writes a brand new file.
 
     commercial_data is the already-resolved dict of values to write (see
-    _build_commercial_data for the create-proposal shape) - callers that
-    fall back to previously-saved values on revision should pass the
-    *resolved* values here, not the raw incoming payload.
+    _build_commercial_data for the shape) - callers that fall back to
+    previously-saved values on revision should pass the *resolved* values
+    here, not the raw incoming payload.
     """
     filename = (file_doc.get("original_filename") or "").lower()
     if not filename.endswith(".docx"):
@@ -665,6 +676,66 @@ async def download_file(file_id: str, request: Request):
     data, content_type = await get_object(file_doc["storage_path"])
     return FastAPIResponse(content=data, media_type=file_doc.get("content_type", content_type))
 
+# ============ Base proposal template (org-wide default document) ============
+# Admin uploads this once. Every new proposal that isn't given its own
+# document automatically uses this as the source for the commercials merge,
+# so Sales no longer needs to attach a file each time.
+
+@api_router.get("/base-template")
+async def get_base_template(request: Request):
+    await get_current_user(request)
+    setting = await db.settings.find_one({"key": "base_proposal_template"}, {"_id": 0})
+    if not setting:
+        return {"configured": False}
+    return {
+        "configured": True,
+        "filename": setting.get("filename"),
+        "updated_at": setting.get("updated_at")
+    }
+
+@api_router.post("/base-template/upload")
+async def upload_base_template(file: UploadFile, request: Request):
+    current_user = await get_current_user(request)
+    if current_user["role"] != "Admin":
+        raise HTTPException(status_code=403, detail="Only Admin can set the base proposal template")
+
+    if not (file.filename or "").lower().endswith(".docx"):
+        raise HTTPException(status_code=400, detail="Base template must be a .docx file")
+
+    data = await file.read()
+    path = f"{APP_NAME}/base-template/{uuid.uuid4()}.docx"
+    result = await put_object(
+        path, data,
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    )
+
+    file_doc = {
+        "id": str(uuid.uuid4()),
+        "storage_path": result["path"],
+        "original_filename": file.filename,
+        "content_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "size": result["size"],
+        "uploaded_by": current_user["id"],
+        "is_deleted": False,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.files.insert_one(file_doc)
+
+    now = datetime.now(timezone.utc).isoformat()
+    await db.settings.update_one(
+        {"key": "base_proposal_template"},
+        {"$set": {
+            "key": "base_proposal_template",
+            "file_id": file_doc["id"],
+            "filename": file.filename,
+            "updated_by": current_user["id"],
+            "updated_at": now
+        }},
+        upsert=True
+    )
+
+    return {"message": "Base proposal template updated", "filename": file.filename, "updated_at": now}
+
 # Proposal endpoints
 @api_router.post("/proposals")
 async def create_proposal(proposal: ProposalCreate, request: Request):
@@ -678,10 +749,15 @@ async def create_proposal(proposal: ProposalCreate, request: Request):
         file_doc = await db.files.find_one({"id": proposal.file_id, "is_deleted": False})
         if not file_doc:
             raise HTTPException(status_code=404, detail="File not found")
+    else:
+        # No document attached to this proposal - fall back to the shared
+        # base template (Admin-configured), if one has been set up.
+        file_doc = await get_base_template_file_doc()
 
-        # Auto-fill sales-entered commercial numbers into the base document
-        # (Table B.1/B.2). No-op if it's not a .docx or the merge fails -
-        # the original upload is used as a safe fallback either way.
+    if file_doc:
+        # Auto-fill sales-entered commercial numbers into the source
+        # document (Table B.1/B.2). No-op if it's not a .docx or the merge
+        # fails - the source document is used as a safe fallback either way.
         file_doc = await apply_commercials_to_file(file_doc, _build_commercial_data(proposal), current_user["id"])
 
         file_info = {
@@ -1267,25 +1343,30 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
     sfa_user_charge = _charge_dict(proposal.sfa_user_charge) or existing_proposal.get("sfa_user_charge")
     shared_l1_support_charge = _charge_dict(proposal.shared_l1_support_charge) or existing_proposal.get("shared_l1_support_charge")
 
-    # File is optional: a new upload replaces the old one, otherwise keep
-    # whatever was already attached (which may itself be None).
-    if proposal.file_id:
-        file_doc = await db.files.find_one({"id": proposal.file_id, "is_deleted": False})
-        if not file_doc:
-            raise HTTPException(status_code=404, detail="File not found")
+    # Resolve which document to (re-)merge from: an explicit new upload,
+    # otherwise whatever's already attached to this proposal (re-merging is
+    # safe/idempotent - it always overwrites the same target cells),
+    # otherwise the shared base template.
+    resolved_commercial_data = {
+        "one_time_setup_fee": one_time_setup_fee,
+        "integration_fee": integration_fee,
+        "flexidms_distributor_charge": flexidms_distributor_charge,
+        "dms_distributor_charge": dms_distributor_charge,
+        "sfa_user_charge": sfa_user_charge,
+        "shared_l1_support_charge": shared_l1_support_charge,
+    }
 
-        # Re-run the commercials merge with the resolved fee values (new
-        # values where sent, otherwise whatever was already on the
-        # proposal) against the freshly uploaded base document.
-        resolved_commercial_data = {
-            "one_time_setup_fee": one_time_setup_fee,
-            "integration_fee": integration_fee,
-            "flexidms_distributor_charge": flexidms_distributor_charge,
-            "dms_distributor_charge": dms_distributor_charge,
-            "sfa_user_charge": sfa_user_charge,
-            "shared_l1_support_charge": shared_l1_support_charge,
-        }
-        file_doc = await apply_commercials_to_file(file_doc, resolved_commercial_data, current_user["id"])
+    if proposal.file_id:
+        source_file_doc = await db.files.find_one({"id": proposal.file_id, "is_deleted": False})
+        if not source_file_doc:
+            raise HTTPException(status_code=404, detail="File not found")
+    elif existing_proposal.get("file_info", {}) and existing_proposal["file_info"].get("id"):
+        source_file_doc = await db.files.find_one({"id": existing_proposal["file_info"]["id"], "is_deleted": False})
+    else:
+        source_file_doc = await get_base_template_file_doc()
+
+    if source_file_doc:
+        file_doc = await apply_commercials_to_file(source_file_doc, resolved_commercial_data, current_user["id"])
         file_info = {
             "id": file_doc["id"],
             "filename": file_doc["original_filename"],
@@ -1293,7 +1374,7 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
             "storage_path": file_doc["storage_path"]
         }
     else:
-        file_info = existing_proposal.get("file_info")
+        file_info = None
 
     # Create new version
     new_version = {
