@@ -20,30 +20,29 @@ const ValidationModal = ({ message, onClose }) => {
       data-testid="validation-modal-overlay"
     >
       <div
-        className="bg-white rounded-2xl shadow-2xl px-8 py-7 max-w-sm w-[90%] text-center relative"
+        className="bg-[#1F2937] border border-[#374151] rounded-2xl shadow-2xl px-8 py-7 max-w-sm w-[90%] text-center relative"
         style={{ animation: 'bounceIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both' }}
         onClick={(e) => e.stopPropagation()}
         data-testid="validation-modal"
       >
         <button
           onClick={onClose}
-          className="absolute top-3 right-3 text-gray-400 hover:text-gray-600 transition-colors"
+          className="absolute top-3 right-3 text-gray-500 hover:text-gray-300 transition-colors"
           aria-label="Close"
         >
           <X size={18} />
         </button>
 
         <div
-          className="mx-auto mb-4 flex items-center justify-center w-14 h-14 rounded-full"
-          style={{ background: 'linear-gradient(135deg, #FEE2E2 0%, #FECACA 100%)' }}
+          className="mx-auto mb-4 flex items-center justify-center w-14 h-14 rounded-full bg-red-500/15"
         >
-          <WarningCircle size={30} weight="fill" className="text-red-500" />
+          <WarningCircle size={30} weight="fill" className="text-red-400" />
         </div>
 
-        <p className="font-heading font-bold text-lg text-gray-900 mb-1">
+        <p className="font-heading font-bold text-lg text-white mb-1">
           {message}
         </p>
-        <p className="text-sm text-gray-500 mb-5">
+        <p className="text-sm text-gray-400 mb-5">
           Please fill this in before continuing.
         </p>
 
