@@ -8,7 +8,7 @@ import { Textarea } from '../components/ui/textarea';
 import { Label } from '../components/ui/label';
 import { toast } from 'sonner';
 import ValidationModal from '../components/ValidationModal';
-import { ArrowLeft, Upload, Plus, X, CurrencyDollar, Users, Package } from '@phosphor-icons/react';
+import { ArrowLeft, Upload, Plus, X, CurrencyDollar, Package } from '@phosphor-icons/react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -52,13 +52,18 @@ const NewProposal = () => {
       .then(({ data }) => setBaseTemplate(data))
       .catch(() => setBaseTemplate({ configured: false }));
   }, []);
-  const [products, setProducts] = useState([{
-    product_name: '',
-    users: '',
-    price_per_user: '',
-    minimum_billing: '',
-    training: ''
-  }]);
+
+  // Table B.1 line items with standard fixed rates - include/exclude only
+  const [oneTimeToggles, setOneTimeToggles] = useState({
+    include_dms_training: false,
+    include_sfa_training: false,
+    include_flexidms_deployment: false,
+  });
+  // Table B.1 TBD line items - blank means "not required", removed from doc
+  const [oneTimeOptionalFees, setOneTimeOptionalFees] = useState({
+    customization_fee: '',
+    workshop_fee: '',
+  });
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -66,28 +71,6 @@ const NewProposal = () => {
       setFormData({ ...formData, file });
       setFileName(file.name);
     }
-  };
-
-  const addProduct = () => {
-    setProducts([...products, {
-      product_name: '',
-      users: '',
-      price_per_user: '',
-      minimum_billing: '',
-      training: ''
-    }]);
-  };
-
-  const removeProduct = (index) => {
-    if (products.length > 1) {
-      setProducts(products.filter((_, i) => i !== index));
-    }
-  };
-
-  const updateProduct = (index, field, value) => {
-    const updated = [...products];
-    updated[index][field] = value;
-    setProducts(updated);
   };
 
   const addAdditionalFee = () => {
@@ -125,15 +108,7 @@ const NewProposal = () => {
         fileId = fileUpload.data.id;
       }
 
-      // Prepare products data
-      const productsData = products.map(p => ({
-        product_name: p.product_name,
-        users: p.users,
-        price_per_user: p.price_per_user ? parseFloat(p.price_per_user) : null,
-        minimum_billing: p.minimum_billing ? parseFloat(p.minimum_billing) : null,
-        training: p.training ? parseFloat(p.training) : null
-      })).filter(p => p.product_name);
-
+      // Prepare Extra Charges
       const additionalFeesData = additionalFees
         .map(f => ({ name: f.name, value: parseFloat(f.value) || 0 }))
         .filter(f => f.name && f.value);
@@ -169,7 +144,11 @@ const NewProposal = () => {
         dms_distributor_charge: buildCharge('dms_distributor_charge'),
         sfa_user_charge: buildCharge('sfa_user_charge'),
         shared_l1_support_charge: buildCharge('shared_l1_support_charge'),
-        products: productsData
+        include_dms_training: oneTimeToggles.include_dms_training,
+        include_sfa_training: oneTimeToggles.include_sfa_training,
+        include_flexidms_deployment: oneTimeToggles.include_flexidms_deployment,
+        customization_fee: oneTimeOptionalFees.customization_fee ? parseFloat(oneTimeOptionalFees.customization_fee) : null,
+        workshop_fee: oneTimeOptionalFees.workshop_fee ? parseFloat(oneTimeOptionalFees.workshop_fee) : null
       }, { withCredentials: true });
 
       toast.success('Proposal created successfully!');
@@ -456,106 +435,56 @@ const NewProposal = () => {
             </div>
           </div>
 
-          {/* Products Section */}
-          <div className="bg-white p-6 shadow-sm border border-gray-200 card-enter" style={{animationDelay: '0.1s'}}>
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                <Package size={24} className="text-purple-600" />
-                Products
-              </h2>
-              <Button
-                type="button"
-                onClick={addProduct}
-                variant="outline"
-                className="border-purple-500 text-purple-600 hover:bg-purple-50"
-              >
-                <Plus size={18} className="mr-2" />
-                Add Product
-              </Button>
+          {/* Other One-Time Line Items (Table B.1 rows not covered above) */}
+          <div className="bg-white p-6 shadow-sm border border-gray-200 card-enter" style={{animationDelay: '0.09s'}}>
+            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2 mb-2">
+              <CurrencyDollar size={24} className="text-purple-600" />
+              Other One-Time Line Items
+            </h2>
+            <p className="text-sm text-gray-500 mb-6">These rows exist in the base document at standard rates. Toggle on to include them; leave off and they're removed from the document entirely.</p>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
+              {[
+                { key: 'include_dms_training', label: 'DMS Training', hint: '₹12,500 per man day' },
+                { key: 'include_sfa_training', label: 'SFA Training', hint: '₹12,500 per man day' },
+                { key: 'include_flexidms_deployment', label: 'Flexi DMS Deployment', hint: '₹3,500 per site' },
+              ].map(({ key, label, hint }) => (
+                <label key={key} className="flex items-start gap-3 p-4 border border-gray-200 rounded-lg bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={oneTimeToggles[key]}
+                    onChange={(e) => setOneTimeToggles({ ...oneTimeToggles, [key]: e.target.checked })}
+                    className="mt-1 h-4 w-4"
+                  />
+                  <span>
+                    <span className="block text-sm font-semibold text-gray-900">{label}</span>
+                    <span className="block text-xs text-gray-500">{hint}</span>
+                  </span>
+                </label>
+              ))}
             </div>
 
-            <div className="space-y-6">
-              {products.map((product, pIndex) => (
-                <div
-                  key={pIndex}
-                  className="p-6 border border-gray-200 rounded-lg bg-gray-50 space-y-4 animate-scale-in hover-lift"
-                >
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-bold text-gray-900">Product {pIndex + 1}</h3>
-                    {products.length > 1 && (
-                      <Button
-                        type="button"
-                        onClick={() => removeProduct(pIndex)}
-                        variant="ghost"
-                        size="sm"
-                        className="text-red-500 hover:text-red-700"
-                      >
-                        <X size={18} className="mr-1" />
-                        Remove
-                      </Button>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2 md:col-span-2">
-                      <Label className="text-gray-700 font-semibold">Product Name *</Label>
-                      <Input
-                        value={product.product_name}
-                        onChange={(e) => updateProduct(pIndex, 'product_name', e.target.value)}
-                        placeholder="e.g., CRM Software"
-                        className="h-10 bg-white"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label className="text-gray-700 font-semibold flex items-center gap-2">
-                        <Users size={16} />
-                        Users
-                      </Label>
-                      <Input
-                        value={product.users}
-                        onChange={(e) => updateProduct(pIndex, 'users', e.target.value)}
-                        placeholder="e.g., 50 users"
-                        className="h-10 bg-white"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label className="text-gray-700 font-semibold">Price (per user per month) (₹)</Label>
-                      <Input
-                        type="number"
-                        value={product.price_per_user}
-                        onChange={(e) => updateProduct(pIndex, 'price_per_user', e.target.value)}
-                        placeholder="e.g., 500"
-                        className="h-10 bg-white"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label className="text-gray-700 font-semibold">Minimum Billing (per month) (₹)</Label>
-                      <Input
-                        type="number"
-                        value={product.minimum_billing}
-                        onChange={(e) => updateProduct(pIndex, 'minimum_billing', e.target.value)}
-                        placeholder="e.g., 100000"
-                        className="h-10 bg-white"
-                      />
-                      <p className="text-xs text-gray-500">Minimum commitment amount</p>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label className="text-gray-700 font-semibold">Training (per man day/per batch) (₹)</Label>
-                      <Input
-                        type="number"
-                        value={product.training}
-                        onChange={(e) => updateProduct(pIndex, 'training', e.target.value)}
-                        placeholder="e.g., 5000"
-                        className="h-10 bg-white"
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl">
+              <div className="space-y-2">
+                <Label className="text-gray-700 font-semibold">Customization Fee (₹)</Label>
+                <Input
+                  type="number"
+                  value={oneTimeOptionalFees.customization_fee}
+                  onChange={(e) => setOneTimeOptionalFees({ ...oneTimeOptionalFees, customization_fee: e.target.value })}
+                  placeholder="Leave blank if not required"
+                  className="h-10 bg-white"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-gray-700 font-semibold">Workshop / Data Migration / Audit Fee (₹)</Label>
+                <Input
+                  type="number"
+                  value={oneTimeOptionalFees.workshop_fee}
+                  onChange={(e) => setOneTimeOptionalFees({ ...oneTimeOptionalFees, workshop_fee: e.target.value })}
+                  placeholder="Leave blank if not required"
+                  className="h-10 bg-white"
+                />
+              </div>
             </div>
           </div>
 
