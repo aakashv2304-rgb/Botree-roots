@@ -148,6 +148,16 @@ def _merge_one_time_table(doc: Document, commercial_data: dict):
         fees_col = next(i for i, h in enumerate(header) if "inr" in h)
     except StopIteration:
         fees_col = None
+    try:
+        description_col = next(i for i, h in enumerate(header) if h == "description")
+    except StopIteration:
+        description_col = None
+    try:
+        invoicing_col = next(i for i, h in enumerate(header) if "invoic" in h)
+    except StopIteration:
+        invoicing_col = None
+
+    line_item_text = commercial_data.get("one_time_line_item_text") or {}
 
     rows_to_remove = []
     last_kept_row = table.rows[0]
@@ -162,8 +172,14 @@ def _merge_one_time_table(doc: Document, commercial_data: dict):
                 value = commercial_data.get(field)
                 if value is None:
                     rows_to_remove.append(row)
-                elif fees_col is not None:
-                    _set_cell_text(row.cells[fees_col], _format_inr(value))
+                else:
+                    if fees_col is not None:
+                        _set_cell_text(row.cells[fees_col], _format_inr(value))
+                    text_override = line_item_text.get(field) or {}
+                    if text_override.get("description") is not None and description_col is not None:
+                        _set_cell_text(row.cells[description_col], text_override["description"])
+                    if text_override.get("invoicing") is not None and invoicing_col is not None:
+                        _set_cell_text(row.cells[invoicing_col], text_override["invoicing"])
                 break
 
         if row not in rows_to_remove:
@@ -190,9 +206,11 @@ def _merge_one_time_table(doc: Document, commercial_data: dict):
         for fee in additional_fees:
             name = fee.get("name") or "Additional Charge"
             value = fee.get("value")
+            description = fee.get("description") or ""
+            invoicing = fee.get("invoicing") or ""
             new_row = _clone_row_after(
                 table, anchor_row,
-                [name, "", _format_inr(value) if value is not None else "", ""]
+                [name, description, _format_inr(value) if value is not None else "", invoicing]
             )
             anchor_row = new_row
 
@@ -211,6 +229,8 @@ def _merge_ongoing_table(doc: Document, commercial_data: dict):
             col_idx["rate"] = i
         elif "minimum billing" in h:
             col_idx["min_billing"] = i
+        elif h == "description":
+            col_idx["description"] = i
 
     rows_to_remove = []
     for row in list(table.rows)[1:]:
@@ -230,6 +250,8 @@ def _merge_ongoing_table(doc: Document, commercial_data: dict):
                         _set_cell_text(row.cells[col_idx["rate"]], _format_inr(charge["rate_per_user_month"]))
                     if charge.get("monthly_minimum_billing") is not None and "min_billing" in col_idx:
                         _set_cell_text(row.cells[col_idx["min_billing"]], _format_inr(charge["monthly_minimum_billing"]))
+                    if charge.get("description") is not None and "description" in col_idx:
+                        _set_cell_text(row.cells[col_idx["description"]], charge["description"])
                 break
 
     for row in rows_to_remove:
@@ -265,16 +287,77 @@ def _replace_contract_duration(doc: Document, years_value: Optional[int]):
             return
 
 
+def extract_row_defaults(docx_bytes: bytes) -> dict:
+    """
+    Read Table B.1 and B.2 from a base template and return the current
+    Description (and, for B.1, Invoicing) text for each known row, keyed
+    the same way as ONE_TIME_FEE_ROWS / ONGOING_ROW_MAP values (e.g.
+    "one_time_setup_fee", "flexidms_distributor_charge"). Used to pre-fill
+    the sales form so Description/Invoicing start out matching the
+    template and can be edited from there.
+    """
+    doc = Document(io.BytesIO(docx_bytes))
+    defaults = {}
+
+    one_time_table = _find_table(doc, ["type of fees", "fees", "invoicing"])
+    if one_time_table is not None:
+        header = [c.text.strip().lower() for c in one_time_table.rows[0].cells]
+        try:
+            description_col = next(i for i, h in enumerate(header) if h == "description")
+        except StopIteration:
+            description_col = None
+        try:
+            invoicing_col = next(i for i, h in enumerate(header) if "invoic" in h)
+        except StopIteration:
+            invoicing_col = None
+
+        for row in one_time_table.rows[1:]:
+            label = row.cells[0].text.strip().lower()
+            for key, field in ONE_TIME_FEE_ROWS.items():
+                if label.startswith(key):
+                    defaults[field] = {
+                        "description": row.cells[description_col].text.strip() if description_col is not None else "",
+                        "invoicing": row.cells[invoicing_col].text.strip() if invoicing_col is not None else "",
+                    }
+                    break
+
+    ongoing_table = _find_table(doc, ["quantity", "rate", "monthly minimum billing"])
+    if ongoing_table is not None:
+        header = [c.text.strip().lower() for c in ongoing_table.rows[0].cells]
+        try:
+            description_col = next(i for i, h in enumerate(header) if h == "description")
+        except StopIteration:
+            description_col = None
+
+        for row in ongoing_table.rows[1:]:
+            label = row.cells[0].text.strip().lower()
+            for key, field in ONGOING_ROW_MAP.items():
+                if key in label:
+                    defaults[field] = {
+                        "description": row.cells[description_col].text.strip() if description_col is not None else "",
+                    }
+                    break
+
+    return defaults
+
+
+# Backwards-compatible alias (previous name, B.1-only).
+extract_one_time_row_defaults = extract_row_defaults
+
+
 def fill_commercials(docx_bytes: bytes, commercial_data: dict) -> bytes:
     """
     commercial_data keys (all optional):
       one_time_setup_fee, integration_fee: float
       dms_training_fee, sfa_training_fee, flexidms_deployment_fee: float
       customization_fee, workshop_fee: float
+      one_time_line_item_text: dict keyed by the above field names, each
+        value {"description": str, "invoicing": str} - overrides those
+        columns for that row (only applied when the row is kept).
       flexidms_distributor_charge / dms_distributor_charge /
       sfa_user_charge / shared_l1_support_charge: dict with
-        quantity, rate_per_user_month, monthly_minimum_billing
-      additional_fees: list of {"name": str, "value": float}
+        quantity, rate_per_user_month, monthly_minimum_billing, description
+      additional_fees: list of {"name": str, "value": float, "description": str, "invoicing": str}
       price_escalation_percent: float
       contract_years: int
 
