@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import BotreeArrowLogo from '../components/BotreeArrowLogo';
-import { FileText, ArrowRight, CheckCircle, Clock, CurrencyDollar, Bell, TrendUp } from '@phosphor-icons/react';
+import { FileText, ArrowRight, CheckCircle, Clock, CurrencyInr, Bell, TrendUp } from '@phosphor-icons/react';
 import axios from 'axios';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -131,7 +131,7 @@ const LandingPage = () => {
 
           <div className="bg-[#1E293B] border border-[#334155] rounded-lg p-6">
             <div className="w-12 h-10 bg-indigo-600/20 rounded-lg flex items-center justify-center mb-4">
-              <CurrencyDollar size={24} className="text-indigo-400" />
+              <CurrencyInr size={24} className="text-indigo-400" />
             </div>
             <h3 className="text-lg font-bold mb-2">Deal Value Analytics</h3>
             <p className="text-gray-400 text-sm">
