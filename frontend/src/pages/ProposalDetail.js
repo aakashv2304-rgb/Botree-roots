@@ -339,7 +339,7 @@ const ProposalDetail = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-10 w-12 border-t-2 border-b-2 border-[#0F172A]"></div>
+        <div className="animate-spin rounded-full h-10 w-12 border-t-2 border-b-2 border-emerald-500"></div>
       </div>
     );
   }
@@ -347,8 +347,8 @@ const ProposalDetail = () => {
   if (!proposal) {
     return (
       <div className="p-6">
-        <div className="bg-white border border-[#E4E4E7] p-6 text-center">
-          <p className="text-[#71717A]">Proposal not found</p>
+        <div className="bg-[#1F2937] border border-[#374151] p-6 text-center">
+          <p className="text-gray-400">Proposal not found</p>
         </div>
       </div>
     );
@@ -380,7 +380,7 @@ const ProposalDetail = () => {
       <Button
         onClick={() => navigate('/dashboard')}
         variant="ghost"
-        className="mb-6 text-[#71717A] hover:text-[#09090B]"
+        className="mb-6 text-gray-400 hover:text-white"
         data-testid="back-to-dashboard"
       >
         <ArrowLeft size={20} className="mr-2" />
@@ -389,14 +389,14 @@ const ProposalDetail = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white border border-[#E4E4E7] p-6 shadow-sm">
+          <div className="bg-[#1F2937] border border-[#374151] p-6 shadow-sm">
             <div className="flex items-start justify-between mb-6">
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">
                   <h1 className="text-2xl font-bold tracking-tight" data-testid="proposal-title">
                     {proposal.title}
                   </h1>
-                  <Badge className="bg-indigo-100 text-indigo-700 border border-indigo-300 flex items-center gap-1">
+                  <Badge className="bg-indigo-500/20 text-indigo-400 border border-indigo-500/40 flex items-center gap-1">
                     <GitBranch size={14} />
                     {proposal.versions && proposal.versions.length > 0 
                       ? proposal.versions[proposal.current_version - 1]?.version_label 
@@ -415,16 +415,16 @@ const ProposalDetail = () => {
                   )}
                 </div>
                 {proposal.description && (
-                  <p className="text-gray-600">{proposal.description}</p>
+                  <p className="text-gray-400">{proposal.description}</p>
                 )}
               </div>
               <div className="flex items-center gap-3">
                 <Badge
                   className={
-                    proposal.status === 'approved' ? 'bg-green-500 text-white' : 
+                    proposal.status === 'approved' ? 'bg-green-500/100 text-white' : 
                     proposal.status === 'rejected' ? 'bg-red-600 text-white' :
-                    proposal.status === 'needs_revision' ? 'bg-amber-500 text-white' : 
-                    'bg-blue-500 text-white'
+                    proposal.status === 'needs_revision' ? 'bg-amber-500/100 text-white' : 
+                    'bg-blue-500/100 text-white'
                   }
                   data-testid="proposal-status-badge"
                 >
@@ -445,26 +445,26 @@ const ProposalDetail = () => {
               </div>
             </div>
 
-            <div className="space-y-3 text-sm border-t border-gray-200 pt-4 mt-4">
+            <div className="space-y-3 text-sm border-t border-[#374151] pt-4 mt-4">
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex items-center gap-2">
-                  <span className="text-gray-500 text-xs font-medium">Created by:</span>
+                  <span className="text-gray-400 text-xs font-medium">Created by:</span>
                   <span className="font-semibold text-xs">{proposal.created_by.name} ({proposal.created_by.role})</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-gray-500 text-xs font-medium">Created on:</span>
+                  <span className="text-gray-400 text-xs font-medium">Created on:</span>
                   <span className="font-semibold text-xs">{new Date(proposal.created_at).toLocaleDateString()}</span>
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-gray-500 text-xs font-medium">Document:</span>
+                <span className="text-gray-400 text-xs font-medium">Document:</span>
                 {proposal.file_info ? (
                   <>
-                    <span className="text-xs text-gray-800 font-medium">{proposal.file_info.filename}</span>
+                    <span className="text-xs text-gray-100 font-medium">{proposal.file_info.filename}</span>
                     <Button
                       onClick={handlePreview}
                       variant="link"
-                      className="h-auto p-0 text-blue-600 hover:text-blue-700 text-xs"
+                      className="h-auto p-0 text-blue-400 hover:text-blue-300 text-xs"
                       data-testid="preview-button"
                     >
                       <Eye size={14} className="mr-1" />
@@ -473,7 +473,7 @@ const ProposalDetail = () => {
                     <Button
                       onClick={handleDownload}
                       variant="link"
-                      className="h-auto p-0 text-pink-600 hover:text-pink-700 text-xs"
+                      className="h-auto p-0 text-pink-400 hover:text-pink-300 text-xs"
                       data-testid="download-button"
                     >
                       <Download size={14} className="mr-1" />
@@ -481,56 +481,56 @@ const ProposalDetail = () => {
                     </Button>
                   </>
                 ) : (
-                  <span className="text-xs text-gray-400 italic">No document attached</span>
+                  <span className="text-xs text-gray-500 italic">No document attached</span>
                 )}
               </div>
             </div>
 
             {/* Extended Fields */}
             {(proposal.customer_name || proposal.industry || proposal.deal_value || proposal.one_time_setup_fee || proposal.integration_fee || proposal.additional_fees?.length > 0 || proposal.contract_years || proposal.price_escalation_percent || proposal.comments || proposal.flexidms_distributor_charge || proposal.dms_distributor_charge || proposal.sfa_user_charge || proposal.shared_l1_support_charge || proposal.include_dms_training || proposal.include_sfa_training || proposal.include_flexidms_deployment || proposal.customization_fee || proposal.workshop_fee) && (
-              <div className="border-t border-gray-200 pt-4 mt-4">
-                <h3 className="text-sm font-heading font-bold text-gray-900 mb-3">Proposal Details</h3>
+              <div className="border-t border-[#374151] pt-4 mt-4">
+                <h3 className="text-sm font-heading font-bold text-white mb-3">Proposal Details</h3>
                 <div className="grid grid-cols-2 gap-3 text-xs">
                   {proposal.deal_value && (
-                    <div className="bg-emerald-50 p-2 rounded border border-emerald-200">
-                      <span className="text-emerald-700 font-medium block mb-1">Total Deal Value</span>
-                      <span className="text-emerald-900 font-bold text-base">₹{proposal.deal_value.toLocaleString('en-IN')}</span>
+                    <div className="bg-emerald-500/10 p-2 rounded border border-emerald-500/30">
+                      <span className="text-emerald-400 font-medium block mb-1">Total Deal Value</span>
+                      <span className="text-emerald-400 font-bold text-base">₹{proposal.deal_value.toLocaleString('en-IN')}</span>
                     </div>
                   )}
                   {proposal.one_time_setup_fee && (
-                    <div className="bg-blue-50 p-2 rounded border border-blue-200">
-                      <span className="text-blue-700 font-medium block mb-1">One-Time Setup</span>
-                      <span className="text-blue-900 font-bold text-base">₹{proposal.one_time_setup_fee.toLocaleString('en-IN')}</span>
+                    <div className="bg-blue-500/10 p-2 rounded border border-blue-500/30">
+                      <span className="text-blue-400 font-medium block mb-1">One-Time Setup</span>
+                      <span className="text-blue-400 font-bold text-base">₹{proposal.one_time_setup_fee.toLocaleString('en-IN')}</span>
                     </div>
                   )}
                   {proposal.integration_fee && (
-                    <div className="bg-blue-50 p-2 rounded border border-blue-200">
-                      <span className="text-blue-700 font-medium block mb-1">Integration</span>
-                      <span className="text-blue-900 font-bold text-base">₹{proposal.integration_fee.toLocaleString('en-IN')}</span>
+                    <div className="bg-blue-500/10 p-2 rounded border border-blue-500/30">
+                      <span className="text-blue-400 font-medium block mb-1">Integration</span>
+                      <span className="text-blue-400 font-bold text-base">₹{proposal.integration_fee.toLocaleString('en-IN')}</span>
                     </div>
                   )}
                   {proposal.customer_name && (
-                    <div className="bg-gray-50 p-2 rounded">
-                      <span className="text-gray-500 font-medium block mb-1">Customer</span>
-                      <span className="text-gray-900 font-semibold">{proposal.customer_name}</span>
+                    <div className="bg-[#111827] p-2 rounded">
+                      <span className="text-gray-400 font-medium block mb-1">Customer</span>
+                      <span className="text-white font-semibold">{proposal.customer_name}</span>
                     </div>
                   )}
                   {proposal.industry && (
-                    <div className="bg-gray-50 p-2 rounded">
-                      <span className="text-gray-500 font-medium block mb-1">Industry</span>
-                      <span className="text-gray-900 font-semibold">{proposal.industry}</span>
+                    <div className="bg-[#111827] p-2 rounded">
+                      <span className="text-gray-400 font-medium block mb-1">Industry</span>
+                      <span className="text-white font-semibold">{proposal.industry}</span>
                     </div>
                   )}
                   {proposal.contract_years && (
-                    <div className="bg-amber-50 p-2 rounded border border-amber-200">
-                      <span className="text-amber-700 font-medium block mb-1">Contract Tenure</span>
-                      <span className="text-amber-900 font-semibold">{proposal.contract_years} year{proposal.contract_years > 1 ? 's' : ''}</span>
+                    <div className="bg-amber-500/10 p-2 rounded border border-amber-500/30">
+                      <span className="text-amber-400 font-medium block mb-1">Contract Tenure</span>
+                      <span className="text-amber-400 font-semibold">{proposal.contract_years} year{proposal.contract_years > 1 ? 's' : ''}</span>
                     </div>
                   )}
                   {proposal.price_escalation_percent && (
-                    <div className="bg-amber-50 p-2 rounded border border-amber-200">
-                      <span className="text-amber-700 font-medium block mb-1">Price Escalation / Year</span>
-                      <span className="text-amber-900 font-semibold">{proposal.price_escalation_percent}%</span>
+                    <div className="bg-amber-500/10 p-2 rounded border border-amber-500/30">
+                      <span className="text-amber-400 font-medium block mb-1">Price Escalation / Year</span>
+                      <span className="text-amber-400 font-semibold">{proposal.price_escalation_percent}%</span>
                     </div>
                   )}
                 </div>
@@ -538,22 +538,22 @@ const ProposalDetail = () => {
                 {/* Other One-Time Line Items (toggles + optional TBD fees) */}
                 {(proposal.include_dms_training || proposal.include_sfa_training || proposal.include_flexidms_deployment || proposal.customization_fee || proposal.workshop_fee) && (
                   <div className="mt-4">
-                    <h4 className="font-bold text-gray-900 mb-2 text-sm">Other One-Time Line Items</h4>
+                    <h4 className="font-bold text-white mb-2 text-sm">Other One-Time Line Items</h4>
                     <div className="flex flex-wrap gap-2 text-xs">
                       {proposal.include_dms_training && (
-                        <span className="bg-indigo-50 border border-indigo-200 text-indigo-800 rounded px-2 py-1">DMS Training included</span>
+                        <span className="bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 rounded px-2 py-1">DMS Training included</span>
                       )}
                       {proposal.include_sfa_training && (
-                        <span className="bg-indigo-50 border border-indigo-200 text-indigo-800 rounded px-2 py-1">SFA Training included</span>
+                        <span className="bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 rounded px-2 py-1">SFA Training included</span>
                       )}
                       {proposal.include_flexidms_deployment && (
-                        <span className="bg-indigo-50 border border-indigo-200 text-indigo-800 rounded px-2 py-1">Flexi DMS Deployment included</span>
+                        <span className="bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 rounded px-2 py-1">Flexi DMS Deployment included</span>
                       )}
                       {proposal.customization_fee && (
-                        <span className="bg-indigo-50 border border-indigo-200 text-indigo-800 rounded px-2 py-1">Customization: ₹{proposal.customization_fee.toLocaleString('en-IN')}</span>
+                        <span className="bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 rounded px-2 py-1">Customization: ₹{proposal.customization_fee.toLocaleString('en-IN')}</span>
                       )}
                       {proposal.workshop_fee && (
-                        <span className="bg-indigo-50 border border-indigo-200 text-indigo-800 rounded px-2 py-1">Workshop/Data Migration: ₹{proposal.workshop_fee.toLocaleString('en-IN')}</span>
+                        <span className="bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 rounded px-2 py-1">Workshop/Data Migration: ₹{proposal.workshop_fee.toLocaleString('en-IN')}</span>
                       )}
                     </div>
                   </div>
@@ -561,12 +561,12 @@ const ProposalDetail = () => {
 
                 {proposal.additional_fees && proposal.additional_fees.length > 0 && (
                   <div className="mt-4">
-                    <h4 className="font-bold text-gray-900 mb-2 text-sm">Extra Charges</h4>
+                    <h4 className="font-bold text-white mb-2 text-sm">Extra Charges</h4>
                     <div className="space-y-1">
                       {proposal.additional_fees.map((fee, fIndex) => (
-                        <div key={fIndex} className="flex justify-between text-xs bg-blue-50 border border-blue-200 rounded px-3 py-2">
-                          <span className="text-gray-700">{fee.name}</span>
-                          <span className="text-gray-900 font-semibold">₹{fee.value.toLocaleString('en-IN')}</span>
+                        <div key={fIndex} className="flex justify-between text-xs bg-blue-500/10 border border-blue-500/30 rounded px-3 py-2">
+                          <span className="text-gray-300">{fee.name}</span>
+                          <span className="text-white font-semibold">₹{fee.value.toLocaleString('en-IN')}</span>
                         </div>
                       ))}
                     </div>
@@ -581,7 +581,7 @@ const ProposalDetail = () => {
                   { key: 'shared_l1_support_charge', label: 'Shared L1 Support Fee' },
                 ].some(({ key }) => proposal[key]) && (
                   <div className="mt-4">
-                    <h4 className="font-bold text-gray-900 mb-2 text-sm">Ongoing / Recurring &amp; Subscription Charges</h4>
+                    <h4 className="font-bold text-white mb-2 text-sm">Ongoing / Recurring &amp; Subscription Charges</h4>
                     <div className="space-y-2">
                       {[
                         { key: 'flexidms_distributor_charge', label: 'Flexi DMS – Distributor Users' },
@@ -589,12 +589,12 @@ const ProposalDetail = () => {
                         { key: 'sfa_user_charge', label: 'No. of SFA Users' },
                         { key: 'shared_l1_support_charge', label: 'Shared L1 Support Fee' },
                       ].filter(({ key }) => proposal[key]).map(({ key, label }) => (
-                        <div key={key} className="bg-teal-50 border border-teal-200 rounded px-3 py-2 text-xs">
-                          <span className="text-teal-800 font-semibold block mb-1">{label}</span>
+                        <div key={key} className="bg-teal-500/10 border border-teal-500/30 rounded px-3 py-2 text-xs">
+                          <span className="text-teal-400 font-semibold block mb-1">{label}</span>
                           {proposal[key].description && (
-                            <p className="text-teal-800 mb-2">{proposal[key].description}</p>
+                            <p className="text-teal-400 mb-2">{proposal[key].description}</p>
                           )}
-                          <div className="grid grid-cols-3 gap-2 text-teal-900">
+                          <div className="grid grid-cols-3 gap-2 text-teal-400">
                             {proposal[key].quantity != null && (
                               <span>Qty: <span className="font-semibold">{proposal[key].quantity}</span></span>
                             )}
@@ -612,9 +612,9 @@ const ProposalDetail = () => {
                 )}
 
                 {proposal.comments && (
-                  <div className="bg-gray-50 p-2 rounded mt-3">
-                    <span className="text-gray-500 font-medium text-xs block mb-1">Comments</span>
-                    <p className="text-gray-900 text-xs">{proposal.comments}</p>
+                  <div className="bg-[#111827] p-2 rounded mt-3">
+                    <span className="text-gray-400 font-medium text-xs block mb-1">Comments</span>
+                    <p className="text-white text-xs">{proposal.comments}</p>
                   </div>
                 )}
               </div>
@@ -624,16 +624,16 @@ const ProposalDetail = () => {
                 Visible only to Finance/CFO/Admin; editable only by Finance
                 while the proposal sits at the Finance stage. */}
             {canViewFinanceFields() && (
-              <div className="border-t border-gray-200 pt-4 mt-4" data-testid="finance-only-section">
-                <h3 className="text-sm font-heading font-bold text-gray-900 mb-3 flex items-center gap-2">
+              <div className="border-t border-[#374151] pt-4 mt-4" data-testid="finance-only-section">
+                <h3 className="text-sm font-heading font-bold text-white mb-3 flex items-center gap-2">
                   Finance Notes
-                  <span className="text-[10px] uppercase font-semibold text-purple-700 bg-purple-100 px-2 py-0.5 rounded">
+                  <span className="text-[10px] uppercase font-semibold text-purple-400 bg-purple-500/20 px-2 py-0.5 rounded">
                     Finance / CFO only
                   </span>
                 </h3>
 
                 {canEditFinanceFields() ? (
-                  <div className="space-y-4 bg-purple-50 border border-purple-200 rounded-lg p-4">
+                  <div className="space-y-4 bg-purple-500/10 border border-purple-500/30 rounded-lg p-4">
                     <div className="space-y-2">
                       <Label htmlFor="about-customer">About the Customer</Label>
                       <Textarea
@@ -667,15 +667,15 @@ const ProposalDetail = () => {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 gap-3 text-xs">
-                    <div className="bg-purple-50 p-3 rounded border border-purple-200">
-                      <span className="text-purple-700 font-medium block mb-1">About the Customer</span>
-                      <span className="text-gray-900 whitespace-pre-wrap">
+                    <div className="bg-purple-500/10 p-3 rounded border border-purple-500/30">
+                      <span className="text-purple-400 font-medium block mb-1">About the Customer</span>
+                      <span className="text-white whitespace-pre-wrap">
                         {proposal.about_customer || 'Not filled in yet by Finance.'}
                       </span>
                     </div>
-                    <div className="bg-purple-50 p-3 rounded border border-purple-200">
-                      <span className="text-purple-700 font-medium block mb-1">Profitability</span>
-                      <span className="text-gray-900 whitespace-pre-wrap">
+                    <div className="bg-purple-500/10 p-3 rounded border border-purple-500/30">
+                      <span className="text-purple-400 font-medium block mb-1">Profitability</span>
+                      <span className="text-white whitespace-pre-wrap">
                         {proposal.profitability || 'Not filled in yet by Finance.'}
                       </span>
                     </div>
@@ -687,7 +687,7 @@ const ProposalDetail = () => {
 
           {/* Version History */}
           {showVersionHistory && versions.length > 1 && (
-            <div className="bg-white border border-[#E4E4E7] p-6 shadow-sm">
+            <div className="bg-[#1F2937] border border-[#374151] p-6 shadow-sm">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-bold tracking-tight flex items-center gap-2">
                   <GitBranch size={24} />
@@ -724,8 +724,8 @@ const ProposalDetail = () => {
 
               {/* Version Comparison View */}
               {compareMode && selectedVersions.length === 2 && getVersionComparison() && (
-                <div className="mb-6 p-6 bg-blue-50 border border-blue-300 rounded-lg">
-                  <h3 className="text-lg font-bold mb-4 text-blue-900">Comparing Versions</h3>
+                <div className="mb-6 p-6 bg-blue-500/10 border border-blue-500/40 rounded-lg">
+                  <h3 className="text-lg font-bold mb-4 text-blue-400">Comparing Versions</h3>
                   {(() => {
                     const { older, newer } = getVersionComparison();
                     const fields = ['title', 'description', 'customer_name', 'industry', 'product', 'deal_value'];
@@ -733,11 +733,11 @@ const ProposalDetail = () => {
                     return (
                       <div className="space-y-4">
                         <div className="grid grid-cols-2 gap-4 mb-4">
-                          <div className="text-center p-2 bg-red-100 rounded">
+                          <div className="text-center p-2 bg-red-500/20 rounded">
                             <Badge className="bg-red-600">{older.version_label}</Badge>
                             <p className="text-xs mt-1">{new Date(older.created_at).toLocaleDateString()}</p>
                           </div>
-                          <div className="text-center p-2 bg-green-100 rounded">
+                          <div className="text-center p-2 bg-green-500/20 rounded">
                             <Badge className="bg-green-600">{newer.version_label}</Badge>
                             <p className="text-xs mt-1">{new Date(newer.created_at).toLocaleDateString()}</p>
                           </div>
@@ -746,18 +746,18 @@ const ProposalDetail = () => {
                         {fields.map(field => {
                           const diff = getFieldDiff(field, older, newer);
                           return (
-                            <div key={field} className={`grid grid-cols-2 gap-4 p-3 rounded ${diff.changed ? 'bg-yellow-50 border border-yellow-300' : 'bg-gray-50'}`}>
+                            <div key={field} className={`grid grid-cols-2 gap-4 p-3 rounded ${diff.changed ? 'bg-yellow-500/10 border border-yellow-500/40' : 'bg-[#111827]'}`}>
                               <div>
-                                <p className="text-xs font-semibold text-gray-600 mb-1 capitalize">{field.replace('_', ' ')}</p>
-                                <p className={`text-sm ${diff.changed ? 'line-through text-red-700' : ''}`}>
+                                <p className="text-xs font-semibold text-gray-400 mb-1 capitalize">{field.replace('_', ' ')}</p>
+                                <p className={`text-sm ${diff.changed ? 'line-through text-red-400' : ''}`}>
                                   {field === 'deal_value' && diff.oldVal !== 'N/A' 
                                     ? `₹${parseFloat(diff.oldVal).toLocaleString('en-IN')}` 
                                     : diff.oldVal}
                                 </p>
                               </div>
                               <div>
-                                <p className="text-xs font-semibold text-gray-600 mb-1 capitalize">{field.replace('_', ' ')}</p>
-                                <p className={`text-sm ${diff.changed ? 'font-bold text-green-700' : ''}`}>
+                                <p className="text-xs font-semibold text-gray-400 mb-1 capitalize">{field.replace('_', ' ')}</p>
+                                <p className={`text-sm ${diff.changed ? 'font-bold text-green-400' : ''}`}>
                                   {field === 'deal_value' && diff.newVal !== 'N/A' 
                                     ? `₹${parseFloat(diff.newVal).toLocaleString('en-IN')}` 
                                     : diff.newVal}
@@ -778,10 +778,10 @@ const ProposalDetail = () => {
                     key={version.version_number} 
                     className={`p-4 rounded-lg border ${
                       version.version_number === proposal.current_version 
-                        ? 'border-indigo-500 bg-indigo-50' 
+                        ? 'border-indigo-500 bg-indigo-500/10' 
                         : compareMode && selectedVersions.includes(version.version_number)
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-200 bg-gray-50'
+                        ? 'border-blue-500 bg-blue-500/10'
+                        : 'border-[#374151] bg-[#111827]'
                     }`}
                   >
                     <div className="flex items-start justify-between mb-2">
@@ -791,25 +791,25 @@ const ProposalDetail = () => {
                             type="checkbox"
                             checked={selectedVersions.includes(version.version_number)}
                             onChange={() => toggleVersionForCompare(version.version_number)}
-                            className="w-4 h-4 text-blue-600"
+                            className="w-4 h-4 text-blue-400"
                           />
                         )}
                         <Badge className={
                           version.version_number === proposal.current_version 
                             ? 'bg-indigo-600 text-white' 
-                            : 'bg-gray-400 text-white'
+                            : 'bg-[#4B5563] text-white'
                         }>
                           {version.version_label}
                         </Badge>
                         {version.version_number === proposal.current_version && (
-                          <span className="text-xs text-indigo-600 font-semibold">CURRENT</span>
+                          <span className="text-xs text-indigo-400 font-semibold">CURRENT</span>
                         )}
                         {canEdit() && version.version_number !== proposal.current_version && !proposal.is_closed && (
                           <Button
                             size="sm"
                             variant="outline"
                             onClick={() => handleRestoreVersion(version.version_number)}
-                            className="text-xs border-purple-500 text-purple-600 hover:bg-purple-500 hover:text-white"
+                            className="text-xs border-purple-500 text-purple-400 hover:bg-purple-500/100 hover:text-white"
                           >
                             Restore This Version
                           </Button>
@@ -818,13 +818,13 @@ const ProposalDetail = () => {
                           size="sm"
                           variant="outline"
                           onClick={() => handleDownloadPDF(version.version_number, version.version_label)}
-                          className="text-xs border-blue-500 text-blue-600 hover:bg-blue-500 hover:text-white"
+                          className="text-xs border-blue-500 text-blue-400 hover:bg-blue-500/100 hover:text-white"
                         >
                           <FilePdf size={14} className="mr-1" />
                           Download PDF
                         </Button>
                       </div>
-                      <span className="text-xs text-gray-500">
+                      <span className="text-xs text-gray-400">
                         {new Date(version.created_at).toLocaleString()}
                       </span>
                     </div>
@@ -833,7 +833,7 @@ const ProposalDetail = () => {
                       <p><strong>Customer:</strong> {version.customer_name || 'N/A'}</p>
                       <p><strong>Deal Value:</strong> {version.deal_value ? `₹${version.deal_value.toLocaleString('en-IN')}` : 'N/A'}</p>
                       <p><strong>Change Note:</strong> {version.change_note}</p>
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs text-gray-400">
                         <strong>Created by:</strong> {version.created_by?.name || 'Unknown'} ({version.created_by?.role || 'Unknown'})
                       </p>
                     </div>
@@ -843,7 +843,7 @@ const ProposalDetail = () => {
             </div>
           )}
 
-          <div className="bg-white border border-[#E4E4E7] p-6 shadow-sm">
+          <div className="bg-[#1F2937] border border-[#374151] p-6 shadow-sm">
             <h2 className="text-xl font-bold tracking-tight mb-6 font-heading">Workflow Progress</h2>
             
             <div className="space-y-6" data-testid="workflow-stepper">
@@ -858,19 +858,19 @@ const ProposalDetail = () => {
                             ? 'bg-[#10B981] border-[#10B981] text-white'
                             : status === 'active'
                             ? 'bg-[#3B82F6] border-[#3B82F6] text-white animate-pulse'
-                            : 'bg-white border-[#E4E4E7] text-[#71717A]'
+                            : 'bg-[#1F2937] border-[#374151] text-gray-400'
                         }`}
                         data-testid={`stage-circle-${index}`}
                       >
                         {status === 'completed' ? <Check size={20} weight="bold" /> : status === 'active' ? <Clock size={20} /> : index + 1}
                       </div>
                       {index < WORKFLOW_STAGES.length - 1 && (
-                        <div className={`w-0.5 h-10 ${status === 'completed' ? 'bg-[#10B981]' : 'bg-[#E4E4E7]'}`}></div>
+                        <div className={`w-0.5 h-10 ${status === 'completed' ? 'bg-[#10B981]' : 'bg-[#374151]'}`}></div>
                       )}
                     </div>
                     <div className="flex-1 pb-4">
                       <p className="font-semibold text-sm">{stage.label}</p>
-                      {stage.role && <p className="text-xs text-[#71717A]">{stage.role} Review</p>}
+                      {stage.role && <p className="text-xs text-gray-400">{stage.role} Review</p>}
                       {status === 'completed' && getStageTimestamp(index) && (
                         <p className="text-xs text-[#10B981] font-medium mt-0.5" data-testid={`stage-timestamp-${index}`}>
                           {new Date(getStageTimestamp(index)).toLocaleString('en-IN', {
@@ -885,15 +885,15 @@ const ProposalDetail = () => {
             </div>
           </div>
 
-          <div className="bg-white border border-[#E4E4E7] p-6 shadow-sm">
+          <div className="bg-[#1F2937] border border-[#374151] p-6 shadow-sm">
             <h2 className="text-xl font-bold tracking-tight mb-6 font-heading">History</h2>
             <div className="space-y-4" data-testid="audit-trail">
               {proposal.history.map((entry, index) => (
-                <div key={index} className="flex gap-4 pb-4 border-b border-[#E4E4E7] last:border-0" data-testid={`history-${index}`}>
+                <div key={index} className="flex gap-4 pb-4 border-b border-[#374151] last:border-0" data-testid={`history-${index}`}>
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <span className="font-semibold text-sm">{entry.by.name}</span>
-                      <span className="text-xs text-[#71717A]">({entry.by.role})</span>
+                      <span className="text-xs text-gray-400">({entry.by.role})</span>
                       <Badge
                         className={`text-xs ${
                           entry.action === 'approved' ? 'bg-[#10B981] text-white' : 
@@ -901,7 +901,7 @@ const ProposalDetail = () => {
                           entry.action === 'returned_for_revision' ? 'bg-[#F59E0B] text-white' :
                           entry.action === 'restored_version' ? 'bg-[#8B5CF6] text-white' :
                           entry.action === 'rejected' ? 'bg-[#EF4444] text-white' : 
-                          'bg-[#E4E4E7] text-[#09090B]'
+                          'bg-[#374151] text-white'
                         }`}
                       >
                         {entry.action === 'rejected_closed' ? 'Rejected (Closed)' :
@@ -915,8 +915,8 @@ const ProposalDetail = () => {
                         </Badge>
                       )}
                     </div>
-                    <p className="text-sm text-[#71717A] mb-1">{entry.comment}</p>
-                    <p className="text-xs text-[#A1A1AA]">{new Date(entry.timestamp).toLocaleString()}</p>
+                    <p className="text-sm text-gray-400 mb-1">{entry.comment}</p>
+                    <p className="text-xs text-gray-500">{new Date(entry.timestamp).toLocaleString()}</p>
                   </div>
                 </div>
               ))}
@@ -926,7 +926,7 @@ const ProposalDetail = () => {
 
         {canTakeAction() && (
           <div className="lg:col-span-1">
-            <div className="bg-white border border-[#E4E4E7] p-6 shadow-sm sticky top-8" data-testid="action-panel">
+            <div className="bg-[#1F2937] border border-[#374151] p-6 shadow-sm sticky top-8" data-testid="action-panel">
               <h2 className="text-xl font-bold tracking-tight mb-4 font-heading">Take Action</h2>
               
               <div className="space-y-4">
@@ -957,7 +957,7 @@ const ProposalDetail = () => {
                     disabled={actionLoading}
                     data-testid="return-button"
                     variant="outline"
-                    className="w-full border-amber-500 text-amber-600 hover:bg-amber-500 hover:text-white"
+                    className="w-full border-amber-500 text-amber-400 hover:bg-amber-500/100 hover:text-white"
                   >
                     <ArrowBendUpLeft size={20} className="mr-2" />
                     {actionLoading ? 'Processing...' : 'Return for Revision'}
@@ -973,7 +973,7 @@ const ProposalDetail = () => {
                     {actionLoading ? 'Processing...' : 'Reject Permanently'}
                   </Button>
                 </div>
-                <p className="text-xs text-gray-500 border-t pt-3">
+                <p className="text-xs text-gray-400 border-t pt-3">
                   <strong>Return for Revision:</strong> Sends back to Sales for editing (resubmittable).
                   <br />
                   <strong>Reject Permanently:</strong> Closes proposal (cannot be reopened).
@@ -986,7 +986,7 @@ const ProposalDetail = () => {
 
       {/* Document Preview Modal */}
       <Dialog open={previewOpen} onOpenChange={(open) => { if (!open) closePreview(); }}>
-        <DialogContent className="bg-white max-w-4xl max-h-[85vh] flex flex-col">
+        <DialogContent className="bg-[#1F2937] max-w-4xl max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center justify-between gap-4">
               <span className="truncate">{proposal?.file_info?.filename || 'Document Preview'}</span>
@@ -994,21 +994,21 @@ const ProposalDetail = () => {
                 onClick={handleDownload}
                 size="sm"
                 variant="outline"
-                className="border-gray-300 shrink-0"
+                className="border-[#374151] shrink-0"
               >
                 <Download size={16} className="mr-2" />
                 Download
               </Button>
             </DialogTitle>
           </DialogHeader>
-          <div className="flex-1 overflow-auto border border-gray-200 rounded bg-gray-50 min-h-[400px]">
+          <div className="flex-1 overflow-auto border border-[#374151] rounded bg-[#111827] min-h-[400px]">
             {previewLoading && (
               <div className="flex items-center justify-center h-full py-20">
-                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#0066CC]"></div>
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-emerald-500"></div>
               </div>
             )}
             {!previewLoading && previewError && (
-              <div className="flex items-center justify-center h-full py-20 text-sm text-gray-500 px-6 text-center">
+              <div className="flex items-center justify-center h-full py-20 text-sm text-gray-400 px-6 text-center">
                 {previewError}
               </div>
             )}
@@ -1021,7 +1021,7 @@ const ProposalDetail = () => {
             )}
             <div
               ref={previewContainerRef}
-              className={previewKind === 'docx' ? 'p-4 bg-white' : 'hidden'}
+              className={previewKind === 'docx' ? 'p-4 bg-[#1F2937]' : 'hidden'}
             />
           </div>
         </DialogContent>
