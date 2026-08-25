@@ -224,7 +224,7 @@ const EditProposal = () => {
   if (!proposal) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-10 w-12 border-t-2 border-b-2 border-[#0066CC]"></div>
+        <div className="animate-spin rounded-full h-10 w-12 border-t-2 border-b-2 border-emerald-500"></div>
       </div>
     );
   }
@@ -232,8 +232,8 @@ const EditProposal = () => {
   if (user?.role !== 'Sales' || proposal.status !== 'needs_revision') {
     return (
       <div className="p-6">
-        <div className="bg-white border border-gray-200 rounded-lg p-6 text-center">
-          <p className="text-gray-600">You can only edit rejected proposals.</p>
+        <div className="bg-[#1F2937] border border-[#374151] rounded-lg p-6 text-center">
+          <p className="text-gray-400">You can only edit rejected proposals.</p>
         </div>
       </div>
     );
@@ -244,7 +244,7 @@ const EditProposal = () => {
       <Button
         onClick={() => navigate('/dashboard')}
         variant="ghost"
-        className="mb-6 text-gray-600 hover:text-gray-900"
+        className="mb-6 text-gray-400 hover:text-white"
         data-testid="back-button"
       >
         <ArrowLeft size={20} className="mr-2" />
@@ -252,12 +252,12 @@ const EditProposal = () => {
       </Button>
 
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Edit & Resubmit Proposal</h1>
-        <p className="text-gray-600">Update your rejected proposal and resubmit for approval</p>
+        <h1 className="text-3xl font-bold text-white mb-2">Edit & Resubmit Proposal</h1>
+        <p className="text-gray-400">Update your rejected proposal and resubmit for approval</p>
       </div>
 
       <div className="max-w-2xl">
-        <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+        <div className="bg-[#1F2937] border border-[#374151] rounded-lg p-6 shadow-sm">
           <form onSubmit={handleSubmit} data-testid="edit-proposal-form" className="space-y-6">
             <div className="space-y-2">
               <Label htmlFor="title">Proposal Title</Label>
@@ -346,7 +346,7 @@ const EditProposal = () => {
                   onClick={addAdditionalFee}
                   variant="ghost"
                   size="sm"
-                  className="text-purple-600 hover:text-purple-700"
+                  className="text-purple-400 hover:text-purple-300"
                 >
                   Add Extra Charge
                 </Button>
@@ -354,7 +354,7 @@ const EditProposal = () => {
               {additionalFees.length > 0 && (
                 <div className="space-y-2">
                   {additionalFees.map((fee, fIndex) => (
-                    <div key={fIndex} className="flex gap-3 items-center bg-gray-50 p-3 rounded border border-gray-200">
+                    <div key={fIndex} className="flex gap-3 items-center bg-[#111827] p-3 rounded border border-[#374151]">
                       <Input
                         value={fee.name}
                         onChange={(e) => updateAdditionalFee(fIndex, 'name', e.target.value)}
@@ -373,7 +373,7 @@ const EditProposal = () => {
                         onClick={() => removeAdditionalFee(fIndex)}
                         variant="ghost"
                         size="sm"
-                        className="text-red-500 hover:text-red-700"
+                        className="text-red-400 hover:text-red-300"
                       >
                         Remove
                       </Button>
@@ -385,21 +385,21 @@ const EditProposal = () => {
 
             <div className="space-y-3">
               <Label>Ongoing / Recurring &amp; Subscription Charges</Label>
-              <p className="text-xs text-gray-500 -mt-2">Leave a row blank to keep it as-is.</p>
+              <p className="text-xs text-gray-400 -mt-2">Leave a row blank to keep it as-is.</p>
               {[
                 { key: 'flexidms_distributor_charge', label: 'Flexi DMS – Distributor Users' },
                 { key: 'dms_distributor_charge', label: 'No. of Distributors for DMS' },
                 { key: 'sfa_user_charge', label: 'No. of SFA Users' },
                 { key: 'shared_l1_support_charge', label: 'Shared L1 Support Fee (if required)' },
               ].map(({ key, label }) => (
-                <div key={key} className="p-3 border border-gray-200 rounded bg-gray-50">
-                  <p className="text-sm font-semibold text-gray-800 mb-2">{label}</p>
+                <div key={key} className="p-3 border border-[#374151] rounded bg-[#111827]">
+                  <p className="text-sm font-semibold text-gray-100 mb-2">{label}</p>
                   <Textarea
                     value={ongoingCharges[key].description}
                     onChange={(e) => updateOngoingCharge(key, 'description', e.target.value)}
                     placeholder="Description (pre-filled from base template)"
                     rows={2}
-                    className="bg-white text-sm mb-3"
+                    className="bg-[#1F2937] text-sm mb-3"
                   />
                   <div className="grid grid-cols-3 gap-3">
                     <Input
@@ -452,7 +452,7 @@ const EditProposal = () => {
 
             <div className="space-y-3">
               <Label>Other One-Time Line Items</Label>
-              <p className="text-xs text-gray-500 -mt-2">Enter an amount to include a row in the document; leave blank and it's removed.</p>
+              <p className="text-xs text-gray-400 -mt-2">Enter an amount to include a row in the document; leave blank and it's removed.</p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Input
                   type="number"
@@ -488,7 +488,7 @@ const EditProposal = () => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="change_note">Change Note <span className="text-red-500">*</span></Label>
+              <Label htmlFor="change_note">Change Note <span className="text-red-400">*</span></Label>
               <Textarea
                 id="change_note"
                 value={formData.change_note}
@@ -497,13 +497,13 @@ const EditProposal = () => {
                 rows={3}
                 required
               />
-              <p className="text-xs text-gray-500">Required: Describe what you changed after the review feedback</p>
+              <p className="text-xs text-gray-400">Required: Describe what you changed after the review feedback</p>
             </div>
 
             <div className="space-y-2">
               <Label>Proposal Document</Label>
-              <p className="text-sm text-gray-600">{fileName || 'No document attached'}</p>
-              <p className="text-xs text-gray-500">The document is generated automatically from the company base template using the fee fields above - there's nothing to upload here.</p>
+              <p className="text-sm text-gray-400">{fileName || 'No document attached'}</p>
+              <p className="text-xs text-gray-400">The document is generated automatically from the company base template using the fee fields above - there's nothing to upload here.</p>
             </div>
 
             <div className="flex gap-4 pt-4">
@@ -512,7 +512,7 @@ const EditProposal = () => {
                 variant="outline"
                 onClick={() => navigate('/dashboard')}
                 data-testid="cancel-button"
-                className="border-gray-300"
+                className="border-[#374151]"
               >
                 Cancel
               </Button>
