@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -6,8 +6,9 @@ import { Button } from '../components/ui/button';
 import { Textarea } from '../components/ui/textarea';
 import { Label } from '../components/ui/label';
 import { Badge } from '../components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { toast } from 'sonner';
-import { ArrowLeft, Check, Clock, Download, ArrowBendUpLeft, X, GitBranch, ListNumbers, FilePdf } from '@phosphor-icons/react';
+import { ArrowLeft, Check, Clock, Download, ArrowBendUpLeft, X, GitBranch, ListNumbers, FilePdf, Eye } from '@phosphor-icons/react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -35,6 +36,12 @@ const ProposalDetail = () => {
   const [aboutCustomer, setAboutCustomer] = useState('');
   const [profitability, setProfitability] = useState('');
   const [savingFinanceDetails, setSavingFinanceDetails] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState('');
+  const [previewKind, setPreviewKind] = useState(null); // 'pdf' | 'docx' | null
+  const [previewObjectUrl, setPreviewObjectUrl] = useState(null);
+  const previewContainerRef = useRef(null);
 
   useEffect(() => {
     fetchProposal();
@@ -243,6 +250,71 @@ const ProposalDetail = () => {
     }
   };
 
+  const handlePreview = async () => {
+    if (!proposal?.file_info) {
+      toast.error('No document is attached to this proposal');
+      return;
+    }
+    setPreviewOpen(true);
+    setPreviewLoading(true);
+    setPreviewError('');
+    setPreviewKind(null);
+    try {
+      const response = await axios.get(`${API}/proposals/${id}/download`, {
+        withCredentials: true,
+        responseType: 'blob'
+      });
+      const filename = (proposal.file_info.filename || '').toLowerCase();
+      const isPdf = filename.endsWith('.pdf') || response.data.type === 'application/pdf';
+      const isDocx = filename.endsWith('.docx');
+
+      if (isPdf) {
+        const url = window.URL.createObjectURL(response.data);
+        setPreviewObjectUrl(url);
+        setPreviewKind('pdf');
+        setPreviewLoading(false);
+      } else if (isDocx) {
+        setPreviewKind('docx');
+        // Render after the dialog's container is in the DOM
+        setTimeout(async () => {
+          try {
+            const { renderAsync } = await import('docx-preview');
+            if (previewContainerRef.current) {
+              previewContainerRef.current.innerHTML = '';
+              await renderAsync(response.data, previewContainerRef.current, undefined, {
+                className: 'docx-preview',
+                inWrapper: true,
+              });
+            }
+          } catch (err) {
+            setPreviewError('Could not render this document for preview. Try downloading it instead.');
+          } finally {
+            setPreviewLoading(false);
+          }
+        }, 0);
+      } else {
+        setPreviewError('Preview isn\'t supported for this file type. Download it to view.');
+        setPreviewLoading(false);
+      }
+    } catch (error) {
+      setPreviewError('Failed to load document for preview.');
+      setPreviewLoading(false);
+    }
+  };
+
+  const closePreview = () => {
+    setPreviewOpen(false);
+    if (previewObjectUrl) {
+      window.URL.revokeObjectURL(previewObjectUrl);
+      setPreviewObjectUrl(null);
+    }
+    setPreviewKind(null);
+    setPreviewError('');
+    if (previewContainerRef.current) {
+      previewContainerRef.current.innerHTML = '';
+    }
+  };
+
   const canTakeAction = () => {
     if (!proposal) return false;
     if (proposal.status === 'approved') return false;
@@ -387,15 +459,27 @@ const ProposalDetail = () => {
               <div className="flex items-center gap-2">
                 <span className="text-gray-500 text-xs font-medium">Document:</span>
                 {proposal.file_info ? (
-                  <Button
-                    onClick={handleDownload}
-                    variant="link"
-                    className="h-auto p-0 text-pink-600 hover:text-pink-700 text-xs"
-                    data-testid="download-button"
-                  >
-                    <Download size={14} className="mr-1" />
-                    {proposal.file_info.filename}
-                  </Button>
+                  <>
+                    <span className="text-xs text-gray-800 font-medium">{proposal.file_info.filename}</span>
+                    <Button
+                      onClick={handlePreview}
+                      variant="link"
+                      className="h-auto p-0 text-blue-600 hover:text-blue-700 text-xs"
+                      data-testid="preview-button"
+                    >
+                      <Eye size={14} className="mr-1" />
+                      Preview
+                    </Button>
+                    <Button
+                      onClick={handleDownload}
+                      variant="link"
+                      className="h-auto p-0 text-pink-600 hover:text-pink-700 text-xs"
+                      data-testid="download-button"
+                    >
+                      <Download size={14} className="mr-1" />
+                      Download
+                    </Button>
+                  </>
                 ) : (
                   <span className="text-xs text-gray-400 italic">No document attached</span>
                 )}
@@ -403,7 +487,7 @@ const ProposalDetail = () => {
             </div>
 
             {/* Extended Fields */}
-            {(proposal.customer_name || proposal.industry || proposal.products?.length > 0 || proposal.deal_value || proposal.one_time_setup_fee || proposal.integration_fee || proposal.additional_fees?.length > 0 || proposal.contract_years || proposal.price_escalation_percent || proposal.comments || proposal.flexidms_distributor_charge || proposal.dms_distributor_charge || proposal.sfa_user_charge || proposal.shared_l1_support_charge) && (
+            {(proposal.customer_name || proposal.industry || proposal.deal_value || proposal.one_time_setup_fee || proposal.integration_fee || proposal.additional_fees?.length > 0 || proposal.contract_years || proposal.price_escalation_percent || proposal.comments || proposal.flexidms_distributor_charge || proposal.dms_distributor_charge || proposal.sfa_user_charge || proposal.shared_l1_support_charge || proposal.include_dms_training || proposal.include_sfa_training || proposal.include_flexidms_deployment || proposal.customization_fee || proposal.workshop_fee) && (
               <div className="border-t border-gray-200 pt-4 mt-4">
                 <h3 className="text-sm font-heading font-bold text-gray-900 mb-3">Proposal Details</h3>
                 <div className="grid grid-cols-2 gap-3 text-xs">
@@ -451,44 +535,27 @@ const ProposalDetail = () => {
                   )}
                 </div>
 
-                {/* Products Section */}
-                {proposal.products && proposal.products.length > 0 && (
-                  <div className="mt-4 space-y-3">
-                    <h4 className="font-bold text-gray-900">Products ({proposal.products.length})</h4>
-                    {proposal.products.map((product, index) => (
-                      <div key={index} className="bg-purple-50 border border-purple-200 p-4 rounded-lg">
-                        <div className="flex items-center justify-between mb-3">
-                          <h5 className="font-bold text-purple-900">{product.product_name || `Product ${index + 1}`}</h5>
-                          <span className="text-xs bg-purple-200 text-purple-800 px-2 py-1 rounded">Product {index + 1}</span>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2 text-xs">
-                          {product.users && (
-                            <div>
-                              <span className="text-purple-700 font-medium">Users:</span>
-                              <span className="text-purple-900 ml-2">{product.users}</span>
-                            </div>
-                          )}
-                          {product.price_per_user && (
-                            <div>
-                              <span className="text-purple-700 font-medium">Price (per user/month):</span>
-                              <span className="text-purple-900 ml-2">₹{product.price_per_user.toLocaleString('en-IN')}</span>
-                            </div>
-                          )}
-                          {product.minimum_billing && (
-                            <div>
-                              <span className="text-purple-700 font-medium">Min. Billing (per month):</span>
-                              <span className="text-purple-900 ml-2">₹{product.minimum_billing.toLocaleString('en-IN')}</span>
-                            </div>
-                          )}
-                          {product.training && (
-                            <div>
-                              <span className="text-purple-700 font-medium">Training (per man day/batch):</span>
-                              <span className="text-purple-900 ml-2">₹{product.training.toLocaleString('en-IN')}</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
+                {/* Other One-Time Line Items (toggles + optional TBD fees) */}
+                {(proposal.include_dms_training || proposal.include_sfa_training || proposal.include_flexidms_deployment || proposal.customization_fee || proposal.workshop_fee) && (
+                  <div className="mt-4">
+                    <h4 className="font-bold text-gray-900 mb-2 text-sm">Other One-Time Line Items</h4>
+                    <div className="flex flex-wrap gap-2 text-xs">
+                      {proposal.include_dms_training && (
+                        <span className="bg-indigo-50 border border-indigo-200 text-indigo-800 rounded px-2 py-1">DMS Training included</span>
+                      )}
+                      {proposal.include_sfa_training && (
+                        <span className="bg-indigo-50 border border-indigo-200 text-indigo-800 rounded px-2 py-1">SFA Training included</span>
+                      )}
+                      {proposal.include_flexidms_deployment && (
+                        <span className="bg-indigo-50 border border-indigo-200 text-indigo-800 rounded px-2 py-1">Flexi DMS Deployment included</span>
+                      )}
+                      {proposal.customization_fee && (
+                        <span className="bg-indigo-50 border border-indigo-200 text-indigo-800 rounded px-2 py-1">Customization: ₹{proposal.customization_fee.toLocaleString('en-IN')}</span>
+                      )}
+                      {proposal.workshop_fee && (
+                        <span className="bg-indigo-50 border border-indigo-200 text-indigo-800 rounded px-2 py-1">Workshop/Data Migration: ₹{proposal.workshop_fee.toLocaleString('en-IN')}</span>
+                      )}
+                    </div>
                   </div>
                 )}
 
@@ -913,6 +980,49 @@ const ProposalDetail = () => {
           </div>
         )}
       </div>
+
+      {/* Document Preview Modal */}
+      <Dialog open={previewOpen} onOpenChange={(open) => { if (!open) closePreview(); }}>
+        <DialogContent className="bg-white max-w-4xl max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between gap-4">
+              <span className="truncate">{proposal?.file_info?.filename || 'Document Preview'}</span>
+              <Button
+                onClick={handleDownload}
+                size="sm"
+                variant="outline"
+                className="border-gray-300 shrink-0"
+              >
+                <Download size={16} className="mr-2" />
+                Download
+              </Button>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto border border-gray-200 rounded bg-gray-50 min-h-[400px]">
+            {previewLoading && (
+              <div className="flex items-center justify-center h-full py-20">
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#0066CC]"></div>
+              </div>
+            )}
+            {!previewLoading && previewError && (
+              <div className="flex items-center justify-center h-full py-20 text-sm text-gray-500 px-6 text-center">
+                {previewError}
+              </div>
+            )}
+            {previewKind === 'pdf' && previewObjectUrl && (
+              <iframe
+                src={previewObjectUrl}
+                title="Document preview"
+                className="w-full h-full min-h-[70vh]"
+              />
+            )}
+            <div
+              ref={previewContainerRef}
+              className={previewKind === 'docx' ? 'p-4 bg-white' : 'hidden'}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
