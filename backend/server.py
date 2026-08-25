@@ -26,7 +26,7 @@ from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from io import BytesIO
-from commercials_merge import fill_commercials
+from commercials_merge import fill_commercials, extract_one_time_row_defaults
 
 # Register DejaVuSans font for Unicode support (₹ symbol)
 try:
@@ -172,6 +172,9 @@ def _build_commercial_data(proposal: "ProposalCreate") -> dict:
         "flexidms_deployment_fee": proposal.flexidms_deployment_fee,
         "customization_fee": proposal.customization_fee,
         "workshop_fee": proposal.workshop_fee,
+        "one_time_line_item_text": {
+            k: v.dict() for k, v in (proposal.one_time_line_item_text or {}).items()
+        },
         "flexidms_distributor_charge": charge(proposal.flexidms_distributor_charge),
         "dms_distributor_charge": charge(proposal.dms_distributor_charge),
         "sfa_user_charge": charge(proposal.sfa_user_charge),
@@ -360,6 +363,8 @@ class UserResponse(BaseModel):
 class AdditionalFee(BaseModel):
     name: str
     value: float
+    description: Optional[str] = None
+    invoicing: Optional[str] = None
 
 class Product(BaseModel):
     product_name: str
@@ -374,6 +379,13 @@ class OngoingChargeLine(BaseModel):
     quantity: Optional[float] = None
     rate_per_user_month: Optional[float] = None
     monthly_minimum_billing: Optional[float] = None
+    description: Optional[str] = None
+
+class LineItemText(BaseModel):
+    """Editable Description/Invoicing text for one Table B.1 row, pre-filled
+    from the base template's current text but overridable per proposal."""
+    description: Optional[str] = None
+    invoicing: Optional[str] = None
 
 class ProposalCreate(BaseModel):
     title: str
@@ -397,6 +409,9 @@ class ProposalCreate(BaseModel):
     flexidms_deployment_fee: Optional[float] = None
     customization_fee: Optional[float] = None
     workshop_fee: Optional[float] = None
+    # Description/Invoicing overrides for Table B.1 rows, keyed by the same
+    # field names as the amounts above (e.g. "one_time_setup_fee").
+    one_time_line_item_text: Optional[Dict[str, LineItemText]] = None
     # Table B.2 (Ongoing Charges) - recurring/subscription commercial fields
     flexidms_distributor_charge: Optional[OngoingChargeLine] = None
     dms_distributor_charge: Optional[OngoingChargeLine] = None
@@ -714,7 +729,8 @@ async def get_base_template(request: Request):
     return {
         "configured": True,
         "filename": setting.get("filename"),
-        "updated_at": setting.get("updated_at")
+        "updated_at": setting.get("updated_at"),
+        "row_defaults": setting.get("row_defaults", {})
     }
 
 @api_router.post("/base-template/upload")
@@ -745,6 +761,12 @@ async def upload_base_template(file: UploadFile, request: Request):
     }
     await db.files.insert_one(file_doc)
 
+    try:
+        row_defaults = extract_one_time_row_defaults(data)
+    except Exception:
+        logger.exception("Failed to extract row defaults from base template")
+        row_defaults = {}
+
     now = datetime.now(timezone.utc).isoformat()
     await db.settings.update_one(
         {"key": "base_proposal_template"},
@@ -753,12 +775,13 @@ async def upload_base_template(file: UploadFile, request: Request):
             "file_id": file_doc["id"],
             "filename": file.filename,
             "updated_by": current_user["id"],
-            "updated_at": now
+            "updated_at": now,
+            "row_defaults": row_defaults
         }},
         upsert=True
     )
 
-    return {"message": "Base proposal template updated", "filename": file.filename, "updated_at": now}
+    return {"message": "Base proposal template updated", "filename": file.filename, "updated_at": now, "row_defaults": row_defaults}
 
 # Proposal endpoints
 @api_router.post("/proposals")
@@ -797,6 +820,10 @@ async def create_proposal(proposal: ProposalCreate, request: Request):
     def _charge_dict(line):
         return line.dict() if line is not None else None
 
+    line_item_text_dict = {
+        k: v.dict() for k, v in (proposal.one_time_line_item_text or {}).items()
+    }
+
     # Create first version
     version_data = {
         "version_number": 1,
@@ -819,6 +846,7 @@ async def create_proposal(proposal: ProposalCreate, request: Request):
         "flexidms_deployment_fee": proposal.flexidms_deployment_fee,
         "customization_fee": proposal.customization_fee,
         "workshop_fee": proposal.workshop_fee,
+        "one_time_line_item_text": line_item_text_dict,
         "flexidms_distributor_charge": _charge_dict(proposal.flexidms_distributor_charge),
         "dms_distributor_charge": _charge_dict(proposal.dms_distributor_charge),
         "sfa_user_charge": _charge_dict(proposal.sfa_user_charge),
@@ -852,6 +880,7 @@ async def create_proposal(proposal: ProposalCreate, request: Request):
         "flexidms_deployment_fee": version_data["flexidms_deployment_fee"],
         "customization_fee": version_data["customization_fee"],
         "workshop_fee": version_data["workshop_fee"],
+        "one_time_line_item_text": line_item_text_dict,
         "flexidms_distributor_charge": version_data["flexidms_distributor_charge"],
         "dms_distributor_charge": version_data["dms_distributor_charge"],
         "sfa_user_charge": version_data["sfa_user_charge"],
@@ -996,6 +1025,7 @@ async def get_proposal(proposal_id: str, request: Request):
         "flexidms_deployment_fee": proposal.get("flexidms_deployment_fee"),
         "customization_fee": proposal.get("customization_fee"),
         "workshop_fee": proposal.get("workshop_fee"),
+        "one_time_line_item_text": proposal.get("one_time_line_item_text"),
         "versions": proposal.get("versions", []),
         "history": proposal["history"],
         "created_at": proposal["created_at"],
@@ -1388,6 +1418,11 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
     customization_fee = proposal.customization_fee if proposal.customization_fee is not None else existing_proposal.get("customization_fee")
     workshop_fee = proposal.workshop_fee if proposal.workshop_fee is not None else existing_proposal.get("workshop_fee")
 
+    if proposal.one_time_line_item_text:
+        one_time_line_item_text = {k: v.dict() for k, v in proposal.one_time_line_item_text.items()}
+    else:
+        one_time_line_item_text = existing_proposal.get("one_time_line_item_text") or {}
+
     # Resolve which document to (re-)merge from: an explicit new upload,
     # otherwise whatever's already attached to this proposal (re-merging is
     # safe/idempotent - it always overwrites the same target cells),
@@ -1400,6 +1435,7 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
         "flexidms_deployment_fee": flexidms_deployment_fee,
         "customization_fee": customization_fee,
         "workshop_fee": workshop_fee,
+        "one_time_line_item_text": one_time_line_item_text,
         "flexidms_distributor_charge": flexidms_distributor_charge,
         "dms_distributor_charge": dms_distributor_charge,
         "sfa_user_charge": sfa_user_charge,
@@ -1451,6 +1487,7 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
         "flexidms_deployment_fee": flexidms_deployment_fee,
         "customization_fee": customization_fee,
         "workshop_fee": workshop_fee,
+        "one_time_line_item_text": one_time_line_item_text,
         "flexidms_distributor_charge": flexidms_distributor_charge,
         "dms_distributor_charge": dms_distributor_charge,
         "sfa_user_charge": sfa_user_charge,
@@ -1494,6 +1531,7 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
                 "flexidms_deployment_fee": flexidms_deployment_fee,
                 "customization_fee": customization_fee,
                 "workshop_fee": workshop_fee,
+                "one_time_line_item_text": one_time_line_item_text,
                 "flexidms_distributor_charge": flexidms_distributor_charge,
                 "dms_distributor_charge": dms_distributor_charge,
                 "sfa_user_charge": sfa_user_charge,
