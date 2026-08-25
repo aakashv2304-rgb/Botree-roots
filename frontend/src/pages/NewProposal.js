@@ -196,7 +196,7 @@ const NewProposal = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#F4F4F5] p-6 animate-fade-in">
+    <div className="min-h-screen bg-[#111827] p-6 animate-fade-in">
       <div className="max-w-5xl mx-auto">
         {/* Header */}
         <div className="mb-6 flex items-center gap-4">
@@ -209,23 +209,23 @@ const NewProposal = () => {
             Back
           </Button>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">New Proposal</h1>
-            <p className="text-gray-600">Create a new proposal for approval</p>
+            <h1 className="text-2xl font-bold text-white">New Proposal</h1>
+            <p className="text-gray-400">Create a new proposal for approval</p>
           </div>
         </div>
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Basic Information */}
-          <div className="bg-white p-6 shadow-sm border border-gray-200 card-enter">
-            <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-              <Package size={24} className="text-purple-600" />
+          <div className="bg-[#1F2937] p-6 shadow-sm border border-[#374151] card-enter">
+            <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+              <Package size={24} className="text-purple-400" />
               Basic Information
             </h2>
             <div className="space-y-6">
               <div className="space-y-2">
-                <Label htmlFor="customer_name" className="text-gray-700 font-semibold">
-                  Customer Name <span className="text-red-500">*</span>
+                <Label htmlFor="customer_name" className="text-gray-300 font-semibold">
+                  Customer Name <span className="text-red-400">*</span>
                 </Label>
                 <Input
                   id="customer_name"
@@ -234,12 +234,12 @@ const NewProposal = () => {
                   placeholder="Enter customer name"
                   className="h-10"
                 />
-                <p className="text-xs text-gray-500">This is how the proposal will be labeled everywhere</p>
+                <p className="text-xs text-gray-400">This is how the proposal will be labeled everywhere</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="industry" className="text-gray-700 font-semibold">Industry</Label>
+                  <Label htmlFor="industry" className="text-gray-300 font-semibold">Industry</Label>
                   <Input
                     id="industry"
                     value={formData.industry}
@@ -250,7 +250,7 @@ const NewProposal = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="deal_value" className="text-gray-700 font-semibold flex items-center gap-2">
+                  <Label htmlFor="deal_value" className="text-gray-300 font-semibold flex items-center gap-2">
                     <CurrencyInr size={16} />
                     Total Deal Value (INR)
                   </Label>
@@ -262,13 +262,13 @@ const NewProposal = () => {
                     placeholder="e.g., 500000"
                     className="h-10"
                   />
-                  <p className="text-xs text-gray-500">Total value in Indian Rupees (₹)</p>
+                  <p className="text-xs text-gray-400">Total value in Indian Rupees (₹)</p>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="contract_years" className="text-gray-700 font-semibold">
+                  <Label htmlFor="contract_years" className="text-gray-300 font-semibold">
                     Contract Tenure
                   </Label>
                   <Input
@@ -283,7 +283,7 @@ const NewProposal = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="price_escalation_percent" className="text-gray-700 font-semibold">
+                  <Label htmlFor="price_escalation_percent" className="text-gray-300 font-semibold">
                     Price Escalation % Each Year
                   </Label>
                   <Input
@@ -295,17 +295,17 @@ const NewProposal = () => {
                     placeholder="e.g., 5"
                     className="h-10"
                   />
-                  <p className="text-xs text-gray-500">Used to project price increases in subsequent contract years</p>
+                  <p className="text-xs text-gray-400">Used to project price increases in subsequent contract years</p>
                 </div>
               </div>
 
               <div className="space-y-2">
                 {baseTemplate?.configured ? (
-                  <p className="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded p-3">
+                  <p className="text-xs text-gray-400 bg-[#111827] border border-[#374151] rounded p-3">
                     This proposal will use the company base template ({baseTemplate.filename}) - the commercial numbers below are filled into it automatically.
                   </p>
                 ) : (
-                  <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded p-3">
+                  <p className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded p-3">
                     No company base template is set up yet. Ask an Admin to add one in User Management before submitting proposals.
                   </p>
                 )}
@@ -315,46 +315,46 @@ const NewProposal = () => {
 
           {/* One-Time Charges Section - mirrors Table B.1 in the document:
               Type of fees / Description / Fees-INR / Invoicing */}
-          <div className="bg-white p-6 shadow-sm border border-gray-200 card-enter" style={{animationDelay: '0.05s'}}>
-            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2 mb-2">
-              <CurrencyInr size={24} className="text-purple-600" />
+          <div className="bg-[#1F2937] p-6 shadow-sm border border-[#374151] card-enter" style={{animationDelay: '0.05s'}}>
+            <h2 className="text-xl font-bold text-white flex items-center gap-2 mb-2">
+              <CurrencyInr size={24} className="text-purple-400" />
               One-Time Charges
             </h2>
-            <p className="text-sm text-gray-500 mb-6">Description and Invoicing are pre-filled from the base template and can be edited. Leave a row's amount blank and it's removed from the document.</p>
+            <p className="text-sm text-gray-400 mb-6">Description and Invoicing are pre-filled from the base template and can be edited. Leave a row's amount blank and it's removed from the document.</p>
 
             <div className="space-y-4">
               {ONE_TIME_ROWS.map(({ key, label, amountPlaceholder, getAmount, setAmount }) => (
-                <div key={key} className="p-4 border border-gray-200 rounded-lg bg-gray-50">
-                  <h3 className="text-sm font-bold text-gray-900 mb-3">{label}</h3>
+                <div key={key} className="p-4 border border-[#374151] rounded-lg bg-[#111827]">
+                  <h3 className="text-sm font-bold text-white mb-3">{label}</h3>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-2">
-                      <Label className="text-gray-700 font-semibold">Amount (₹)</Label>
+                      <Label className="text-gray-300 font-semibold">Amount (₹)</Label>
                       <Input
                         type="number"
                         value={getAmount()}
                         onChange={(e) => setAmount(e.target.value)}
                         placeholder={amountPlaceholder}
-                        className="h-10 bg-white"
+                        className="h-10 bg-[#1F2937]"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-gray-700 font-semibold">Description</Label>
+                      <Label className="text-gray-300 font-semibold">Description</Label>
                       <Textarea
                         value={oneTimeLineItemText[key].description}
                         onChange={(e) => updateOneTimeLineItemText(key, 'description', e.target.value)}
                         placeholder="Description shown in the document"
                         rows={2}
-                        className="bg-white"
+                        className="bg-[#1F2937]"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-gray-700 font-semibold">Invoicing</Label>
+                      <Label className="text-gray-300 font-semibold">Invoicing</Label>
                       <Textarea
                         value={oneTimeLineItemText[key].invoicing}
                         onChange={(e) => updateOneTimeLineItemText(key, 'invoicing', e.target.value)}
                         placeholder="Invoicing terms shown in the document"
                         rows={2}
-                        className="bg-white"
+                        className="bg-[#1F2937]"
                       />
                     </div>
                   </div>
@@ -363,15 +363,15 @@ const NewProposal = () => {
             </div>
 
             {/* Extra Charges - appended as new rows in the document */}
-            <div className="mt-6 pt-6 border-t border-gray-300">
+            <div className="mt-6 pt-6 border-t border-[#374151]">
               <div className="flex items-center justify-between mb-4">
-                <Label className="text-gray-700 font-semibold">Extra Charges</Label>
+                <Label className="text-gray-300 font-semibold">Extra Charges</Label>
                 <Button
                   type="button"
                   onClick={addAdditionalFee}
                   variant="ghost"
                   size="sm"
-                  className="text-purple-600 hover:text-purple-700"
+                  className="text-purple-400 hover:text-purple-300"
                 >
                   <Plus size={16} className="mr-1" />
                   Add Extra Charge
@@ -381,20 +381,20 @@ const NewProposal = () => {
               {additionalFees.length > 0 && (
                 <div className="space-y-3">
                   {additionalFees.map((fee, fIndex) => (
-                    <div key={fIndex} className="flex gap-3 items-start bg-gray-50 p-3 rounded-lg border border-gray-200">
+                    <div key={fIndex} className="flex gap-3 items-start bg-[#111827] p-3 rounded-lg border border-[#374151]">
                       <div className="flex-1 space-y-2">
                         <Input
                           value={fee.name}
                           onChange={(e) => updateAdditionalFee(fIndex, 'name', e.target.value)}
                           placeholder="Fee name (e.g., Custom Report Module)"
-                          className="h-10 bg-white"
+                          className="h-10 bg-[#1F2937]"
                         />
                         <Textarea
                           value={fee.description || ''}
                           onChange={(e) => updateAdditionalFee(fIndex, 'description', e.target.value)}
                           placeholder="Description (optional)"
                           rows={2}
-                          className="bg-white"
+                          className="bg-[#1F2937]"
                         />
                       </div>
                       <div className="w-40 space-y-2">
@@ -403,7 +403,7 @@ const NewProposal = () => {
                           value={fee.value}
                           onChange={(e) => updateAdditionalFee(fIndex, 'value', e.target.value)}
                           placeholder="Amount (₹)"
-                          className="h-10 bg-white"
+                          className="h-10 bg-[#1F2937]"
                         />
                       </div>
                       <Button
@@ -411,7 +411,7 @@ const NewProposal = () => {
                         onClick={() => removeAdditionalFee(fIndex)}
                         variant="ghost"
                         size="sm"
-                        className="text-red-500 hover:text-red-700"
+                        className="text-red-400 hover:text-red-300"
                       >
                         <X size={18} />
                       </Button>
@@ -423,12 +423,12 @@ const NewProposal = () => {
           </div>
 
           {/* Ongoing / Recurring Charges Section */}
-          <div className="bg-white p-6 shadow-sm border border-gray-200 card-enter" style={{animationDelay: '0.08s'}}>
-            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2 mb-2">
-              <CurrencyInr size={24} className="text-purple-600" />
+          <div className="bg-[#1F2937] p-6 shadow-sm border border-[#374151] card-enter" style={{animationDelay: '0.08s'}}>
+            <h2 className="text-xl font-bold text-white flex items-center gap-2 mb-2">
+              <CurrencyInr size={24} className="text-purple-400" />
               Ongoing / Recurring &amp; Subscription Charges
             </h2>
-            <p className="text-sm text-gray-500 mb-6">Quantity, rate per user/month, and monthly minimum billing for each license type. Leave a row blank to skip it.</p>
+            <p className="text-sm text-gray-400 mb-6">Quantity, rate per user/month, and monthly minimum billing for each license type. Leave a row blank to skip it.</p>
 
             <div className="space-y-6">
               {[
@@ -437,47 +437,47 @@ const NewProposal = () => {
                 { key: 'sfa_user_charge', label: 'No. of SFA Users' },
                 { key: 'shared_l1_support_charge', label: 'Shared L1 Support Fee (if required)' },
               ].map(({ key, label }) => (
-                <div key={key} className="p-4 border border-gray-200 rounded-lg bg-gray-50">
-                  <h3 className="text-sm font-bold text-gray-900 mb-3">{label}</h3>
+                <div key={key} className="p-4 border border-[#374151] rounded-lg bg-[#111827]">
+                  <h3 className="text-sm font-bold text-white mb-3">{label}</h3>
                   <div className="space-y-2 mb-4">
-                    <Label className="text-gray-700 font-semibold">Description</Label>
+                    <Label className="text-gray-300 font-semibold">Description</Label>
                     <Textarea
                       value={ongoingCharges[key].description}
                       onChange={(e) => updateOngoingCharge(key, 'description', e.target.value)}
                       placeholder="Pre-filled from the base template - edit as needed"
                       rows={2}
-                      className="bg-white text-sm"
+                      className="bg-[#1F2937] text-sm"
                     />
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-2">
-                      <Label className="text-gray-700 font-semibold">Quantity</Label>
+                      <Label className="text-gray-300 font-semibold">Quantity</Label>
                       <Input
                         type="number"
                         value={ongoingCharges[key].quantity}
                         onChange={(e) => updateOngoingCharge(key, 'quantity', e.target.value)}
                         placeholder="e.g., 350"
-                        className="h-10 bg-white"
+                        className="h-10 bg-[#1F2937]"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-gray-700 font-semibold">Rate (₹ / user / month)</Label>
+                      <Label className="text-gray-300 font-semibold">Rate (₹ / user / month)</Label>
                       <Input
                         type="number"
                         value={ongoingCharges[key].rate_per_user_month}
                         onChange={(e) => updateOngoingCharge(key, 'rate_per_user_month', e.target.value)}
                         placeholder="e.g., 80"
-                        className="h-10 bg-white"
+                        className="h-10 bg-[#1F2937]"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-gray-700 font-semibold">Monthly Minimum Billing (₹)</Label>
+                      <Label className="text-gray-300 font-semibold">Monthly Minimum Billing (₹)</Label>
                       <Input
                         type="number"
                         value={ongoingCharges[key].monthly_minimum_billing}
                         onChange={(e) => updateOngoingCharge(key, 'monthly_minimum_billing', e.target.value)}
                         placeholder="e.g., 28000"
-                        className="h-10 bg-white"
+                        className="h-10 bg-[#1F2937]"
                       />
                     </div>
                   </div>
@@ -487,10 +487,10 @@ const NewProposal = () => {
           </div>
 
           {/* Additional Information */}
-          <div className="bg-white p-6 shadow-sm border border-gray-200 card-enter" style={{animationDelay: '0.2s'}}>
-            <h2 className="text-xl font-bold text-gray-900 mb-6">Additional Information</h2>
+          <div className="bg-[#1F2937] p-6 shadow-sm border border-[#374151] card-enter" style={{animationDelay: '0.2s'}}>
+            <h2 className="text-xl font-bold text-white mb-6">Additional Information</h2>
             <div className="space-y-2">
-              <Label htmlFor="comments" className="text-gray-700 font-semibold">Comments</Label>
+              <Label htmlFor="comments" className="text-gray-300 font-semibold">Comments</Label>
               <Textarea
                 id="comments"
                 value={formData.comments}
