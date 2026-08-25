@@ -37,10 +37,25 @@ const EditProposal = () => {
     customization_fee: '',
     workshop_fee: '',
   });
+  const [oneTimeLineItemText, setOneTimeLineItemText] = useState({
+    one_time_setup_fee: { description: '', invoicing: '' },
+    integration_fee: { description: '', invoicing: '' },
+    dms_training_fee: { description: '', invoicing: '' },
+    sfa_training_fee: { description: '', invoicing: '' },
+    flexidms_deployment_fee: { description: '', invoicing: '' },
+    customization_fee: { description: '', invoicing: '' },
+    workshop_fee: { description: '', invoicing: '' },
+  });
+  const updateOneTimeLineItemText = (key, field, value) => {
+    setOneTimeLineItemText(prev => ({
+      ...prev,
+      [key]: { ...prev[key], [field]: value }
+    }));
+  };
   const [additionalFees, setAdditionalFees] = useState([]);
 
   const addAdditionalFee = () => {
-    setAdditionalFees([...additionalFees, { name: '', value: '' }]);
+    setAdditionalFees([...additionalFees, { name: '', value: '', description: '' }]);
   };
   const removeAdditionalFee = (feeIndex) => {
     setAdditionalFees(additionalFees.filter((_, i) => i !== feeIndex));
@@ -51,10 +66,10 @@ const EditProposal = () => {
     setAdditionalFees(updated);
   };
   const [ongoingCharges, setOngoingCharges] = useState({
-    flexidms_distributor_charge: { quantity: '', rate_per_user_month: '', monthly_minimum_billing: '' },
-    dms_distributor_charge: { quantity: '', rate_per_user_month: '', monthly_minimum_billing: '' },
-    sfa_user_charge: { quantity: '', rate_per_user_month: '', monthly_minimum_billing: '' },
-    shared_l1_support_charge: { quantity: '', rate_per_user_month: '', monthly_minimum_billing: '' },
+    flexidms_distributor_charge: { quantity: '', rate_per_user_month: '', monthly_minimum_billing: '', description: '' },
+    dms_distributor_charge: { quantity: '', rate_per_user_month: '', monthly_minimum_billing: '', description: '' },
+    sfa_user_charge: { quantity: '', rate_per_user_month: '', monthly_minimum_billing: '', description: '' },
+    shared_l1_support_charge: { quantity: '', rate_per_user_month: '', monthly_minimum_billing: '', description: '' },
   });
   const [fileName, setFileName] = useState('');
 
@@ -73,6 +88,7 @@ const EditProposal = () => {
     quantity: c?.quantity ?? '',
     rate_per_user_month: c?.rate_per_user_month ?? '',
     monthly_minimum_billing: c?.monthly_minimum_billing ?? '',
+    description: c?.description ?? '',
   });
 
   const fetchProposal = async () => {
@@ -108,6 +124,43 @@ const EditProposal = () => {
       });
       // No document may be attached at all - guard against that.
       setFileName(data.file_info?.filename || '');
+
+      // Description/Invoicing per row: use whatever was saved on this
+      // proposal already; for any row missing that, fall back to the
+      // current base template's default text.
+      const savedText = data.one_time_line_item_text || {};
+      let templateDefaults = {};
+      try {
+        const { data: baseTemplateData } = await axios.get(`${API}/base-template`, { withCredentials: true });
+        templateDefaults = baseTemplateData.row_defaults || {};
+      } catch (e) {
+        // non-fatal - just skip pre-filling from template defaults
+      }
+      setOneTimeLineItemText(prev => {
+        const next = { ...prev };
+        for (const key of Object.keys(next)) {
+          const source = savedText[key] || templateDefaults[key];
+          if (source) {
+            next[key] = {
+              description: source.description || '',
+              invoicing: source.invoicing || '',
+            };
+          }
+        }
+        return next;
+      });
+      // Same fallback for Table B.2 descriptions: keep whatever was saved
+      // on this proposal, and only fall back to the template's current
+      // text for rows that don't have a description yet.
+      setOngoingCharges(prev => {
+        const next = { ...prev };
+        for (const key of Object.keys(next)) {
+          if (!next[key].description && templateDefaults[key]?.description) {
+            next[key] = { ...next[key], description: templateDefaults[key].description };
+          }
+        }
+        return next;
+      });
     } catch (error) {
       toast.error('Failed to load proposal');
       navigate('/dashboard');
@@ -118,18 +171,20 @@ const EditProposal = () => {
     e.preventDefault();
     
     setLoading(true);
-    try {      const buildCharge = (key) => {
+    try {
+      const buildCharge = (key) => {
         const c = ongoingCharges[key];
         if (!c.quantity && !c.rate_per_user_month && !c.monthly_minimum_billing) return null;
         return {
           quantity: c.quantity ? parseFloat(c.quantity) : null,
           rate_per_user_month: c.rate_per_user_month ? parseFloat(c.rate_per_user_month) : null,
           monthly_minimum_billing: c.monthly_minimum_billing ? parseFloat(c.monthly_minimum_billing) : null,
+          description: c.description || null,
         };
       };
 
       const additionalFeesData = additionalFees
-        .map(f => ({ name: f.name, value: parseFloat(f.value) || 0 }))
+        .map(f => ({ name: f.name, value: parseFloat(f.value) || 0, description: f.description || null }))
         .filter(f => f.name && f.value);
 
       await axios.put(`${API}/proposals/${id}`, {
@@ -149,6 +204,7 @@ const EditProposal = () => {
         flexidms_deployment_fee: oneTimeOptionalFees.flexidms_deployment_fee ? parseFloat(oneTimeOptionalFees.flexidms_deployment_fee) : null,
         customization_fee: oneTimeOptionalFees.customization_fee ? parseFloat(oneTimeOptionalFees.customization_fee) : null,
         workshop_fee: oneTimeOptionalFees.workshop_fee ? parseFloat(oneTimeOptionalFees.workshop_fee) : null,
+        one_time_line_item_text: oneTimeLineItemText,
         flexidms_distributor_charge: buildCharge('flexidms_distributor_charge'),
         dms_distributor_charge: buildCharge('dms_distributor_charge'),
         sfa_user_charge: buildCharge('sfa_user_charge'),
@@ -338,6 +394,13 @@ const EditProposal = () => {
               ].map(({ key, label }) => (
                 <div key={key} className="p-3 border border-gray-200 rounded bg-gray-50">
                   <p className="text-sm font-semibold text-gray-800 mb-2">{label}</p>
+                  <Textarea
+                    value={ongoingCharges[key].description}
+                    onChange={(e) => updateOngoingCharge(key, 'description', e.target.value)}
+                    placeholder="Description (pre-filled from base template)"
+                    rows={2}
+                    className="bg-white text-sm mb-3"
+                  />
                   <div className="grid grid-cols-3 gap-3">
                     <Input
                       type="number"
