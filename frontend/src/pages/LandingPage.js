@@ -58,9 +58,9 @@ const LandingPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#0F172A] via-[#1E293B] to-[#0F172A] text-white">
+    <div className="min-h-screen bg-gradient-to-br from-[#111827] via-[#1F2937] to-[#111827] text-white">
       {/* Header */}
-      <div className="border-b border-[#334155] bg-[#0F172A]/80 backdrop-blur-sm">
+      <div className="border-b border-[#374151] bg-[#111827]/80 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <BotreeArrowLogo width={40} height={40} />
@@ -109,7 +109,7 @@ const LandingPage = () => {
 
         {/* Key Features Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-20">
-          <div className="bg-[#1E293B] border border-[#334155] rounded-lg p-6">
+          <div className="bg-[#1F2937] border border-[#374151] rounded-lg p-6">
             <div className="w-12 h-10 bg-emerald-600/20 rounded-lg flex items-center justify-center mb-4">
               <FileText size={24} className="text-emerald-400" />
             </div>
@@ -119,7 +119,7 @@ const LandingPage = () => {
             </p>
           </div>
 
-          <div className="bg-[#1E293B] border border-[#334155] rounded-lg p-6">
+          <div className="bg-[#1F2937] border border-[#374151] rounded-lg p-6">
             <div className="w-12 h-10 bg-amber-600/20 rounded-lg flex items-center justify-center mb-4">
               <Clock size={24} className="text-amber-400" />
             </div>
@@ -129,7 +129,7 @@ const LandingPage = () => {
             </p>
           </div>
 
-          <div className="bg-[#1E293B] border border-[#334155] rounded-lg p-6">
+          <div className="bg-[#1F2937] border border-[#374151] rounded-lg p-6">
             <div className="w-12 h-10 bg-indigo-600/20 rounded-lg flex items-center justify-center mb-4">
               <CurrencyInr size={24} className="text-indigo-400" />
             </div>
@@ -144,27 +144,27 @@ const LandingPage = () => {
         <div className="mt-20">
           <h2 className="text-2xl font-bold text-center mb-10">Approval Workflow</h2>
           <div className="flex items-center justify-center gap-3 flex-wrap">
-            <div className="px-5 py-3 bg-[#1E293B] border border-emerald-500 rounded-lg">
+            <div className="px-5 py-3 bg-[#1F2937] border border-emerald-500 rounded-lg">
               <div className="text-xs text-gray-400 mb-1">Stage 1</div>
               <div className="font-bold">Sales</div>
             </div>
-            <ArrowRight size={20} className="text-gray-600" />
-            <div className="px-5 py-3 bg-[#1E293B] border border-indigo-500 rounded-lg">
+            <ArrowRight size={20} className="text-gray-500" />
+            <div className="px-5 py-3 bg-[#1F2937] border border-indigo-500 rounded-lg">
               <div className="text-xs text-gray-400 mb-1">Stage 2</div>
               <div className="font-bold">CGO</div>
             </div>
-            <ArrowRight size={20} className="text-gray-600" />
-            <div className="px-5 py-3 bg-[#1E293B] border border-purple-500 rounded-lg">
+            <ArrowRight size={20} className="text-gray-500" />
+            <div className="px-5 py-3 bg-[#1F2937] border border-purple-500 rounded-lg">
               <div className="text-xs text-gray-400 mb-1">Stage 3</div>
               <div className="font-bold">Finance</div>
             </div>
-            <ArrowRight size={20} className="text-gray-600" />
-            <div className="px-5 py-3 bg-[#1E293B] border border-amber-500 rounded-lg">
+            <ArrowRight size={20} className="text-gray-500" />
+            <div className="px-5 py-3 bg-[#1F2937] border border-amber-500 rounded-lg">
               <div className="text-xs text-gray-400 mb-1">Stage 4</div>
               <div className="font-bold">Legal</div>
             </div>
-            <ArrowRight size={20} className="text-gray-600" />
-            <div className="px-5 py-3 bg-[#1E293B] border border-emerald-500 rounded-lg">
+            <ArrowRight size={20} className="text-gray-500" />
+            <div className="px-5 py-3 bg-[#1F2937] border border-emerald-500 rounded-lg">
               <div className="text-xs text-gray-400 mb-1">Stage 5</div>
               <div className="font-bold">CFO</div>
             </div>
