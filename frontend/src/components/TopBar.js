@@ -52,7 +52,9 @@ const TopBar = () => {
       {/* Row 1: logo, search, actions */}
       <div className="h-16 px-6 flex items-center gap-6">
         <div className="flex items-center gap-3 shrink-0">
-          <img src={BOTREE_LOGO} alt="Botree Software" className="h-8 w-auto" />
+          <div className="bg-white rounded-lg p-1.5 inline-flex">
+            <img src={BOTREE_LOGO} alt="Botree Software" className="h-7 w-auto" />
+          </div>
           <div className="hidden lg:block h-6 w-px bg-[#3D2A5C]" />
           <span className="hidden lg:block text-sm font-semibold text-[#B9AED4]">
             Enterprise Proposal Tracker
