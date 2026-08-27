@@ -112,8 +112,8 @@ const UserManagement = () => {
   if (user?.role !== 'Admin') {
     return (
       <div className="p-6">
-        <div className="bg-white border border-[#E2E8F0] rounded-lg p-6 text-center">
-          <p className="text-[#64748B]">Access denied. Only Admin can manage users.</p>
+        <div className="bg-[#1E1533] border border-[#3D2A5C] rounded-lg p-6 text-center">
+          <p className="text-[#9E8FC2]">Access denied. Only Admin can manage users.</p>
         </div>
       </div>
     );
@@ -122,7 +122,7 @@ const UserManagement = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-10 w-12 border-t-2 border-b-2 border-[#0047FF]"></div>
+        <div className="animate-spin rounded-full h-10 w-12 border-t-2 border-b-2 border-[#9B30FF]"></div>
       </div>
     );
   }
@@ -131,8 +131,8 @@ const UserManagement = () => {
     <div className="p-6" data-testid="users-page">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-display font-black text-[#0F172A] mb-2">User Management</h1>
-          <p className="text-[#64748B] font-body">Manage system users and roles</p>
+          <h1 className="text-3xl font-display font-black text-[#F5F3FA] mb-2">User Management</h1>
+          <p className="text-[#9E8FC2] font-body">Manage system users and roles</p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
@@ -141,7 +141,7 @@ const UserManagement = () => {
               Add User
             </Button>
           </DialogTrigger>
-          <DialogContent className="bg-white">
+          <DialogContent className="bg-[#1E1533]">
             <DialogHeader>
               <DialogTitle className="text-xl font-heading font-bold">Create New User</DialogTitle>
             </DialogHeader>
@@ -195,7 +195,7 @@ const UserManagement = () => {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="department">Department <span className="text-red-700">*</span></Label>
+                <Label htmlFor="department">Department <span className="text-red-400">*</span></Label>
                 <Select value={formData.department} onValueChange={(value) => setFormData({ ...formData, department: value })} required>
                   <SelectTrigger data-testid="user-department-select">
                     <SelectValue placeholder="Select department" />
@@ -219,16 +219,16 @@ const UserManagement = () => {
       </div>
 
       {/* Base Proposal Template */}
-      <div className="bg-white border border-[#E2E8F0] rounded-lg shadow-sm p-6 mb-6">
-        <h2 className="text-lg font-bold text-[#0F172A] mb-1">Base Proposal Template</h2>
-        <p className="text-sm text-[#64748B] mb-4">
+      <div className="bg-[#1E1533] border border-[#3D2A5C] rounded-lg shadow-sm p-6 mb-6">
+        <h2 className="text-lg font-bold text-[#F5F3FA] mb-1">Base Proposal Template</h2>
+        <p className="text-sm text-[#9E8FC2] mb-4">
           Every new proposal that doesn't have its own document attached automatically uses this .docx as its base -
           the commercial fields Sales enters get filled into its Fees tables (Table B.1/B.2) with nothing else changed.
         </p>
         <div className="flex items-center gap-4">
           <label
             htmlFor="base-template-file"
-            className="flex items-center gap-2 px-4 py-2 border border-[#E2E8F0] rounded hover:bg-[#F1F5F9] cursor-pointer transition-colors"
+            className="flex items-center gap-2 px-4 py-2 border border-[#3D2A5C] rounded hover:bg-[#2A1F45] cursor-pointer transition-colors"
           >
             <Upload size={18} />
             <span className="text-sm">{templateUploading ? 'Uploading...' : 'Upload / Replace'}</span>
@@ -242,48 +242,48 @@ const UserManagement = () => {
             className="hidden"
           />
           {baseTemplate?.configured ? (
-            <span className="flex items-center gap-2 text-sm text-[#475569]">
-              <FileText size={16} className="text-purple-700" />
+            <span className="flex items-center gap-2 text-sm text-[#B9AED4]">
+              <FileText size={16} className="text-purple-400" />
               {baseTemplate.filename}
-              <span className="text-[#94A3B8] text-xs">
+              <span className="text-[#8B7FAE] text-xs">
                 (updated {new Date(baseTemplate.updated_at).toLocaleDateString()})
               </span>
             </span>
           ) : (
-            <span className="text-sm text-amber-700">No base template configured yet</span>
+            <span className="text-sm text-amber-400">No base template configured yet</span>
           )}
         </div>
       </div>
 
-      <div className="bg-white border border-[#E2E8F0] rounded-lg shadow-sm">
+      <div className="bg-[#1E1533] border border-[#3D2A5C] rounded-lg shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="border-b border-[#E2E8F0] bg-[#F8FAFC]">
+            <thead className="border-b border-[#3D2A5C] bg-[#150E29]">
               <tr className="text-left">
-                <th className="p-4 text-xs uppercase tracking-wider text-[#64748B] font-semibold">Name</th>
-                <th className="p-4 text-xs uppercase tracking-wider text-[#64748B] font-semibold">Email</th>
-                <th className="p-4 text-xs uppercase tracking-wider text-[#64748B] font-semibold">Role</th>
-                <th className="p-4 text-xs uppercase tracking-wider text-[#64748B] font-semibold">Department</th>
-                <th className="p-4 text-xs uppercase tracking-wider text-[#64748B] font-semibold">Created</th>
-                <th className="p-4 text-xs uppercase tracking-wider text-[#64748B] font-semibold">Actions</th>
+                <th className="p-4 text-xs uppercase tracking-wider text-[#9E8FC2] font-semibold">Name</th>
+                <th className="p-4 text-xs uppercase tracking-wider text-[#9E8FC2] font-semibold">Email</th>
+                <th className="p-4 text-xs uppercase tracking-wider text-[#9E8FC2] font-semibold">Role</th>
+                <th className="p-4 text-xs uppercase tracking-wider text-[#9E8FC2] font-semibold">Department</th>
+                <th className="p-4 text-xs uppercase tracking-wider text-[#9E8FC2] font-semibold">Created</th>
+                <th className="p-4 text-xs uppercase tracking-wider text-[#9E8FC2] font-semibold">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#E2E8F0]">
+            <tbody className="divide-y divide-[#3D2A5C]">
               {users.map((u) => (
-                <tr key={u.id} data-testid={`user-row-${u.id}`} className="hover:bg-[#F1F5F9] transition-colors">
-                  <td className="p-4 font-medium text-[#0F172A]">{u.name}</td>
-                  <td className="p-4 text-[#64748B]">{u.email}</td>
+                <tr key={u.id} data-testid={`user-row-${u.id}`} className="hover:bg-[#2A1F45] transition-colors">
+                  <td className="p-4 font-medium text-[#F5F3FA]">{u.name}</td>
+                  <td className="p-4 text-[#9E8FC2]">{u.email}</td>
                   <td className="p-4">
                     <span className="inline-block px-3 py-1 text-xs font-medium text-white rounded-full" style={{background: 'linear-gradient(135deg, #F72585 0%, #7209B7 100%)'}}>
                       {u.role}
                     </span>
                   </td>
                   <td className="p-4">
-                    <span className="inline-block px-3 py-1 text-xs font-medium bg-[#F1F5F9] text-[#475569] rounded-full">
+                    <span className="inline-block px-3 py-1 text-xs font-medium bg-[#241A3D] text-[#B9AED4] rounded-full">
                       {u.department || 'N/A'}
                     </span>
                   </td>
-                  <td className="p-4 text-[#64748B] text-sm">{new Date(u.created_at).toLocaleDateString()}</td>
+                  <td className="p-4 text-[#9E8FC2] text-sm">{new Date(u.created_at).toLocaleDateString()}</td>
                   <td className="p-4">
                     <div className="flex gap-2">
                       <Button
@@ -295,7 +295,7 @@ const UserManagement = () => {
                           setEditRoleOpen(true);
                         }}
                         data-testid={`edit-role-${u.id}`}
-                        className="border-[#E2E8F0] text-[#475569] hover:bg-[#F1F5F9]"
+                        className="border-[#3D2A5C] text-[#B9AED4] hover:bg-[#2A1F45]"
                       >
                         <PencilSimple size={16} />
                       </Button>
@@ -306,7 +306,7 @@ const UserManagement = () => {
                               size="sm"
                               variant="outline"
                               data-testid={`delete-user-${u.id}`}
-                              className="border-red-300 text-red-700 hover:bg-red-50"
+                              className="border-red-500/40 text-red-400 hover:bg-red-500/15"
                             >
                               <Trash size={16} />
                             </Button>
@@ -340,14 +340,14 @@ const UserManagement = () => {
       </div>
 
       <Dialog open={editRoleOpen} onOpenChange={setEditRoleOpen}>
-        <DialogContent className="bg-white">
+        <DialogContent className="bg-[#1E1533]">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold">Change User Role</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <p className="text-sm text-[#64748B] mb-2">User: <span className="font-semibold text-[#0F172A]">{selectedUser?.name}</span></p>
-              <p className="text-sm text-[#64748B]">Email: <span className="font-semibold text-[#0F172A]">{selectedUser?.email}</span></p>
+              <p className="text-sm text-[#9E8FC2] mb-2">User: <span className="font-semibold text-[#F5F3FA]">{selectedUser?.name}</span></p>
+              <p className="text-sm text-[#9E8FC2]">Email: <span className="font-semibold text-[#F5F3FA]">{selectedUser?.email}</span></p>
             </div>
             <div className="space-y-2">
               <Label>New Role</Label>
