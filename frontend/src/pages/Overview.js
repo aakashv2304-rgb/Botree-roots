@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { MagnifyingGlass, FileText, Clock, TrendUp, Warning, CheckCircle, Funnel, CurrencyInr, CalendarBlank, CaretLeft, CaretRight, Table, SquaresFour } from '@phosphor-icons/react';
+import { MagnifyingGlass, FileText, Clock, Warning, CheckCircle, Funnel, CurrencyInr, CalendarBlank, CaretLeft, CaretRight, Table, SquaresFour } from '@phosphor-icons/react';
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
@@ -18,7 +18,6 @@ const Overview = () => {
     approvalRate: null,
     bottlenecks: null,
     activityFeed: null,
-    throughput: null,
     slaHealth: null,
     dealValue: null,
     monthlyData: null
@@ -36,13 +35,12 @@ const Overview = () => {
 
   const fetchAll = async () => {
     try {
-      const [proposalsRes, stageRes, approvalRes, bottleneckRes, activityRes, throughputRes, slaRes, dealValueRes, monthlyRes] = await Promise.all([
+      const [proposalsRes, stageRes, approvalRes, bottleneckRes, activityRes, slaRes, dealValueRes, monthlyRes] = await Promise.all([
         axios.get(`${API}/proposals`, { withCredentials: true }),
         axios.get(`${API}/analytics/stage-counts`, { withCredentials: true }),
         axios.get(`${API}/analytics/approval-rate`, { withCredentials: true }),
         axios.get(`${API}/analytics/bottlenecks`, { withCredentials: true }),
         axios.get(`${API}/analytics/activity-feed`, { withCredentials: true }),
-        axios.get(`${API}/analytics/throughput`, { withCredentials: true }),
         axios.get(`${API}/analytics/sla-health`, { withCredentials: true }),
         axios.get(`${API}/analytics/deal-value-summary`, { withCredentials: true }),
         axios.get(`${API}/analytics/monthly-proposals?year=${selectedYear}&month=${selectedMonth}`, { withCredentials: true })
@@ -54,7 +52,6 @@ const Overview = () => {
         approvalRate: approvalRes.data,
         bottlenecks: bottleneckRes.data,
         activityFeed: activityRes.data,
-        throughput: throughputRes.data,
         slaHealth: slaRes.data,
         dealValue: dealValueRes.data,
         monthlyData: monthlyRes.data
@@ -150,13 +147,6 @@ const Overview = () => {
       accent: '#9B30FF'
     },
     {
-      label: 'Win Rate',
-      value: `${winRate}%`,
-      sub: `${analytics.approvalRate?.approved_count || 0} of ${analytics.approvalRate?.total_proposals || 0} approved`,
-      icon: TrendUp,
-      accent: '#34D399'
-    },
-    {
       label: 'Proposals Under Review',
       value: underReviewCount,
       sub: analytics.slaHealth?.critical_count > 0 ? `${analytics.slaHealth.critical_count} critical` : 'Healthy',
@@ -205,7 +195,7 @@ const Overview = () => {
         </div>
 
         {/* KPI Metric Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {kpiCards.map((card) => (
             <div key={card.label} className="bg-[#1E1533] rounded-xl border border-[#3D2A5C] shadow-sm p-5 hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between mb-3">
@@ -241,14 +231,14 @@ const Overview = () => {
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="bg-[#150E29] border border-[#3D2A5C] text-[#F5F3FA] text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#9B30FF]/30 focus:border-[#9B30FF]"
               >
-                <option value="all">All Status</option>
-                <option value="sales_submitted">Draft</option>
-                <option value="cgo_review">CGO Review</option>
-                <option value="finance_review">Finance Review</option>
-                <option value="legal_review">Legal Review</option>
-                <option value="cfo_review">CFO Review</option>
-                <option value="approved">Approved</option>
-                <option value="needs_revision">Needs Revision</option>
+                <option value="all" className="bg-[#150E29] text-[#F5F3FA]">All Status</option>
+                <option value="sales_submitted" className="bg-[#150E29] text-[#F5F3FA]">Draft</option>
+                <option value="cgo_review" className="bg-[#150E29] text-[#F5F3FA]">CGO Review</option>
+                <option value="finance_review" className="bg-[#150E29] text-[#F5F3FA]">Finance Review</option>
+                <option value="legal_review" className="bg-[#150E29] text-[#F5F3FA]">Legal Review</option>
+                <option value="cfo_review" className="bg-[#150E29] text-[#F5F3FA]">CFO Review</option>
+                <option value="approved" className="bg-[#150E29] text-[#F5F3FA]">Approved</option>
+                <option value="needs_revision" className="bg-[#150E29] text-[#F5F3FA]">Needs Revision</option>
               </select>
             </div>
             <div className="flex items-center bg-[#150E29] border border-[#3D2A5C] rounded-lg p-1">
@@ -471,26 +461,6 @@ const Overview = () => {
               </div>
             </div>
 
-            {/* Throughput Sparkline */}
-            <div className="bg-[#1E1533] rounded-xl border border-[#3D2A5C] shadow-sm p-4">
-              <h3 className="text-xs font-bold text-[#F5F3FA] uppercase tracking-wider mb-3">30-Day Throughput</h3>
-              <div className="flex items-end justify-between h-16 gap-0.5">
-                {analytics.throughput?.sparkline?.map((value, idx) => {
-                  const maxValue = Math.max(...(analytics.throughput?.sparkline || [1]));
-                  const height = maxValue > 0 ? (value / maxValue * 100) : 0;
-                  return (
-                    <div
-                      key={idx}
-                      className="flex-1 rounded-t"
-                      style={{ height: `${height}%`, minHeight: value > 0 ? '2px' : '0', backgroundColor: '#9B30FF', opacity: 0.7 }}
-                    ></div>
-                  );
-                })}
-              </div>
-              <div className="mt-2 text-xs text-[#B9AED4]">
-                {analytics.throughput?.throughput_per_day || 0} approvals/day avg
-              </div>
-            </div>
           </div>
         </div>
       </div>
