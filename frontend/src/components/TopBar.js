@@ -48,24 +48,24 @@ const TopBar = () => {
     .toUpperCase();
 
   return (
-    <header className="sticky top-0 z-40 w-full bg-white border-b border-[#E2E8F0]">
+    <header className="sticky top-0 z-40 w-full bg-[#1E1533] border-b border-[#3D2A5C]">
       {/* Row 1: logo, search, actions */}
       <div className="h-16 px-6 flex items-center gap-6">
         <div className="flex items-center gap-3 shrink-0">
           <img src={BOTREE_LOGO} alt="Botree Software" className="h-8 w-auto" />
-          <div className="hidden lg:block h-6 w-px bg-[#E2E8F0]" />
-          <span className="hidden lg:block text-sm font-semibold text-[#475569]">
+          <div className="hidden lg:block h-6 w-px bg-[#3D2A5C]" />
+          <span className="hidden lg:block text-sm font-semibold text-[#B9AED4]">
             Enterprise Proposal Tracker
           </span>
         </div>
 
         <div className="flex-1 max-w-xl mx-auto hidden md:block">
           <div className="relative">
-            <MagnifyingGlass size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" />
+            <MagnifyingGlass size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8B7FAE]" />
             <input
               type="text"
               placeholder="Search by Client, Proposal ID, Deal Value..."
-              className="w-full h-10 pl-10 pr-4 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] text-sm text-[#0F172A] placeholder:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#0047FF]/30 focus:border-[#0047FF] transition-all"
+              className="w-full h-10 pl-10 pr-4 rounded-lg bg-[#150E29] border border-[#3D2A5C] text-sm text-[#F5F3FA] placeholder:text-[#6B5D91] focus:outline-none focus:ring-2 focus:ring-[#9B30FF]/30 focus:border-[#9B30FF] transition-all"
               data-testid="global-search-input"
             />
           </div>
@@ -73,7 +73,7 @@ const TopBar = () => {
 
         <div className="flex items-center gap-3 shrink-0 ml-auto">
           <button
-            className="relative w-9 h-9 flex items-center justify-center rounded-lg text-[#475569] hover:bg-[#F1F5F9] transition-colors"
+            className="relative w-9 h-9 flex items-center justify-center rounded-lg text-[#B9AED4] hover:bg-[#2A1F45] transition-colors"
             aria-label="Notifications"
             data-testid="notifications-button"
           >
@@ -86,9 +86,9 @@ const TopBar = () => {
               onClick={() => navigate('/dashboard/new')}
               data-testid="new-proposal-button"
               className="gap-2 font-semibold text-white shadow-sm hover:shadow transition-all"
-              style={{ backgroundColor: '#0047FF' }}
-              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#0033CC')}
-              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#0047FF')}
+              style={{ backgroundColor: '#9B30FF' }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#7209B7')}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#9B30FF')}
             >
               <Plus size={18} weight="bold" />
               <span className="hidden sm:inline">New Proposal</span>
@@ -99,21 +99,21 @@ const TopBar = () => {
             <button
               onClick={() => setProfileOpen((o) => !o)}
               className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
-              style={{ backgroundColor: '#0047FF' }}
+              style={{ backgroundColor: '#9B30FF' }}
               data-testid="profile-menu-button"
             >
               {initials}
             </button>
             {profileOpen && (
-              <div className="absolute right-0 mt-2 w-56 bg-white border border-[#E2E8F0] rounded-xl shadow-lg py-2 animate-fade-in">
-                <div className="px-4 py-2 border-b border-[#E2E8F0]">
-                  <p className="text-sm font-semibold text-[#0F172A] truncate">{user?.name}</p>
-                  <p className="text-xs text-[#94A3B8] uppercase tracking-wide font-bold mt-0.5">{user?.role}</p>
+              <div className="absolute right-0 mt-2 w-56 bg-[#1E1533] border border-[#3D2A5C] rounded-xl shadow-lg py-2 animate-fade-in">
+                <div className="px-4 py-2 border-b border-[#3D2A5C]">
+                  <p className="text-sm font-semibold text-[#F5F3FA] truncate">{user?.name}</p>
+                  <p className="text-xs text-[#8B7FAE] uppercase tracking-wide font-bold mt-0.5">{user?.role}</p>
                 </div>
                 <button
                   onClick={handleLogout}
                   data-testid="logout-button"
-                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-[#475569] hover:bg-[#F8FAFC] hover:text-[#E11D48] transition-colors"
+                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-[#B9AED4] hover:bg-[#150E29] hover:text-[#E11D48] transition-colors"
                 >
                   <SignOut size={16} />
                   Sign Out
@@ -135,8 +135,8 @@ const TopBar = () => {
             className={({ isActive }) =>
               `flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
                 isActive
-                  ? 'border-[#0047FF] text-[#0047FF]'
-                  : 'border-transparent text-[#475569] hover:text-[#0F172A] hover:border-[#CBD5E1]'
+                  ? 'border-[#9B30FF] text-[#9B30FF]'
+                  : 'border-transparent text-[#B9AED4] hover:text-[#F5F3FA] hover:border-[#5B3D8A]'
               }`
             }
           >
