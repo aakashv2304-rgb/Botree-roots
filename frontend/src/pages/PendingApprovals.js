@@ -42,8 +42,8 @@ const PendingApprovals = () => {
   });
 
   const getStatusColor = (status) => {
-    if (status === 'needs_revision') return 'bg-[#EF4444] text-white';
-    return 'bg-[#F59E0B] text-white';
+    if (status === 'needs_revision') return 'bg-[#EF4444] text-[#0F172A]';
+    return 'bg-[#F59E0B] text-[#0F172A]';
   };
 
   const getStatusLabel = (status) => {
@@ -61,7 +61,7 @@ const PendingApprovals = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-10 w-12 border-t-2 border-b-2 border-emerald-500"></div>
+        <div className="animate-spin rounded-full h-10 w-12 border-t-2 border-b-2 border-[#0047FF]"></div>
       </div>
     );
   }
@@ -70,13 +70,13 @@ const PendingApprovals = () => {
     <div className="p-6" data-testid="pending-page">
       <div className="mb-6">
         <h1 className="text-3xl font-display font-black tracking-tight mb-2">Pending Approvals</h1>
-        <p className="text-gray-400 font-body">Proposals awaiting your action</p>
+        <p className="text-[#64748B] font-body">Proposals awaiting your action</p>
       </div>
 
-      <div className="bg-[#1F2937] border border-[#374151] shadow-sm">
-        <div className="divide-y divide-[#374151]">
+      <div className="bg-white border border-[#E2E8F0] shadow-sm">
+        <div className="divide-y divide-[#E2E8F0]">
           {myProposals.length === 0 ? (
-            <div className="p-12 text-center text-gray-400" data-testid="no-pending">
+            <div className="p-12 text-center text-[#64748B]" data-testid="no-pending">
               <p>No pending proposals</p>
             </div>
           ) : (
@@ -85,15 +85,15 @@ const PendingApprovals = () => {
                 key={proposal.id}
                 onClick={() => navigate(`/dashboard/proposal/${proposal.id}`)}
                 data-testid={`pending-proposal-${proposal.id}`}
-                className="p-6 hover:bg-[#111827] cursor-pointer transition-colors"
+                className="p-6 hover:bg-[#F8FAFC] cursor-pointer transition-colors"
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <h3 className="text-lg font-semibold mb-1 font-heading">{proposal.title}</h3>
                     {proposal.description && (
-                      <p className="text-gray-400 text-sm mb-3">{proposal.description}</p>
+                      <p className="text-[#64748B] text-sm mb-3">{proposal.description}</p>
                     )}
-                    <div className="flex items-center gap-4 text-xs text-gray-400">
+                    <div className="flex items-center gap-4 text-xs text-[#64748B]">
                       <span>By {proposal.created_by.name}</span>
                       <span>•</span>
                       <span>{new Date(proposal.created_at).toLocaleDateString()}</span>
