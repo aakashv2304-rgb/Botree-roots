@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import Sidebar from '../components/Sidebar';
+import TopBar from '../components/TopBar';
 import PageTransition from '../components/PageTransition';
 import Overview from './Overview';
 import PendingApprovals from './PendingApprovals';
@@ -18,22 +18,20 @@ const Dashboard = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="flex min-h-screen bg-[#111827]">
-      <Sidebar />
-      <div className="flex-1">
-        <PageTransition key={location.pathname}>
-          <Routes location={location}>
-            <Route path="/" element={<Overview />} />
-            <Route path="/pending" element={<PendingApprovals />} />
-            <Route path="/approved" element={<ApprovedProposals />} />
-            <Route path="/users" element={<UserManagement />} />
-            <Route path="/proposal/:id" element={<ProposalDetail />} />
-            <Route path="/proposal/:id/edit" element={<EditProposal />} />
-            <Route path="/new" element={<NewProposal />} />
-            <Route path="/profitability-analyzer" element={<ProfitabilityAnalyzer />} />
-          </Routes>
-        </PageTransition>
-      </div>
+    <div className="min-h-screen bg-[#F8FAFC]">
+      <TopBar />
+      <PageTransition key={location.pathname}>
+        <Routes location={location}>
+          <Route path="/" element={<Overview />} />
+          <Route path="/pending" element={<PendingApprovals />} />
+          <Route path="/approved" element={<ApprovedProposals />} />
+          <Route path="/users" element={<UserManagement />} />
+          <Route path="/proposal/:id" element={<ProposalDetail />} />
+          <Route path="/proposal/:id/edit" element={<EditProposal />} />
+          <Route path="/new" element={<NewProposal />} />
+          <Route path="/profitability-analyzer" element={<ProfitabilityAnalyzer />} />
+        </Routes>
+      </PageTransition>
     </div>
   );
 };
