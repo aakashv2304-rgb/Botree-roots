@@ -18,7 +18,7 @@ const Dashboard = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC]">
+    <div className="min-h-screen bg-[#150E29]">
       <TopBar />
       <PageTransition key={location.pathname}>
         <Routes location={location}>
