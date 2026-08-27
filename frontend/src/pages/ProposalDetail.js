@@ -161,11 +161,10 @@ const ProposalDetail = () => {
   const toggleVersionForCompare = (versionNumber) => {
     if (selectedVersions.includes(versionNumber)) {
       setSelectedVersions(selectedVersions.filter(v => v !== versionNumber));
+    } else if (selectedVersions.length >= 2) {
+      // Swap out the first-picked selection rather than blocking the click
+      setSelectedVersions([selectedVersions[1], versionNumber]);
     } else {
-      if (selectedVersions.length >= 2) {
-        toast.error('You can only compare 2 versions at a time');
-        return;
-      }
       setSelectedVersions([...selectedVersions, versionNumber]);
     }
   };
@@ -189,6 +188,86 @@ const ProposalDetail = () => {
     const newVal = newer[field] || 'N/A';
     const changed = oldVal !== newVal;
     return { oldVal, newVal, changed };
+  };
+
+  // ---- Full commercial diff engine (Option A + B) ----
+  const formatDiffValue = (val, currency) => {
+    if (val === null || val === undefined || val === '') return '—';
+    if (currency) return `₹${Number(val).toLocaleString('en-IN')}`;
+    return String(val);
+  };
+
+  const SIMPLE_DIFF_FIELDS = [
+    { key: 'customer_name', label: 'Customer Name' },
+    { key: 'industry', label: 'Industry' },
+    { key: 'deal_value', label: 'Deal Value', currency: true },
+    { key: 'one_time_setup_fee', label: 'One-Time Setup Fee', currency: true },
+    { key: 'integration_fee', label: 'Integration Fee', currency: true },
+    { key: 'dms_training_fee', label: 'DMS Training Fee', currency: true },
+    { key: 'sfa_training_fee', label: 'SFA Training Fee', currency: true },
+    { key: 'flexidms_deployment_fee', label: 'Flexi DMS Deployment Fee', currency: true },
+    { key: 'customization_fee', label: 'Customization Fee', currency: true },
+    { key: 'workshop_fee', label: 'Workshop / Data Migration Fee', currency: true },
+    { key: 'contract_years', label: 'Contract Tenure (years)' },
+    { key: 'price_escalation_percent', label: 'Price Escalation %' },
+    { key: 'comments', label: 'Comments' },
+  ];
+
+  const CHARGE_DIFF_FIELDS = [
+    { key: 'flexidms_distributor_charge', label: 'Flexi DMS – Distributor Users' },
+    { key: 'dms_distributor_charge', label: 'No. of Distributors for DMS' },
+    { key: 'sfa_user_charge', label: 'No. of SFA Users' },
+    { key: 'shared_l1_support_charge', label: 'Shared L1 Support Fee' },
+  ];
+
+  const getSimpleFieldDiffs = (older, newer) => {
+    return SIMPLE_DIFF_FIELDS.map((def) => {
+      const oldDisplay = formatDiffValue(older[def.key], def.currency);
+      const newDisplay = formatDiffValue(newer[def.key], def.currency);
+      return { ...def, oldDisplay, newDisplay, changed: oldDisplay !== newDisplay };
+    });
+  };
+
+  const getChargeDiffs = (older, newer) => {
+    return CHARGE_DIFF_FIELDS.map((def) => {
+      const oldCharge = older[def.key];
+      const newCharge = newer[def.key];
+      const oldExists = !!oldCharge;
+      const newExists = !!newCharge;
+      let status = 'unchanged';
+      if (!oldExists && newExists) status = 'added';
+      else if (oldExists && !newExists) status = 'removed';
+      else if (oldExists && newExists) {
+        const subKeys = ['quantity', 'rate_per_user_month', 'monthly_minimum_billing', 'description'];
+        const changed = subKeys.some((k) => (oldCharge[k] ?? null) !== (newCharge[k] ?? null));
+        status = changed ? 'changed' : 'unchanged';
+      }
+      return { ...def, oldCharge, newCharge, status };
+    });
+  };
+
+  const getAdditionalFeesDiff = (older, newer) => {
+    const oldFees = older.additional_fees || [];
+    const newFees = newer.additional_fees || [];
+    const names = Array.from(new Set([...oldFees.map((f) => f.name), ...newFees.map((f) => f.name)]));
+    return names.map((name) => {
+      const oldFee = oldFees.find((f) => f.name === name);
+      const newFee = newFees.find((f) => f.name === name);
+      let status = 'unchanged';
+      if (!oldFee && newFee) status = 'added';
+      else if (oldFee && !newFee) status = 'removed';
+      else if (oldFee && newFee && oldFee.value !== newFee.value) status = 'changed';
+      return { name, oldFee, newFee, status };
+    });
+  };
+
+  const formatChargeLine = (charge) => {
+    if (!charge) return null;
+    const parts = [];
+    if (charge.quantity != null) parts.push(`Qty ${charge.quantity}`);
+    if (charge.rate_per_user_month != null) parts.push(`₹${Number(charge.rate_per_user_month).toLocaleString('en-IN')}/user/mo`);
+    if (charge.monthly_minimum_billing != null) parts.push(`Min ₹${Number(charge.monthly_minimum_billing).toLocaleString('en-IN')}`);
+    return parts.length ? parts.join(' · ') : '—';
   };
 
   const handleDownloadPDF = async (versionNumber, versionLabel) => {
@@ -722,17 +801,38 @@ const ProposalDetail = () => {
                 </div>
               </div>
 
-              {/* Version Comparison View */}
+              {compareMode && selectedVersions.length < 2 && (
+                <div className="mb-6 p-3 bg-blue-50 border border-blue-200 rounded text-sm text-blue-800">
+                  Select any 2 versions below to compare ({selectedVersions.length}/2 selected)
+                </div>
+              )}
+
+              {/* Version Comparison View (Option A + B: full commercial diff, any two versions) */}
               {compareMode && selectedVersions.length === 2 && getVersionComparison() && (
-                <div className="mb-6 p-6 bg-blue-50 border border-blue-300 rounded-lg">
-                  <h3 className="text-lg font-bold mb-4 text-blue-700">Comparing Versions</h3>
+                <div className="mb-6 p-6 bg-blue-50 border border-blue-200 rounded-lg">
                   {(() => {
                     const { older, newer } = getVersionComparison();
-                    const fields = ['title', 'description', 'customer_name', 'industry', 'product', 'deal_value'];
-                    
+                    const simpleDiffs = getSimpleFieldDiffs(older, newer);
+                    const chargeDiffs = getChargeDiffs(older, newer);
+                    const feeDiffs = getAdditionalFeesDiff(older, newer);
+
+                    const changedSimple = simpleDiffs.filter((d) => d.changed);
+                    const changedCharges = chargeDiffs.filter((d) => d.status !== 'unchanged');
+                    const changedFees = feeDiffs.filter((d) => d.status !== 'unchanged');
+                    const totalChanges = changedSimple.length + changedCharges.length + changedFees.length;
+
+                    const statusBadge = (status) => {
+                      const map = {
+                        added: 'bg-emerald-100 text-emerald-700',
+                        removed: 'bg-red-100 text-red-700',
+                        changed: 'bg-amber-100 text-amber-700',
+                      };
+                      return <Badge className={`text-xs font-semibold border-0 ${map[status]}`}>{status}</Badge>;
+                    };
+
                     return (
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4 mb-4">
+                      <div className="space-y-5">
+                        <div className="grid grid-cols-2 gap-4">
                           <div className="text-center p-2 bg-red-100 rounded">
                             <Badge className="bg-red-600">{older.version_label}</Badge>
                             <p className="text-xs mt-1">{new Date(older.created_at).toLocaleDateString()}</p>
@@ -742,33 +842,107 @@ const ProposalDetail = () => {
                             <p className="text-xs mt-1">{new Date(newer.created_at).toLocaleDateString()}</p>
                           </div>
                         </div>
-                        
-                        {fields.map(field => {
-                          const diff = getFieldDiff(field, older, newer);
-                          return (
-                            <div key={field} className={`grid grid-cols-2 gap-4 p-3 rounded ${diff.changed ? 'bg-yellow-50 border border-yellow-300' : 'bg-[#F8FAFC]'}`}>
-                              <div>
-                                <p className="text-xs font-semibold text-[#64748B] mb-1 capitalize">{field.replace('_', ' ')}</p>
-                                <p className={`text-sm ${diff.changed ? 'line-through text-red-700' : ''}`}>
-                                  {field === 'deal_value' && diff.oldVal !== 'N/A' 
-                                    ? `₹${parseFloat(diff.oldVal).toLocaleString('en-IN')}` 
-                                    : diff.oldVal}
-                                </p>
-                              </div>
-                              <div>
-                                <p className="text-xs font-semibold text-[#64748B] mb-1 capitalize">{field.replace('_', ' ')}</p>
-                                <p className={`text-sm ${diff.changed ? 'font-bold text-green-700' : ''}`}>
-                                  {field === 'deal_value' && diff.newVal !== 'N/A' 
-                                    ? `₹${parseFloat(diff.newVal).toLocaleString('en-IN')}` 
-                                    : diff.newVal}
-                                </p>
-                              </div>
+
+                        <div className="text-sm font-semibold text-blue-800">
+                          {totalChanges === 0
+                            ? 'No commercial differences between these versions.'
+                            : `${totalChanges} change${totalChanges === 1 ? '' : 's'} found`}
+                        </div>
+
+                        {/* Simple fields */}
+                        {simpleDiffs.map((diff) => (
+                          <div
+                            key={diff.key}
+                            className={`grid grid-cols-2 gap-4 p-3 rounded ${diff.changed ? 'bg-amber-50 border border-amber-300' : 'bg-white border border-[#E2E8F0]'}`}
+                          >
+                            <div>
+                              <p className="text-xs font-semibold text-[#64748B] mb-1">{diff.label}</p>
+                              <p className={`text-sm ${diff.changed ? 'line-through text-red-700' : 'text-[#0F172A]'}`}>
+                                {diff.oldDisplay}
+                              </p>
                             </div>
-                          );
-                        })}
+                            <div>
+                              <p className="text-xs font-semibold text-[#64748B] mb-1">{diff.label}</p>
+                              <p className={`text-sm ${diff.changed ? 'font-bold text-emerald-700' : 'text-[#0F172A]'}`}>
+                                {diff.newDisplay}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+
+                        {/* Ongoing charges */}
+                        {chargeDiffs.map((diff) => (
+                          <div
+                            key={diff.key}
+                            className={`p-3 rounded ${diff.status !== 'unchanged' ? 'bg-amber-50 border border-amber-300' : 'bg-white border border-[#E2E8F0]'}`}
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <p className="text-xs font-semibold text-[#64748B]">{diff.label}</p>
+                              {diff.status !== 'unchanged' && statusBadge(diff.status)}
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                              <p className={`text-sm ${diff.status === 'removed' || diff.status === 'changed' ? 'line-through text-red-700' : 'text-[#0F172A]'}`}>
+                                {formatChargeLine(diff.oldCharge) || '—'}
+                              </p>
+                              <p className={`text-sm ${diff.status === 'added' || diff.status === 'changed' ? 'font-bold text-emerald-700' : 'text-[#0F172A]'}`}>
+                                {formatChargeLine(diff.newCharge) || '—'}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+
+                        {/* Extra Charges */}
+                        {feeDiffs.length > 0 && (
+                          <div className="space-y-2">
+                            <p className="text-xs font-semibold text-[#64748B]">Extra Charges</p>
+                            {feeDiffs.map((diff) => (
+                              <div
+                                key={diff.name}
+                                className={`flex items-center justify-between p-3 rounded ${diff.status !== 'unchanged' ? 'bg-amber-50 border border-amber-300' : 'bg-white border border-[#E2E8F0]'}`}
+                              >
+                                <span className="text-sm text-[#0F172A]">{diff.name}</span>
+                                <div className="flex items-center gap-3">
+                                  <span className={`text-sm ${diff.status === 'removed' ? 'line-through text-red-700' : 'text-[#0F172A]'}`}>
+                                    {diff.oldFee ? `₹${diff.oldFee.value.toLocaleString('en-IN')}` : '—'}
+                                  </span>
+                                  <span className="text-[#94A3B8]">→</span>
+                                  <span className={`text-sm ${diff.status === 'added' || diff.status === 'changed' ? 'font-bold text-emerald-700' : 'text-[#0F172A]'}`}>
+                                    {diff.newFee ? `₹${diff.newFee.value.toLocaleString('en-IN')}` : '—'}
+                                  </span>
+                                  {statusBadge(diff.status)}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     );
                   })()}
+                </div>
+              )}
+
+              {/* Change-note timeline (Option C) */}
+              {!compareMode && (
+                <div className="mb-6">
+                  <h3 className="text-sm font-bold text-[#475569] uppercase tracking-wide mb-3">Change Timeline</h3>
+                  <div className="relative pl-6">
+                    <div className="absolute left-[7px] top-2 bottom-2 w-px bg-[#E2E8F0]"></div>
+                    {versions.slice().reverse().map((version) => (
+                      <div key={version.version_number} className="relative pb-5 last:pb-0">
+                        <div
+                          className={`absolute -left-6 top-1 w-3.5 h-3.5 rounded-full border-2 border-white ${
+                            version.version_number === proposal.current_version ? 'bg-indigo-600' : 'bg-[#94A3B8]'
+                          }`}
+                        ></div>
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <span className="text-sm font-semibold text-[#0F172A]">{version.version_label}</span>
+                          <span className="text-xs text-[#94A3B8]">{new Date(version.created_at).toLocaleString()}</span>
+                          <span className="text-xs text-[#94A3B8]">· {version.created_by?.name || 'Unknown'}</span>
+                        </div>
+                        <p className="text-sm text-[#475569]">{version.change_note}</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
