@@ -97,7 +97,7 @@ const ApprovedProposals = () => {
                   onClick={() => handleDownload(proposal)}
                   disabled={downloadingId === proposal.id}
                   data-testid={`approved-download-${proposal.id}`}
-                  className="flex-shrink-0 bg-[#0F172A] hover:bg-[#1E293B] text-white"
+                  className="flex-shrink-0 bg-[#9B30FF] hover:bg-[#7209B7] text-white"
                 >
                   <Download size={18} className="mr-2" />
                   {downloadingId === proposal.id ? 'Downloading...' : 'Download Document'}
