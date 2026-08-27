@@ -726,11 +726,26 @@ async def get_base_template(request: Request):
     setting = await db.settings.find_one({"key": "base_proposal_template"}, {"_id": 0})
     if not setting:
         return {"configured": False}
+
+    # Compute row_defaults live from the current template file rather than
+    # trusting a cached snapshot from upload time - this way descriptions/
+    # invoicing text stay correct even if the template was uploaded before
+    # this extraction existed, or was replaced without recomputing.
+    row_defaults = {}
+    file_doc = await get_base_template_file_doc()
+    if file_doc:
+        try:
+            data, _ = await get_object(file_doc["storage_path"])
+            row_defaults = extract_one_time_row_defaults(data)
+        except Exception:
+            logger.exception("Failed to extract row defaults from base template")
+            row_defaults = setting.get("row_defaults", {})
+
     return {
         "configured": True,
         "filename": setting.get("filename"),
         "updated_at": setting.get("updated_at"),
-        "row_defaults": setting.get("row_defaults", {})
+        "row_defaults": row_defaults
     }
 
 @api_router.post("/base-template/upload")
