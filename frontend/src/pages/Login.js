@@ -41,14 +41,14 @@ const Login = () => {
 
   if (pageLoading) {
     return (
-      <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center">
+      <div className="min-h-screen bg-[#150E29] flex items-center justify-center">
         <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-[#9B30FF]"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] relative">
+    <div className="min-h-screen bg-[#150E29] relative">
       {/* Header with Logo */}
       <div className="absolute top-0 left-0 right-0 px-6 py-6 animate-fade-in">
         <div className="flex items-center gap-3">
@@ -66,19 +66,19 @@ const Login = () => {
       <div className="flex items-center justify-center min-h-screen px-4 py-20">
         <div className="w-full max-w-md animate-fade-in-up">
           {/* Login Card */}
-          <div className="bg-white border border-[#E2E8F0] rounded-2xl shadow-lg p-10 space-y-6">
+          <div className="bg-[#1E1533] border border-[#3D2A5C] rounded-2xl shadow-lg p-10 space-y-6">
             {/* Header */}
             <div className="text-center space-y-2 animate-fade-in" style={{animationDelay: '0.1s'}}>
-              <h2 className="text-2xl font-bold text-[#0F172A]">
+              <h2 className="text-2xl font-bold text-[#F5F3FA]">
                 Welcome Back
               </h2>
-              <p className="text-[#64748B]">Sign in to Botree Roots</p>
+              <p className="text-[#9E8FC2]">Sign in to Botree Roots</p>
             </div>
 
             {/* Login Form */}
             <form onSubmit={handleSubmit} className="space-y-5">
               <div className="space-y-2 animate-slide-in-left" style={{animationDelay: '0.2s'}}>
-                <Label htmlFor="email" className="text-[#475569] font-semibold">Email Address</Label>
+                <Label htmlFor="email" className="text-[#B9AED4] font-semibold">Email Address</Label>
                 <Input
                   id="email"
                   type="email"
@@ -87,12 +87,12 @@ const Login = () => {
                   placeholder="your.email@botree.com"
                   required
                   data-testid="email-input"
-                  className="h-10 bg-[#F8FAFC] border-[#E2E8F0] text-[#0F172A] placeholder:text-[#94A3B8] focus:border-[#9B30FF] focus:ring-[#9B30FF]"
+                  className="h-10 bg-[#150E29] border-[#3D2A5C] text-[#F5F3FA] placeholder:text-[#6B5D91] focus:border-[#9B30FF] focus:ring-[#9B30FF]"
                 />
               </div>
 
               <div className="space-y-2 animate-slide-in-left" style={{animationDelay: '0.3s'}}>
-                <Label htmlFor="password" className="text-[#475569] font-semibold">Password</Label>
+                <Label htmlFor="password" className="text-[#B9AED4] font-semibold">Password</Label>
                 <div className="relative">
                   <Input
                     id="password"
@@ -102,12 +102,12 @@ const Login = () => {
                     placeholder="Enter your password"
                     required
                     data-testid="password-input"
-                    className="h-10 pr-12 bg-[#F8FAFC] border-[#E2E8F0] text-[#0F172A] placeholder:text-[#94A3B8] focus:border-[#9B30FF] focus:ring-[#9B30FF]"
+                    className="h-10 pr-12 bg-[#150E29] border-[#3D2A5C] text-[#F5F3FA] placeholder:text-[#6B5D91] focus:border-[#9B30FF] focus:ring-[#9B30FF]"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 transform -translate-y-1/2 text-[#94A3B8] hover:text-[#334155] transition-colors"
+                    className="absolute right-4 top-1/2 transform -translate-y-1/2 text-[#8B7FAE] hover:text-[#F5F3FA] transition-colors"
                   >
                     {showPassword ? <EyeSlash size={20} /> : <Eye size={20} />}
                   </button>
@@ -139,11 +139,11 @@ const Login = () => {
             </form>
 
             {/* Footer */}
-            <div className="text-center pt-6 border-t border-[#E2E8F0] animate-fade-in" style={{animationDelay: '0.5s'}}>
-              <p className="text-xs text-[#64748B]">
-                Botree Software © 2026 | <span className="font-semibold text-[#475569]">Botree Roots</span>
+            <div className="text-center pt-6 border-t border-[#3D2A5C] animate-fade-in" style={{animationDelay: '0.5s'}}>
+              <p className="text-xs text-[#9E8FC2]">
+                Botree Software © 2026 | <span className="font-semibold text-[#B9AED4]">Botree Roots</span>
               </p>
-              <p className="text-xs text-[#94A3B8] mt-1">
+              <p className="text-xs text-[#8B7FAE] mt-1">
                 Secure Authentication System
               </p>
             </div>
@@ -151,7 +151,7 @@ const Login = () => {
 
           {/* Bottom tagline */}
           <div className="text-center mt-6 animate-fade-in" style={{animationDelay: '0.6s'}}>
-            <p className="text-sm text-[#475569]">
+            <p className="text-sm text-[#B9AED4]">
               Run Your Route-to-Market Business in <span className="font-bold bg-gradient-to-r from-[#7518F2] to-[#E64AD1] bg-clip-text text-transparent">One Place</span>
             </p>
           </div>
