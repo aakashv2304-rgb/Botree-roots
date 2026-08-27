@@ -58,9 +58,9 @@ const LandingPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-[#0F172A]">
+    <div className="min-h-screen bg-[#150E29] text-[#F5F3FA]">
       {/* Header */}
-      <div className="border-b border-[#E2E8F0] bg-[#F8FAFC]/80 backdrop-blur-sm">
+      <div className="border-b border-[#3D2A5C] bg-[#150E29]/80 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="bg-white rounded-lg p-1.5 inline-flex">
@@ -68,7 +68,7 @@ const LandingPage = () => {
             </div>
             <div>
               <h1 className="text-xl font-bold">Botree Software</h1>
-              <p className="text-xs text-[#64748B]">Botree Roots</p>
+              <p className="text-xs text-[#9E8FC2]">Botree Roots</p>
             </div>
           </div>
           <Button 
@@ -86,16 +86,16 @@ const LandingPage = () => {
       <div className="max-w-6xl mx-auto px-6 py-20">
         <div className="text-center mb-16">
           <div className="inline-block mb-4">
-            <span className="px-4 py-1.5 bg-emerald-600/20 border border-emerald-600/30 rounded-full text-emerald-700 text-sm font-semibold">
+            <span className="px-4 py-1.5 bg-emerald-600/20 border border-emerald-600/30 rounded-full text-emerald-400 text-sm font-semibold">
               Internal Tool
             </span>
           </div>
           <h1 className="text-5xl md:text-6xl font-bold mb-6 leading-tight" style={{fontFamily: 'Manrope, sans-serif'}}>
             Proposal Approval
             <br />
-            <span className="text-emerald-700">Tracking System</span>
+            <span className="text-emerald-400">Tracking System</span>
           </h1>
-          <p className="text-xl text-[#64748B] mb-6 max-w-2xl mx-auto">
+          <p className="text-xl text-[#9E8FC2] mb-6 max-w-2xl mx-auto">
             Streamlined workflow management for proposal submissions, reviews, and approvals across Sales, CGO, Finance, Legal, and CFO.
           </p>
           <Button 
@@ -111,32 +111,32 @@ const LandingPage = () => {
 
         {/* Key Features Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-20">
-          <div className="bg-white border border-[#E2E8F0] rounded-lg p-6">
+          <div className="bg-[#1E1533] border border-[#3D2A5C] rounded-lg p-6">
             <div className="w-12 h-10 bg-emerald-600/20 rounded-lg flex items-center justify-center mb-4">
-              <FileText size={24} className="text-emerald-700" />
+              <FileText size={24} className="text-emerald-400" />
             </div>
             <h3 className="text-lg font-bold mb-2">Multi-Stage Workflow</h3>
-            <p className="text-[#64748B] text-sm">
+            <p className="text-[#9E8FC2] text-sm">
               5-stage approval process from Sales submission through CGO, Finance, Legal, and final CFO approval.
             </p>
           </div>
 
-          <div className="bg-white border border-[#E2E8F0] rounded-lg p-6">
+          <div className="bg-[#1E1533] border border-[#3D2A5C] rounded-lg p-6">
             <div className="w-12 h-10 bg-amber-600/20 rounded-lg flex items-center justify-center mb-4">
-              <Clock size={24} className="text-amber-700" />
+              <Clock size={24} className="text-amber-400" />
             </div>
             <h3 className="text-lg font-bold mb-2">Real-Time Tracking</h3>
-            <p className="text-[#64748B] text-sm">
+            <p className="text-[#9E8FC2] text-sm">
               Live activity feed, bottleneck detection, and SLA health monitoring for all active proposals.
             </p>
           </div>
 
-          <div className="bg-white border border-[#E2E8F0] rounded-lg p-6">
+          <div className="bg-[#1E1533] border border-[#3D2A5C] rounded-lg p-6">
             <div className="w-12 h-10 bg-indigo-600/20 rounded-lg flex items-center justify-center mb-4">
-              <CurrencyInr size={24} className="text-indigo-700" />
+              <CurrencyInr size={24} className="text-indigo-400" />
             </div>
             <h3 className="text-lg font-bold mb-2">Deal Value Analytics</h3>
-            <p className="text-[#64748B] text-sm">
+            <p className="text-[#9E8FC2] text-sm">
               Track pipeline value, approval rates, and throughput metrics with comprehensive analytics dashboard.
             </p>
           </div>
@@ -146,41 +146,41 @@ const LandingPage = () => {
         <div className="mt-20">
           <h2 className="text-2xl font-bold text-center mb-10">Approval Workflow</h2>
           <div className="flex items-center justify-center gap-3 flex-wrap">
-            <div className="px-5 py-3 bg-white border border-[#0047FF] rounded-lg">
-              <div className="text-xs text-[#64748B] mb-1">Stage 1</div>
+            <div className="px-5 py-3 bg-[#1E1533] border border-[#9B30FF] rounded-lg">
+              <div className="text-xs text-[#9E8FC2] mb-1">Stage 1</div>
               <div className="font-bold">Sales</div>
             </div>
-            <ArrowRight size={20} className="text-[#94A3B8]" />
-            <div className="px-5 py-3 bg-white border border-indigo-500 rounded-lg">
-              <div className="text-xs text-[#64748B] mb-1">Stage 2</div>
+            <ArrowRight size={20} className="text-[#8B7FAE]" />
+            <div className="px-5 py-3 bg-[#1E1533] border border-indigo-500 rounded-lg">
+              <div className="text-xs text-[#9E8FC2] mb-1">Stage 2</div>
               <div className="font-bold">CGO</div>
             </div>
-            <ArrowRight size={20} className="text-[#94A3B8]" />
-            <div className="px-5 py-3 bg-white border border-purple-500 rounded-lg">
-              <div className="text-xs text-[#64748B] mb-1">Stage 3</div>
+            <ArrowRight size={20} className="text-[#8B7FAE]" />
+            <div className="px-5 py-3 bg-[#1E1533] border border-purple-500 rounded-lg">
+              <div className="text-xs text-[#9E8FC2] mb-1">Stage 3</div>
               <div className="font-bold">Finance</div>
             </div>
-            <ArrowRight size={20} className="text-[#94A3B8]" />
-            <div className="px-5 py-3 bg-white border border-amber-500 rounded-lg">
-              <div className="text-xs text-[#64748B] mb-1">Stage 4</div>
+            <ArrowRight size={20} className="text-[#8B7FAE]" />
+            <div className="px-5 py-3 bg-[#1E1533] border border-amber-500 rounded-lg">
+              <div className="text-xs text-[#9E8FC2] mb-1">Stage 4</div>
               <div className="font-bold">Legal</div>
             </div>
-            <ArrowRight size={20} className="text-[#94A3B8]" />
-            <div className="px-5 py-3 bg-white border border-[#0047FF] rounded-lg">
-              <div className="text-xs text-[#64748B] mb-1">Stage 5</div>
+            <ArrowRight size={20} className="text-[#8B7FAE]" />
+            <div className="px-5 py-3 bg-[#1E1533] border border-[#9B30FF] rounded-lg">
+              <div className="text-xs text-[#9E8FC2] mb-1">Stage 5</div>
               <div className="font-bold">CFO</div>
             </div>
-            <CheckCircle size={28} className="text-emerald-700 ml-2" weight="fill" />
+            <CheckCircle size={28} className="text-emerald-400 ml-2" weight="fill" />
           </div>
         </div>
 
         {/* Footer CTA */}
         <div className="mt-20 text-center">
-          <p className="text-[#64748B] mb-4">Sign in to access the system</p>
+          <p className="text-[#9E8FC2] mb-4">Sign in to access the system</p>
           <Button 
             onClick={() => navigate('/login')}
             variant="outline"
-            className="border-emerald-600 text-emerald-700 hover:bg-emerald-600/10"
+            className="border-emerald-600 text-emerald-400 hover:bg-emerald-600/10"
           >
             Go to Login
           </Button>
