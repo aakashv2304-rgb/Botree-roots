@@ -22,26 +22,27 @@ h1, h2, h3, h4, h5, h6 {
 
 @layer base {
   :root {
-    /* Botree Software brand system - light enterprise B2B SaaS (values are H S% L%) */
-    --background: 210 40% 98%;        /* #F8FAFC page canvas */
-    --foreground: 222 47% 11%;        /* #0F172A primary text */
-    --card: 0 0% 100%;                /* #FFFFFF panels */
-    --card-foreground: 222 47% 11%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
-    --primary: 223 100% 50%;          /* #0047FF deep enterprise blue */
+    /* Botree Software brand system - dark mode blended with logo pink/purple
+       (values are H S% L%) */
+    --background: 256 49% 11%;        /* #150E29 deep purple-black canvas */
+    --foreground: 257 41% 97%;        /* #F5F3FA primary text */
+    --card: 258 42% 14%;              /* #1E1533 panels */
+    --card-foreground: 257 41% 97%;
+    --popover: 258 42% 14%;
+    --popover-foreground: 257 41% 97%;
+    --primary: 271 100% 59%;          /* #9B30FF logo purple */
     --primary-foreground: 0 0% 100%;
-    --secondary: 214 32% 91%;         /* #E2E8F0 */
-    --secondary-foreground: 222 47% 11%;
-    --muted: 210 40% 96%;             /* #F1F5F9 */
-    --muted-foreground: 215 19% 35%;  /* #475569 secondary text */
-    --accent: 194 100% 50%;           /* #00C2FF cyan accent */
-    --accent-foreground: 222 47% 11%;
+    --secondary: 263 37% 26%;         /* #3D2A5C */
+    --secondary-foreground: 257 41% 97%;
+    --muted: 257 40% 17%;             /* #241A3D */
+    --muted-foreground: 257 31% 76%;  /* #B9AED4 secondary text */
+    --accent: 308 76% 60%;            /* #E64AD1 logo magenta accent */
+    --accent-foreground: 0 0% 100%;
     --destructive: 347 77% 50%;       /* #E11D48 rose */
     --destructive-foreground: 0 0% 100%;
-    --border: 214 32% 91%;            /* #E2E8F0 */
-    --input: 214 32% 91%;
-    --ring: 223 100% 50%;             /* #0047FF */
+    --border: 263 37% 26%;            /* #3D2A5C */
+    --input: 263 37% 26%;
+    --ring: 271 100% 59%;             /* #9B30FF */
     --radius: 0.75rem;
   }
 }
