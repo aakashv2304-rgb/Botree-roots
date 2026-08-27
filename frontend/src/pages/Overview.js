@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { MagnifyingGlass, FileText, Clock, TrendUp, Warning, CheckCircle, X, Funnel, CurrencyInr, CalendarBlank, CaretLeft, CaretRight } from '@phosphor-icons/react';
+import { MagnifyingGlass, FileText, Clock, TrendUp, Warning, CheckCircle, Funnel, CurrencyInr, CalendarBlank, CaretLeft, CaretRight, Table, SquaresFour } from '@phosphor-icons/react';
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
@@ -25,6 +25,7 @@ const Overview = () => {
   });
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [viewMode, setViewMode] = useState('table'); // 'table' | 'pipeline'
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -46,7 +47,7 @@ const Overview = () => {
         axios.get(`${API}/analytics/deal-value-summary`, { withCredentials: true }),
         axios.get(`${API}/analytics/monthly-proposals?year=${selectedYear}&month=${selectedMonth}`, { withCredentials: true })
       ]);
-      
+
       setProposals(proposalsRes.data);
       setAnalytics({
         stageCounts: stageRes.data,
@@ -73,21 +74,23 @@ const Overview = () => {
     return matchesSearch && matchesStatus;
   });
 
+  // Functional status colors per the Botree design system
   const getStatusColor = (status) => {
-    if (status === 'approved') return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
-    if (status === 'needs_revision') return 'bg-red-500/20 text-red-400 border-red-500/30';
-    return 'bg-amber-500/20 text-amber-400 border-amber-500/30';
+    if (status === 'approved') return { backgroundColor: '#D1FAE5', color: '#059669' };
+    if (status === 'needs_revision') return { backgroundColor: '#FFE4E6', color: '#E11D48' };
+    if (status === 'sales_submitted') return { backgroundColor: '#FEF3C7', color: '#D97706' };
+    return { backgroundColor: '#E0F2FE', color: '#0284C7' }; // *_review states = Under Review
   };
 
   const getStatusLabel = (status) => {
     const labels = {
-      sales_submitted: 'Sales Review',
-      cgo_review: 'CGO Review',
-      finance_review: 'Finance Review',
-      legal_review: 'Legal Review',
-      cfo_review: 'CFO Review',
+      sales_submitted: 'Draft',
+      cgo_review: 'Under Review · CGO',
+      finance_review: 'Under Review · Finance',
+      legal_review: 'Under Review · Legal',
+      cfo_review: 'Under Review · CFO',
       approved: 'Approved',
-      needs_revision: 'Revision'
+      needs_revision: 'Needs Revision'
     };
     return labels[status] || status;
   };
@@ -107,7 +110,7 @@ const Overview = () => {
   const navigateMonth = (direction) => {
     let newMonth = selectedMonth + direction;
     let newYear = selectedYear;
-    
+
     if (newMonth > 12) {
       newMonth = 1;
       newYear += 1;
@@ -115,7 +118,7 @@ const Overview = () => {
       newMonth = 12;
       newYear -= 1;
     }
-    
+
     setSelectedMonth(newMonth);
     setSelectedYear(newYear);
   };
@@ -126,75 +129,66 @@ const Overview = () => {
     setSelectedYear(now.getFullYear());
   };
 
+  const winRate = analytics.approvalRate?.approval_percentage || 0;
+  const underReviewCount = analytics.stageCounts?.under_review || 0;
+  const activeCount = analytics.monthlyData?.active_proposals ?? filteredProposals.length;
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#111827]">
-        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-emerald-500"></div>
+      <div className="flex items-center justify-center min-h-[calc(100vh-113px)] bg-[#F8FAFC]">
+        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-[#0047FF]"></div>
       </div>
     );
   }
 
-  return (
-    <div className="min-h-screen bg-[#111827] text-white" data-testid="overview-page">
-      {/* Top Utility Bar */}
-      <div className="bg-[#1F2937] border-b border-[#374151] px-6 py-3 sticky top-0 z-20">
-        <div className="flex items-center gap-4">
-          <div className="flex-1 flex items-center gap-3 bg-[#111827] border border-[#374151] rounded-lg px-4 py-2">
-            <MagnifyingGlass size={18} className="text-gray-400" />
-            <Input
-              type="text"
-              placeholder="Search proposals by title, client, or description..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              data-testid="search-input"
-              className="flex-1 bg-transparent border-none shadow-none focus-visible:ring-0 text-sm text-white placeholder:text-gray-500 p-0 h-auto"
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <Funnel size={18} className="text-gray-400" />
-            <select 
-              value={statusFilter} 
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="bg-[#111827] border border-[#374151] text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500"
-            >
-              <option value="all">All Status</option>
-              <option value="sales_submitted">Sales Review</option>
-              <option value="cgo_review">CGO Review</option>
-              <option value="finance_review">Finance Review</option>
-              <option value="legal_review">Legal Review</option>
-              <option value="cfo_review">CFO Review</option>
-              <option value="approved">Approved</option>
-              <option value="needs_revision">Needs Revision</option>
-            </select>
-          </div>
-        </div>
-      </div>
+  const kpiCards = [
+    {
+      label: 'Total Active Proposals',
+      value: activeCount,
+      sub: `${formatCurrency(analytics.dealValue?.active_pipeline_value)} in value`,
+      icon: FileText,
+      accent: '#0047FF'
+    },
+    {
+      label: 'Win Rate',
+      value: `${winRate}%`,
+      sub: `${analytics.approvalRate?.approved_count || 0} of ${analytics.approvalRate?.total_proposals || 0} approved`,
+      icon: TrendUp,
+      accent: '#059669'
+    },
+    {
+      label: 'Proposals Under Review',
+      value: underReviewCount,
+      sub: analytics.slaHealth?.critical_count > 0 ? `${analytics.slaHealth.critical_count} critical` : 'Healthy',
+      icon: Clock,
+      accent: '#0284C7'
+    },
+    {
+      label: 'Total Pipeline Value',
+      value: formatCurrency(analytics.dealValue?.active_pipeline_value),
+      sub: 'Active deals',
+      icon: CurrencyInr,
+      accent: '#00C2FF'
+    }
+  ];
 
-      {/* KPI Overview Bar */}
-      <div className="bg-[#1F2937] border-b border-[#374151] px-6 py-4">
-        {/* Month Selector */}
-        <div className="flex items-center justify-between mb-4">
+  return (
+    <div className="min-h-screen bg-[#F8FAFC]" data-testid="overview-page">
+      <div className="px-6 py-6 max-w-[1600px] mx-auto space-y-6">
+
+        {/* Month selector */}
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <CalendarBlank size={20} className="text-purple-400" />
-            <span className="text-sm font-semibold text-gray-300">Monthly Stats:</span>
-            <span className="text-lg font-bold text-white">{analytics.monthlyData?.month_name || 'Loading...'}</span>
+            <CalendarBlank size={20} className="text-[#0047FF]" />
+            <span className="text-sm font-semibold text-[#475569]">Monthly Stats:</span>
+            <span className="text-lg font-bold text-[#0F172A]">{analytics.monthlyData?.month_name || 'Loading...'}</span>
           </div>
           <div className="flex items-center gap-2">
-            <Button
-              onClick={() => navigateMonth(-1)}
-              size="sm"
-              variant="ghost"
-              className="text-gray-400 hover:text-white"
-            >
+            <Button onClick={() => navigateMonth(-1)} size="sm" variant="ghost" className="text-[#475569] hover:text-[#0F172A]">
               <CaretLeft size={18} weight="bold" />
             </Button>
             {!analytics.monthlyData?.is_current_month && (
-              <Button
-                onClick={goToCurrentMonth}
-                size="sm"
-                variant="outline"
-                className="text-xs border-purple-500 text-purple-400 hover:bg-purple-500/10"
-              >
+              <Button onClick={goToCurrentMonth} size="sm" variant="outline" className="text-xs border-[#0047FF] text-[#0047FF] hover:bg-[#0047FF]/5">
                 Current Month
               </Button>
             )}
@@ -202,7 +196,7 @@ const Overview = () => {
               onClick={() => navigateMonth(1)}
               size="sm"
               variant="ghost"
-              className="text-gray-400 hover:text-white"
+              className="text-[#475569] hover:text-[#0F172A]"
               disabled={analytics.monthlyData?.is_current_month}
             >
               <CaretRight size={18} weight="bold" />
@@ -210,179 +204,218 @@ const Overview = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-4 gap-4 stagger-children">
-          {/* Monthly Proposals Count */}
-          <div className="bg-gradient-to-br from-purple-900/30 to-pink-900/30 border border-purple-500/50 rounded-lg p-3 hover-lift transition-colors-smooth">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-purple-300 uppercase tracking-wider">Proposals This Month</span>
-              <FileText size={16} className="text-purple-400" />
-            </div>
-            <div className="flex items-baseline gap-3">
-              <span className="text-2xl font-bold text-white">{analytics.monthlyData?.total_proposals || 0}</span>
-              <div className="text-xs text-purple-300">
-                {analytics.monthlyData?.is_current_month ? 'So Far' : 'Total'}
-              </div>
-            </div>
-            <div className="mt-2 text-xs text-purple-400">
-              <span className="font-semibold">{analytics.monthlyData?.active_proposals || 0}</span> Active • 
-              <span className="font-semibold ml-1">{analytics.monthlyData?.approved || 0}</span> Approved
-            </div>
-          </div>
-
-          {/* Active Pipeline */}
-          <div className="bg-[#111827] border border-[#374151] rounded-lg p-3 hover-lift transition-colors-smooth">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Active Pipeline</span>
-              <FileText size={16} className="text-indigo-400" />
-            </div>
-            <div className="flex items-baseline gap-3">
-              <span className="text-2xl font-bold text-white">{analytics.stageCounts?.under_review || 0}</span>
-              <div className="text-xs text-gray-400 space-x-2">
-                <span className="text-emerald-400">{analytics.stageCounts?.approved || 0} Won</span>
-                <span>•</span>
-                <span className="text-amber-400">{analytics.stageCounts?.needs_revision || 0} Revision</span>
-              </div>
-            </div>
-          </div>
-
-          {/* SLA Health */}
-          <div className="bg-[#111827] border border-[#374151] rounded-lg p-3 hover-lift transition-colors-smooth">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">SLA Health</span>
-              <Warning size={16} className={analytics.slaHealth?.critical_count > 0 ? "text-red-400" : "text-emerald-400"} />
-            </div>
-            <div className="flex items-baseline gap-3">
-              <span className="text-2xl font-bold text-white">{analytics.slaHealth?.health_percentage || 0}%</span>
-              {analytics.slaHealth?.critical_count > 0 && (
-                <span className="text-xs text-red-400 font-semibold badge-pulse">{analytics.slaHealth.critical_count} Critical</span>
-              )}
-            </div>
-          </div>
-
-          {/* Deal Value */}
-          <div className="bg-[#111827] border border-[#374151] rounded-lg p-3 hover-lift transition-colors-smooth">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Pipeline Value</span>
-              <CurrencyInr size={16} className="text-emerald-400" />
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold text-white">{formatCurrency(analytics.dealValue?.active_pipeline_value)}</span>
-              <span className="text-xs text-gray-400">Active</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Workspace - Split Layout */}
-      <div className="flex gap-0 h-[calc(100vh-180px)]">
-        {/* LEFT: Master Proposal Queue (60%) */}
-        <div className="w-[60%] border-r border-[#374151] overflow-auto">
-          <div className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-white">Master Proposal Queue</h2>
-              <span className="text-sm text-gray-400">{filteredProposals.length} proposals</span>
-            </div>
-
-            {/* Dense Table */}
-            <div className="bg-[#1F2937] border border-[#374151] rounded-lg overflow-hidden">
-              <table className="w-full text-sm">
-                <thead className="bg-[#111827] border-b border-[#374151]">
-                  <tr>
-                    <th className="text-left py-2 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">ID</th>
-                    <th className="text-left py-2 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Client / Title</th>
-                    <th className="text-left py-2 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Deal Value</th>
-                    <th className="text-left py-2 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Owner</th>
-                    <th className="text-left py-2 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Modified</th>
-                    <th className="text-left py-2 px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#374151]">
-                  {filteredProposals.length === 0 ? (
-                    <tr>
-                      <td colSpan="6" className="py-6 text-center text-gray-500 text-sm">
-                        No proposals found
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredProposals.map((proposal, index) => {
-                      const isBottleneck = analytics.bottlenecks?.bottlenecks.some(b => b.id === proposal.id);
-                      return (
-                        <tr
-                          key={proposal.id}
-                          onClick={() => navigate(`/dashboard/proposal/${proposal.id}`)}
-                          data-testid={`proposal-${proposal.id}`}
-                          className="hover:bg-[#374151]/30 cursor-pointer transition-all duration-200 hover:scale-[1.01] hover:shadow-md"
-                        >
-                          <td className="py-2 px-3 text-gray-300 font-mono text-xs">#{String(index + 1).padStart(3, '0')}</td>
-                          <td className="py-2 px-3">
-                            <div>
-                              <div className="text-white font-semibold text-sm mb-0.5 truncate max-w-[280px]">{proposal.title}</div>
-                              {proposal.customer_name && (
-                                <div className="text-xs text-gray-400">{proposal.customer_name}</div>
-                              )}
-                            </div>
-                          </td>
-                          <td className="py-2 px-3">
-                            <span className="text-emerald-400 font-semibold">{formatCurrency(proposal.deal_value)}</span>
-                          </td>
-                          <td className="py-2 px-3">
-                            <div className="flex items-center gap-2">
-                              <div className="w-6 h-6 rounded-full bg-gradient-to-br from-pink-500 to-purple-600 flex items-center justify-center text-xs font-bold text-white">
-                                {proposal.created_by.name[0]}
-                              </div>
-                              <span className="text-gray-300 text-xs">{proposal.created_by.name.split(' ')[0]}</span>
-                            </div>
-                          </td>
-                          <td className="py-2 px-3 text-gray-400 text-xs">
-                            {new Date(proposal.updated_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
-                          </td>
-                          <td className="py-2 px-3">
-                            <div className="flex items-center gap-2">
-                              {isBottleneck && <Warning size={14} className="text-red-400" />}
-                              <Badge className={`${getStatusColor(proposal.status)} text-xs border px-2 py-0.5`} data-testid={`status-${proposal.id}`}>
-                                {getStatusLabel(proposal.status)}
-                              </Badge>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-        {/* RIGHT: Activity Feed + AI Insights (40%) */}
-        <div className="w-[40%] overflow-auto">
-          <div className="p-6 space-y-6">
-            {/* Live Activity Feed */}
-            <div>
+        {/* KPI Metric Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {kpiCards.map((card) => (
+            <div key={card.label} className="bg-white rounded-xl border border-[#E2E8F0] shadow-sm p-5 hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-bold text-white uppercase tracking-wider">Live System Activity</h3>
-                <Clock size={16} className="text-gray-400" />
+                <span className="text-xs font-semibold text-[#475569] uppercase tracking-wider">{card.label}</span>
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${card.accent}1A` }}>
+                  <card.icon size={16} style={{ color: card.accent }} />
+                </div>
               </div>
-              <div className="bg-[#1F2937] border border-[#374151] rounded-lg p-4 max-h-[320px] overflow-y-auto space-y-3">
+              <div className="text-2xl font-bold text-[#0F172A] mb-1">{card.value}</div>
+              <div className="text-xs text-[#94A3B8]">{card.sub}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Filters + View Switcher */}
+        <div className="bg-white rounded-xl border border-[#E2E8F0] shadow-sm p-4">
+          <div className="flex flex-col md:flex-row md:items-center gap-3">
+            <div className="flex-1 flex items-center gap-2 bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg px-3 py-2">
+              <MagnifyingGlass size={16} className="text-[#94A3B8]" />
+              <Input
+                type="text"
+                placeholder="Search proposals by title, client, or description..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                data-testid="search-input"
+                className="flex-1 bg-transparent border-none shadow-none focus-visible:ring-0 text-sm text-[#0F172A] placeholder:text-[#94A3B8] p-0 h-auto"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Funnel size={16} className="text-[#94A3B8]" />
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="bg-[#F8FAFC] border border-[#E2E8F0] text-[#0F172A] text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#0047FF]/30 focus:border-[#0047FF]"
+              >
+                <option value="all">All Status</option>
+                <option value="sales_submitted">Draft</option>
+                <option value="cgo_review">CGO Review</option>
+                <option value="finance_review">Finance Review</option>
+                <option value="legal_review">Legal Review</option>
+                <option value="cfo_review">CFO Review</option>
+                <option value="approved">Approved</option>
+                <option value="needs_revision">Needs Revision</option>
+              </select>
+            </div>
+            <div className="flex items-center bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg p-1">
+              <button
+                onClick={() => setViewMode('table')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold transition-colors ${
+                  viewMode === 'table' ? 'bg-white text-[#0047FF] shadow-sm' : 'text-[#475569]'
+                }`}
+              >
+                <Table size={14} /> Table
+              </button>
+              <button
+                onClick={() => setViewMode('pipeline')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold transition-colors ${
+                  viewMode === 'pipeline' ? 'bg-white text-[#0047FF] shadow-sm' : 'text-[#475569]'
+                }`}
+              >
+                <SquaresFour size={14} /> Pipeline
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-6">
+          {/* Main data table / pipeline */}
+          <div className="bg-white rounded-xl border border-[#E2E8F0] shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-[#E2E8F0]">
+              <h2 className="text-base font-bold text-[#0F172A]">Proposal Pipeline</h2>
+              <span className="text-sm text-[#475569]">{filteredProposals.length} proposals</span>
+            </div>
+
+            {viewMode === 'table' ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-[#F8FAFC] border-b border-[#E2E8F0]">
+                    <tr>
+                      <th className="text-left py-3 px-5 text-xs font-semibold text-[#475569] uppercase tracking-wider">Proposal ID</th>
+                      <th className="text-left py-3 px-5 text-xs font-semibold text-[#475569] uppercase tracking-wider">Client Name</th>
+                      <th className="text-left py-3 px-5 text-xs font-semibold text-[#475569] uppercase tracking-wider">Deal Value</th>
+                      <th className="text-left py-3 px-5 text-xs font-semibold text-[#475569] uppercase tracking-wider">Stage / Status</th>
+                      <th className="text-left py-3 px-5 text-xs font-semibold text-[#475569] uppercase tracking-wider">Commercial Lead</th>
+                      <th className="text-left py-3 px-5 text-xs font-semibold text-[#475569] uppercase tracking-wider">Last Updated</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#E2E8F0]">
+                    {filteredProposals.length === 0 ? (
+                      <tr>
+                        <td colSpan="6" className="py-10 text-center text-[#94A3B8] text-sm">
+                          No proposals found
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredProposals.map((proposal, index) => {
+                        const isBottleneck = analytics.bottlenecks?.bottlenecks.some(b => b.id === proposal.id);
+                        return (
+                          <tr
+                            key={proposal.id}
+                            onClick={() => navigate(`/dashboard/proposal/${proposal.id}`)}
+                            data-testid={`proposal-${proposal.id}`}
+                            className="hover:bg-[#F8FAFC] cursor-pointer transition-colors"
+                          >
+                            <td className="py-3 px-5 text-[#475569] font-mono text-xs">#{String(index + 1).padStart(3, '0')}</td>
+                            <td className="py-3 px-5">
+                              <div className="text-[#0F172A] font-semibold text-sm mb-0.5 truncate max-w-[240px]">{proposal.title}</div>
+                              {proposal.customer_name && (
+                                <div className="text-xs text-[#94A3B8]">{proposal.customer_name}</div>
+                              )}
+                            </td>
+                            <td className="py-3 px-5">
+                              <span className="text-[#059669] font-semibold">{formatCurrency(proposal.deal_value)}</span>
+                            </td>
+                            <td className="py-3 px-5">
+                              <div className="flex items-center gap-2">
+                                {isBottleneck && <Warning size={14} className="text-[#E11D48]" />}
+                                <Badge
+                                  className="text-xs font-semibold px-2.5 py-1 border-0"
+                                  style={getStatusColor(proposal.status)}
+                                  data-testid={`status-${proposal.id}`}
+                                >
+                                  {getStatusLabel(proposal.status)}
+                                </Badge>
+                              </div>
+                            </td>
+                            <td className="py-3 px-5">
+                              <div className="flex items-center gap-2">
+                                <div
+                                  className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0"
+                                  style={{ backgroundColor: '#0047FF' }}
+                                >
+                                  {proposal.created_by.name[0]}
+                                </div>
+                                <span className="text-[#475569] text-xs">{proposal.created_by.name.split(' ')[0]}</span>
+                              </div>
+                            </td>
+                            <td className="py-3 px-5 text-[#94A3B8] text-xs">
+                              {new Date(proposal.updated_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {['sales_submitted', 'cgo_review', 'finance_review', 'legal_review', 'cfo_review', 'approved'].map((stage) => {
+                  const stageProposals = filteredProposals.filter(p => p.status === stage);
+                  return (
+                    <div key={stage} className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg p-3 min-h-[120px]">
+                      <div className="flex items-center justify-between mb-3">
+                        <Badge className="text-xs font-semibold px-2 py-1 border-0" style={getStatusColor(stage)}>
+                          {getStatusLabel(stage)}
+                        </Badge>
+                        <span className="text-xs text-[#94A3B8] font-semibold">{stageProposals.length}</span>
+                      </div>
+                      <div className="space-y-2">
+                        {stageProposals.slice(0, 5).map((p) => (
+                          <div
+                            key={p.id}
+                            onClick={() => navigate(`/dashboard/proposal/${p.id}`)}
+                            className="bg-white border border-[#E2E8F0] rounded-lg p-2.5 cursor-pointer hover:shadow-sm transition-shadow"
+                          >
+                            <div className="text-xs font-semibold text-[#0F172A] truncate">{p.title}</div>
+                            <div className="text-xs text-[#059669] font-semibold mt-1">{formatCurrency(p.deal_value)}</div>
+                          </div>
+                        ))}
+                        {stageProposals.length === 0 && (
+                          <p className="text-xs text-[#CBD5E1] text-center py-4">No proposals</p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Quick Analytics Panel */}
+          <div className="space-y-4">
+            {/* Live Activity Feed */}
+            <div className="bg-white rounded-xl border border-[#E2E8F0] shadow-sm p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-xs font-bold text-[#0F172A] uppercase tracking-wider">Live System Activity</h3>
+                <Clock size={16} className="text-[#94A3B8]" />
+              </div>
+              <div className="max-h-[280px] overflow-y-auto space-y-3">
                 {analytics.activityFeed?.activities?.length === 0 ? (
-                  <p className="text-gray-500 text-xs text-center py-4">No recent activity</p>
+                  <p className="text-[#94A3B8] text-xs text-center py-4">No recent activity</p>
                 ) : (
                   analytics.activityFeed?.activities?.map((activity, idx) => (
-                    <div key={idx} className="flex gap-3 pb-3 border-b border-[#374151] last:border-0">
-                      <div className="flex-shrink-0">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-xs font-bold">
-                          {activity.by.name[0]}
-                        </div>
+                    <div key={idx} className="flex gap-3 pb-3 border-b border-[#F1F5F9] last:border-0">
+                      <div
+                        className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0"
+                        style={{ backgroundColor: '#0047FF' }}
+                      >
+                        {activity.by.name[0]}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-xs text-gray-300 mb-1">
-                          <span className="font-semibold text-white">{activity.by.name}</span>
-                          <span className="text-gray-400 mx-1">
+                        <div className="text-xs text-[#475569] mb-1">
+                          <span className="font-semibold text-[#0F172A]">{activity.by.name}</span>
+                          <span className="text-[#94A3B8] mx-1">
                             {activity.action === 'approved' ? 'approved' : activity.action === 'rejected' ? 'rejected' : 'updated'}
                           </span>
-                          <span className="text-gray-300 truncate inline-block max-w-[180px] align-bottom">{activity.proposal_title}</span>
+                          <span className="text-[#475569] truncate inline-block max-w-[160px] align-bottom">{activity.proposal_title}</span>
                         </div>
-                        <div className="text-[10px] text-gray-500">{formatTimestamp(activity.timestamp)}</div>
+                        <div className="text-[10px] text-[#CBD5E1]">{formatTimestamp(activity.timestamp)}</div>
                       </div>
                     </div>
                   ))
@@ -391,82 +424,71 @@ const Overview = () => {
             </div>
 
             {/* Bottleneck Alerts */}
-            <div>
+            <div className="bg-white rounded-xl border border-[#E2E8F0] shadow-sm p-4">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-bold text-white uppercase tracking-wider">Bottleneck Alerts</h3>
-                <Warning size={16} className="text-amber-400" />
+                <h3 className="text-xs font-bold text-[#0F172A] uppercase tracking-wider">Bottleneck Alerts</h3>
+                <Warning size={16} className="text-[#D97706]" />
               </div>
-              <div className="bg-[#1F2937] border border-[#374151] rounded-lg p-4">
-                {analytics.bottlenecks?.bottlenecks?.length === 0 ? (
-                  <div className="flex items-center gap-2 text-emerald-400 text-sm">
-                    <CheckCircle size={18} weight="fill" />
-                    <span>All proposals flowing smoothly</span>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {analytics.bottlenecks?.bottlenecks?.slice(0, 5).map((bottleneck) => (
-                      <div 
-                        key={bottleneck.id} 
-                        onClick={() => navigate(`/dashboard/proposal/${bottleneck.id}`)}
-                        className="flex items-center justify-between p-2 bg-red-500/10 border border-red-500/20 rounded cursor-pointer hover:bg-red-500/20 transition"
-                      >
-                        <div className="flex-1">
-                          <div className="text-xs font-semibold text-white truncate">{bottleneck.title}</div>
-                          <div className="text-[10px] text-gray-400">{getStatusLabel(bottleneck.status)}</div>
-                        </div>
-                        <div className="text-xs font-bold text-red-400">{bottleneck.days_stuck}d</div>
+              {analytics.bottlenecks?.bottlenecks?.length === 0 ? (
+                <div className="flex items-center gap-2 text-[#059669] text-sm">
+                  <CheckCircle size={18} weight="fill" />
+                  <span>All proposals flowing smoothly</span>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {analytics.bottlenecks?.bottlenecks?.slice(0, 5).map((bottleneck) => (
+                    <div
+                      key={bottleneck.id}
+                      onClick={() => navigate(`/dashboard/proposal/${bottleneck.id}`)}
+                      className="flex items-center justify-between p-2 rounded-lg cursor-pointer hover:opacity-80 transition-opacity"
+                      style={{ backgroundColor: '#FFE4E6' }}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-semibold text-[#0F172A] truncate">{bottleneck.title}</div>
+                        <div className="text-[10px] text-[#475569]">{getStatusLabel(bottleneck.status)}</div>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+                      <div className="text-xs font-bold text-[#E11D48] shrink-0 ml-2">{bottleneck.days_stuck}d</div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {/* AI Compliance Check */}
-            <div>
+            {/* System Health / Approval Rate */}
+            <div className="rounded-xl border p-4" style={{ backgroundColor: '#D1FAE5', borderColor: '#A7F3D0' }}>
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-bold text-white uppercase tracking-wider">System Health</h3>
-                <TrendUp size={16} className="text-emerald-400" />
+                <span className="text-xs font-semibold text-[#065F46]">Approval Rate</span>
+                <span className="text-2xl font-bold text-[#059669]">{winRate}%</span>
               </div>
-              <div className="bg-gradient-to-br from-emerald-900/20 to-indigo-900/20 border border-emerald-500/30 rounded-lg p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs text-gray-300">Approval Rate</span>
-                  <span className="text-2xl font-bold text-emerald-400">{analytics.approvalRate?.approval_percentage || 0}%</span>
-                </div>
-                <div className="h-2 bg-[#111827] rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400"
-                    style={{ width: `${analytics.approvalRate?.approval_percentage || 0}%` }}
-                  ></div>
-                </div>
-                <div className="mt-3 text-[10px] text-gray-400">
-                  {analytics.approvalRate?.approved_count} of {analytics.approvalRate?.total_proposals} proposals approved
-                </div>
+              <div className="h-2 bg-white/60 rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full"
+                  style={{ width: `${winRate}%`, backgroundColor: '#059669' }}
+                ></div>
+              </div>
+              <div className="mt-3 text-[10px] text-[#065F46]">
+                {analytics.approvalRate?.approved_count} of {analytics.approvalRate?.total_proposals} proposals approved
               </div>
             </div>
 
             {/* Throughput Sparkline */}
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-bold text-white uppercase tracking-wider">30-Day Throughput</h3>
+            <div className="bg-white rounded-xl border border-[#E2E8F0] shadow-sm p-4">
+              <h3 className="text-xs font-bold text-[#0F172A] uppercase tracking-wider mb-3">30-Day Throughput</h3>
+              <div className="flex items-end justify-between h-16 gap-0.5">
+                {analytics.throughput?.sparkline?.map((value, idx) => {
+                  const maxValue = Math.max(...(analytics.throughput?.sparkline || [1]));
+                  const height = maxValue > 0 ? (value / maxValue * 100) : 0;
+                  return (
+                    <div
+                      key={idx}
+                      className="flex-1 rounded-t"
+                      style={{ height: `${height}%`, minHeight: value > 0 ? '2px' : '0', backgroundColor: '#0047FF', opacity: 0.7 }}
+                    ></div>
+                  );
+                })}
               </div>
-              <div className="bg-[#1F2937] border border-[#374151] rounded-lg p-4">
-                <div className="flex items-end justify-between h-16 gap-0.5">
-                  {analytics.throughput?.sparkline?.map((value, idx) => {
-                    const maxValue = Math.max(...(analytics.throughput?.sparkline || [1]));
-                    const height = maxValue > 0 ? (value / maxValue * 100) : 0;
-                    return (
-                      <div
-                        key={idx}
-                        className="flex-1 bg-emerald-500/30 rounded-t"
-                        style={{ height: `${height}%`, minHeight: value > 0 ? '2px' : '0' }}
-                      ></div>
-                    );
-                  })}
-                </div>
-                <div className="mt-2 text-xs text-gray-400">
-                  {analytics.throughput?.throughput_per_day || 0} approvals/day avg
-                </div>
+              <div className="mt-2 text-xs text-[#475569]">
+                {analytics.throughput?.throughput_per_day || 0} approvals/day avg
               </div>
             </div>
           </div>
