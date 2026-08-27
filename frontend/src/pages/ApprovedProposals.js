@@ -52,7 +52,7 @@ const ApprovedProposals = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-10 w-12 border-t-2 border-b-2 border-[#0047FF]"></div>
+        <div className="animate-spin rounded-full h-10 w-12 border-t-2 border-b-2 border-[#9B30FF]"></div>
       </div>
     );
   }
@@ -61,13 +61,13 @@ const ApprovedProposals = () => {
     <div className="p-6" data-testid="approved-page">
       <div className="mb-6">
         <h1 className="text-3xl font-display font-black tracking-tight mb-2">Approved Proposals</h1>
-        <p className="text-[#64748B] font-body">The final proposal document for each approved proposal</p>
+        <p className="text-[#9E8FC2] font-body">The final proposal document for each approved proposal</p>
       </div>
 
-      <div className="bg-white border border-[#E2E8F0] shadow-sm">
-        <div className="divide-y divide-[#E2E8F0]">
+      <div className="bg-[#1E1533] border border-[#3D2A5C] shadow-sm">
+        <div className="divide-y divide-[#3D2A5C]">
           {proposals.length === 0 ? (
-            <div className="p-12 text-center text-[#64748B]" data-testid="no-approved">
+            <div className="p-12 text-center text-[#9E8FC2]" data-testid="no-approved">
               <p>No approved proposals yet</p>
             </div>
           ) : (
@@ -83,14 +83,14 @@ const ApprovedProposals = () => {
                   >
                     {proposal.title}
                   </h3>
-                  <p className="text-[#64748B] text-xs mt-1 truncate">
+                  <p className="text-[#9E8FC2] text-xs mt-1 truncate">
                     {proposal.file_info?.filename || 'Document'}
-                    <span className="ml-2 font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded" data-testid={`approved-version-${proposal.id}`}>
+                    <span className="ml-2 font-semibold text-purple-400 bg-purple-500/15 px-1.5 py-0.5 rounded" data-testid={`approved-version-${proposal.id}`}>
                       v{proposal.current_version || 1}
                     </span>
                   </p>
                 </div>
-                <Badge className="bg-[#10B981] text-[#0F172A] flex-shrink-0" data-testid={`approved-status-${proposal.id}`}>
+                <Badge className="bg-[#10B981] text-[#F5F3FA] flex-shrink-0" data-testid={`approved-status-${proposal.id}`}>
                   Approved
                 </Badge>
                 <Button
