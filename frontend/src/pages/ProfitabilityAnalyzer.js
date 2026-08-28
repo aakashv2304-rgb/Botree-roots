@@ -473,7 +473,7 @@ const ProfitabilityAnalyzer = () => {
                           value={item.revenue}
                           onChange={(e) => updateLineItemField(itemIndex, 'revenue', e.target.value)}
                           placeholder="e.g., 600000"
-                          className="h-10 bg-[#1E1533]"
+                          className="h-10 bg-[#1E1533] text-[#F5F3FA]"
                         />
                       </div>
                       {item.is_subscription && (
@@ -484,7 +484,7 @@ const ProfitabilityAnalyzer = () => {
                             value={item.distributor_count}
                             onChange={(e) => updateLineItemField(itemIndex, 'distributor_count', e.target.value)}
                             placeholder="e.g., 1000"
-                            className="h-10 bg-[#1E1533]"
+                            className="h-10 bg-[#1E1533] text-[#F5F3FA]"
                           />
                           <p className="text-[10px] text-[#9E8FC2]">Auto-adds L2/L3 + any licenses you select below</p>
                         </div>
