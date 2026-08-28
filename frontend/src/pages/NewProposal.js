@@ -334,7 +334,7 @@ const NewProposal = () => {
                         value={getAmount()}
                         onChange={(e) => setAmount(e.target.value)}
                         placeholder={amountPlaceholder}
-                        className="h-10 bg-[#1E1533]"
+                        className="h-10 bg-[#1E1533] text-[#F5F3FA]"
                       />
                     </div>
                     <div className="space-y-2">
@@ -344,7 +344,7 @@ const NewProposal = () => {
                         onChange={(e) => updateOneTimeLineItemText(key, 'description', e.target.value)}
                         placeholder="Description shown in the document"
                         rows={2}
-                        className="bg-[#1E1533]"
+                        className="bg-[#1E1533] text-[#F5F3FA]"
                       />
                     </div>
                     <div className="space-y-2">
@@ -354,7 +354,7 @@ const NewProposal = () => {
                         onChange={(e) => updateOneTimeLineItemText(key, 'invoicing', e.target.value)}
                         placeholder="Invoicing terms shown in the document"
                         rows={2}
-                        className="bg-[#1E1533]"
+                        className="bg-[#1E1533] text-[#F5F3FA]"
                       />
                     </div>
                   </div>
@@ -387,14 +387,14 @@ const NewProposal = () => {
                           value={fee.name}
                           onChange={(e) => updateAdditionalFee(fIndex, 'name', e.target.value)}
                           placeholder="Fee name (e.g., Custom Report Module)"
-                          className="h-10 bg-[#1E1533]"
+                          className="h-10 bg-[#1E1533] text-[#F5F3FA]"
                         />
                         <Textarea
                           value={fee.description || ''}
                           onChange={(e) => updateAdditionalFee(fIndex, 'description', e.target.value)}
                           placeholder="Description (optional)"
                           rows={2}
-                          className="bg-[#1E1533]"
+                          className="bg-[#1E1533] text-[#F5F3FA]"
                         />
                       </div>
                       <div className="w-40 space-y-2">
@@ -403,7 +403,7 @@ const NewProposal = () => {
                           value={fee.value}
                           onChange={(e) => updateAdditionalFee(fIndex, 'value', e.target.value)}
                           placeholder="Amount (₹)"
-                          className="h-10 bg-[#1E1533]"
+                          className="h-10 bg-[#1E1533] text-[#F5F3FA]"
                         />
                       </div>
                       <Button
@@ -457,7 +457,7 @@ const NewProposal = () => {
                         value={ongoingCharges[key].quantity}
                         onChange={(e) => updateOngoingCharge(key, 'quantity', e.target.value)}
                         placeholder="e.g., 350"
-                        className="h-10 bg-[#1E1533]"
+                        className="h-10 bg-[#1E1533] text-[#F5F3FA]"
                       />
                     </div>
                     <div className="space-y-2">
@@ -467,7 +467,7 @@ const NewProposal = () => {
                         value={ongoingCharges[key].rate_per_user_month}
                         onChange={(e) => updateOngoingCharge(key, 'rate_per_user_month', e.target.value)}
                         placeholder="e.g., 80"
-                        className="h-10 bg-[#1E1533]"
+                        className="h-10 bg-[#1E1533] text-[#F5F3FA]"
                       />
                     </div>
                     <div className="space-y-2">
@@ -477,7 +477,7 @@ const NewProposal = () => {
                         value={ongoingCharges[key].monthly_minimum_billing}
                         onChange={(e) => updateOngoingCharge(key, 'monthly_minimum_billing', e.target.value)}
                         placeholder="e.g., 28000"
-                        className="h-10 bg-[#1E1533]"
+                        className="h-10 bg-[#1E1533] text-[#F5F3FA]"
                       />
                     </div>
                   </div>
