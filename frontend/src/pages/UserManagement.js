@@ -141,7 +141,7 @@ const UserManagement = () => {
               Add User
             </Button>
           </DialogTrigger>
-          <DialogContent className="bg-[#1E1533]">
+          <DialogContent className="bg-[#1E1533] text-[#F5F3FA]">
             <DialogHeader>
               <DialogTitle className="text-xl font-heading font-bold">Create New User</DialogTitle>
             </DialogHeader>
@@ -340,7 +340,7 @@ const UserManagement = () => {
       </div>
 
       <Dialog open={editRoleOpen} onOpenChange={setEditRoleOpen}>
-        <DialogContent className="bg-[#1E1533]">
+        <DialogContent className="bg-[#1E1533] text-[#F5F3FA]">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold">Change User Role</DialogTitle>
           </DialogHeader>
