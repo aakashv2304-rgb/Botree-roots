@@ -368,10 +368,10 @@ const ProfitabilityAnalyzer = () => {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-display font-black tracking-tight mb-2 flex items-center gap-3">
-            <Calculator size={36} className="text-purple-400" />
+            <Calculator size={36} className="text-purple-700" />
             Deal Profitability Analyzer
           </h1>
-          <p className="text-[#9E8FC2] font-body">
+          <p className="text-[#7A6B9E] font-body">
             Model resource costs against each revenue line item to see real margin
           </p>
         </div>
@@ -389,7 +389,7 @@ const ProfitabilityAnalyzer = () => {
       </div>
 
       {showForm && (
-        <div className="bg-[#1E1533] border border-[#3D2A5C] shadow-sm p-6 mb-6 animate-scale-in" data-testid="analysis-form">
+        <div className="bg-[#FFFFFF] border border-[#E4DCF0] shadow-sm p-6 mb-6 animate-scale-in" data-testid="analysis-form">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-bold">{editingId ? 'Edit Analysis' : 'New Analysis'}</h2>
             <Button variant="ghost" size="sm" onClick={() => { setShowForm(false); resetForm(); }}>
@@ -422,7 +422,7 @@ const ProfitabilityAnalyzer = () => {
                 </SelectContent>
               </Select>
               {proposalId && (
-                <p className="text-xs text-[#9E8FC2]">
+                <p className="text-xs text-[#7A6B9E]">
                   Revenue line items auto-filled below from this proposal's products and fees.
                 </p>
               )}
@@ -438,14 +438,14 @@ const ProfitabilityAnalyzer = () => {
               const margin = revenueNum ? (profit / revenueNum) * 100 : null;
 
               return (
-                <div key={itemIndex} className="border border-[#3D2A5C] rounded-lg p-5 bg-[#150E29]">
+                <div key={itemIndex} className="border border-[#E4DCF0] rounded-lg p-5 bg-[#F7F4FC]">
                   <div className="flex items-start justify-between gap-4 mb-4">
                     <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-3">
                       <div className="space-y-1">
-                        <Label className="text-xs text-[#9E8FC2] flex items-center gap-2">
+                        <Label className="text-xs text-[#7A6B9E] flex items-center gap-2">
                           Revenue Line Item
                           {item.is_subscription && item.reference_note && (
-                            <span className="text-[10px] font-semibold text-purple-400 bg-purple-500/25 px-2 py-0.5 rounded">
+                            <span className="text-[10px] font-semibold text-purple-700 bg-purple-100 px-2 py-0.5 rounded">
                               {item.reference_note}
                             </span>
                           )}
@@ -454,9 +454,9 @@ const ProfitabilityAnalyzer = () => {
                           value={item.label}
                           onChange={(e) => updateLineItemField(itemIndex, 'label', e.target.value)}
                           placeholder="e.g., DMS Software - Subscription"
-                          className="h-10 bg-[#1E1533] font-semibold"
+                          className="h-10 bg-[#FFFFFF] font-semibold"
                         />
-                        <label className="flex items-center gap-1.5 text-[11px] text-[#9E8FC2] cursor-pointer">
+                        <label className="flex items-center gap-1.5 text-[11px] text-[#7A6B9E] cursor-pointer">
                           <input
                             type="checkbox"
                             checked={!!item.is_subscription}
@@ -467,26 +467,26 @@ const ProfitabilityAnalyzer = () => {
                         </label>
                       </div>
                       <div className="space-y-1">
-                        <Label className="text-xs text-[#9E8FC2]">Revenue (₹)</Label>
+                        <Label className="text-xs text-[#7A6B9E]">Revenue (₹)</Label>
                         <Input
                           type="number"
                           value={item.revenue}
                           onChange={(e) => updateLineItemField(itemIndex, 'revenue', e.target.value)}
                           placeholder="e.g., 600000"
-                          className="h-10 bg-[#1E1533] text-[#F5F3FA]"
+                          className="h-10 bg-[#FFFFFF] text-[#1E1533]"
                         />
                       </div>
                       {item.is_subscription && (
                         <div className="space-y-1">
-                          <Label className="text-xs text-[#9E8FC2]">Number of Users / Distributors</Label>
+                          <Label className="text-xs text-[#7A6B9E]">Number of Users / Distributors</Label>
                           <Input
                             type="number"
                             value={item.distributor_count}
                             onChange={(e) => updateLineItemField(itemIndex, 'distributor_count', e.target.value)}
                             placeholder="e.g., 1000"
-                            className="h-10 bg-[#1E1533] text-[#F5F3FA]"
+                            className="h-10 bg-[#FFFFFF] text-[#1E1533]"
                           />
-                          <p className="text-[10px] text-[#9E8FC2]">Auto-adds L2/L3 + any licenses you select below</p>
+                          <p className="text-[10px] text-[#7A6B9E]">Auto-adds L2/L3 + any licenses you select below</p>
                         </div>
                       )}
                     </div>
@@ -495,7 +495,7 @@ const ProfitabilityAnalyzer = () => {
                       onClick={() => removeLineItem(itemIndex)}
                       variant="ghost"
                       size="sm"
-                      className="text-red-400 hover:text-red-800 mt-5"
+                      className="text-red-700 hover:text-red-800 mt-5"
                       disabled={lineItems.length === 1}
                     >
                       <Trash size={18} />
@@ -504,8 +504,8 @@ const ProfitabilityAnalyzer = () => {
 
                   {/* Distributor-driven costs: subscription lines only */}
                   {item.is_subscription && parseFloat(item.distributor_count) > 0 && rateCard && (
-                    <div className="mb-4 bg-amber-500/15 border border-amber-500/30 rounded-lg p-3">
-                      <p className="text-xs font-semibold text-amber-400 mb-2">
+                    <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                      <p className="text-xs font-semibold text-amber-700 mb-2">
                         Which licenses does this line item include?
                       </p>
                       <div className="flex flex-wrap gap-3 mb-3">
@@ -513,14 +513,14 @@ const ProfitabilityAnalyzer = () => {
                           const rate = rateCard.per_distributor_costs[costName];
                           const checked = (item.selected_distributor_costs || []).includes(costName);
                           return (
-                            <label key={costName} className="flex items-center gap-1.5 text-xs bg-[#1E1533] px-2.5 py-1.5 rounded border border-[#3D2A5C] cursor-pointer">
+                            <label key={costName} className="flex items-center gap-1.5 text-xs bg-[#FFFFFF] px-2.5 py-1.5 rounded border border-[#E4DCF0] cursor-pointer">
                               <input
                                 type="checkbox"
                                 checked={checked}
                                 onChange={() => toggleDistributorCost(itemIndex, costName)}
                                 className="accent-purple-600"
                               />
-                              {costName} {rate === 0 && <span className="text-[#8B7FAE]">(rate pending)</span>}
+                              {costName} {rate === 0 && <span className="text-[#8577A3]">(rate pending)</span>}
                             </label>
                           );
                         })}
@@ -528,17 +528,17 @@ const ProfitabilityAnalyzer = () => {
 
                       {autoBreakdown && (
                         <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
-                          <div className="bg-[#1E1533] rounded px-2 py-1.5">
-                            <p className="text-[#9E8FC2]">L2 ({autoBreakdown.l2Required.toFixed(3)})</p>
+                          <div className="bg-[#FFFFFF] rounded px-2 py-1.5">
+                            <p className="text-[#7A6B9E]">L2 ({autoBreakdown.l2Required.toFixed(3)})</p>
                             <p className="font-semibold">{fmt(autoBreakdown.l2Cost)}</p>
                           </div>
-                          <div className="bg-[#1E1533] rounded px-2 py-1.5">
-                            <p className="text-[#9E8FC2]">L3 ({autoBreakdown.l3Required.toFixed(3)})</p>
+                          <div className="bg-[#FFFFFF] rounded px-2 py-1.5">
+                            <p className="text-[#7A6B9E]">L3 ({autoBreakdown.l3Required.toFixed(3)})</p>
                             <p className="font-semibold">{fmt(autoBreakdown.l3Cost)}</p>
                           </div>
                           {Object.entries(autoBreakdown.licenseCosts).map(([name, value]) => (
-                            <div key={name} className="bg-[#1E1533] rounded px-2 py-1.5">
-                              <p className="text-[#9E8FC2]">{name}</p>
+                            <div key={name} className="bg-[#FFFFFF] rounded px-2 py-1.5">
+                              <p className="text-[#7A6B9E]">{name}</p>
                               <p className="font-semibold">{fmt(value)}</p>
                             </div>
                           ))}
@@ -548,15 +548,15 @@ const ProfitabilityAnalyzer = () => {
                   )}
 
                   {/* Manual role allocations - fixed rate card, dropdown only */}
-                  <div className="pl-4 border-l-4 border-purple-500/40 space-y-3">
+                  <div className="pl-4 border-l-4 border-purple-300 space-y-3">
                     <div className="flex items-center justify-between">
-                      <Label className="text-xs font-semibold text-purple-400">Additional Role Allocations for this line</Label>
+                      <Label className="text-xs font-semibold text-purple-700">Additional Role Allocations for this line</Label>
                       <Button
                         type="button"
                         onClick={() => addResourceLine(itemIndex)}
                         variant="ghost"
                         size="sm"
-                        className="text-purple-400 hover:text-purple-800 h-7"
+                        className="text-purple-700 hover:text-purple-800 h-7"
                       >
                         <Plus size={14} className="mr-1" />
                         Add Role
@@ -568,10 +568,10 @@ const ProfitabilityAnalyzer = () => {
                       const multiplier = quantityMultiplier(rl.quantity, rl.unit);
                       const rlCost = (monthlyCost * (parseFloat(rl.allocation_percent) || 0)) / 100 * multiplier;
                       return (
-                        <div key={lineIndex} className="bg-[#1E1533] p-2.5 rounded-lg border border-[#3D2A5C] space-y-2">
+                        <div key={lineIndex} className="bg-[#FFFFFF] p-2.5 rounded-lg border border-[#E4DCF0] space-y-2">
                           <div className="grid grid-cols-1 md:grid-cols-[2fr_1.2fr_1fr_auto] gap-2 items-end">
                             <div className="space-y-1">
-                              <Label className="text-[11px] text-[#9E8FC2]">Role</Label>
+                              <Label className="text-[11px] text-[#7A6B9E]">Role</Label>
                               <Select value={rl.role_name} onValueChange={(v) => updateResourceLine(itemIndex, lineIndex, 'role_name', v)}>
                                 <SelectTrigger className="h-9 text-sm" data-testid={`role-select-${itemIndex}-${lineIndex}`}>
                                   <SelectValue placeholder="Select role" />
@@ -584,13 +584,13 @@ const ProfitabilityAnalyzer = () => {
                               </Select>
                             </div>
                             <div className="space-y-1">
-                              <Label className="text-[11px] text-[#9E8FC2]">Monthly Cost (fixed)</Label>
-                              <div className="h-9 flex items-center px-2 bg-[#150E29] border border-[#3D2A5C] rounded-md text-sm text-[#B9AED4]">
+                              <Label className="text-[11px] text-[#7A6B9E]">Monthly Cost (fixed)</Label>
+                              <div className="h-9 flex items-center px-2 bg-[#F7F4FC] border border-[#E4DCF0] rounded-md text-sm text-[#5B4B7A]">
                                 {rl.role_name ? fmt(monthlyCost) : '—'}
                               </div>
                             </div>
                             <div className="space-y-1">
-                              <Label className="text-[11px] text-[#9E8FC2]">Allocation</Label>
+                              <Label className="text-[11px] text-[#7A6B9E]">Allocation</Label>
                               <Select value={rl.allocation_percent} onValueChange={(v) => updateResourceLine(itemIndex, lineIndex, 'allocation_percent', v)}>
                                 <SelectTrigger className="h-9 text-sm" data-testid={`allocation-select-${itemIndex}-${lineIndex}`}>
                                   <SelectValue />
@@ -607,15 +607,15 @@ const ProfitabilityAnalyzer = () => {
                               onClick={() => removeResourceLine(itemIndex, lineIndex)}
                               variant="ghost"
                               size="sm"
-                              className="text-red-400 hover:text-red-800 h-9"
+                              className="text-red-700 hover:text-red-800 h-9"
                             >
                               <X size={16} />
                             </Button>
                           </div>
 
-                          <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1fr] gap-2 items-end pl-1 border-l-2 border-[#3D2A5C]">
+                          <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1fr] gap-2 items-end pl-1 border-l-2 border-[#E4DCF0]">
                             <div className="space-y-1">
-                              <Label className="text-[11px] text-[#9E8FC2]">Quantity (optional)</Label>
+                              <Label className="text-[11px] text-[#7A6B9E]">Quantity (optional)</Label>
                               <Input
                                 type="number"
                                 value={rl.quantity}
@@ -626,7 +626,7 @@ const ProfitabilityAnalyzer = () => {
                               />
                             </div>
                             <div className="space-y-1">
-                              <Label className="text-[11px] text-[#9E8FC2]">Unit</Label>
+                              <Label className="text-[11px] text-[#7A6B9E]">Unit</Label>
                               <Select value={rl.unit || 'none'} onValueChange={(v) => updateResourceLine(itemIndex, lineIndex, 'unit', v === 'none' ? '' : v)}>
                                 <SelectTrigger className="h-9 text-sm" data-testid={`unit-select-${itemIndex}-${lineIndex}`}>
                                   <SelectValue placeholder="—" />
@@ -640,8 +640,8 @@ const ProfitabilityAnalyzer = () => {
                               </Select>
                             </div>
                             <div className="space-y-1">
-                              <Label className="text-[11px] text-[#9E8FC2]">Line Cost</Label>
-                              <div className="h-9 flex items-center px-2 bg-[#150E29] border border-[#3D2A5C] rounded-md text-xs font-semibold text-[#E5DFF2]">
+                              <Label className="text-[11px] text-[#7A6B9E]">Line Cost</Label>
+                              <div className="h-9 flex items-center px-2 bg-[#F7F4FC] border border-[#E4DCF0] rounded-md text-xs font-semibold text-[#2D1F47]">
                                 {fmt(rlCost)}
                               </div>
                             </div>
@@ -650,28 +650,28 @@ const ProfitabilityAnalyzer = () => {
                       );
                     })}
                     {item.resource_lines.length === 0 && (
-                      <p className="text-xs text-[#8B7FAE] italic">No additional roles added for this line.</p>
+                      <p className="text-xs text-[#8577A3] italic">No additional roles added for this line.</p>
                     )}
                   </div>
 
                   {/* Per-line-item summary */}
                   <div className="grid grid-cols-3 gap-2 mt-4">
-                    <div className="bg-blue-500/15 border border-blue-500/30 rounded px-3 py-2 text-center">
-                      <p className="text-[10px] text-blue-400 font-medium">Line Cost</p>
-                      <p className="text-sm font-bold text-blue-400">{fmt(totalCost)}</p>
+                    <div className="bg-blue-50 border border-blue-200 rounded px-3 py-2 text-center">
+                      <p className="text-[10px] text-blue-700 font-medium">Line Cost</p>
+                      <p className="text-sm font-bold text-blue-700">{fmt(totalCost)}</p>
                       {manualCost > 0 && autoBreakdown && (
-                        <p className="text-[9px] text-blue-400 mt-0.5">manual + auto</p>
+                        <p className="text-[9px] text-blue-700 mt-0.5">manual + auto</p>
                       )}
                     </div>
-                    <div className={`rounded px-3 py-2 text-center border ${profit !== null && profit < 0 ? 'bg-red-500/15 border-red-500/30' : 'bg-emerald-500/15 border-emerald-500/30'}`}>
-                      <p className={`text-[10px] font-medium ${profit !== null && profit < 0 ? 'text-red-400' : 'text-emerald-400'}`}>Line Profit</p>
-                      <p className={`text-sm font-bold ${profit !== null && profit < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                    <div className={`rounded px-3 py-2 text-center border ${profit !== null && profit < 0 ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-200'}`}>
+                      <p className={`text-[10px] font-medium ${profit !== null && profit < 0 ? 'text-red-700' : 'text-emerald-700'}`}>Line Profit</p>
+                      <p className={`text-sm font-bold ${profit !== null && profit < 0 ? 'text-red-700' : 'text-emerald-700'}`}>
                         {profit !== null ? fmt(profit) : '—'}
                       </p>
                     </div>
-                    <div className="bg-purple-500/15 border border-purple-500/30 rounded px-3 py-2 text-center">
-                      <p className="text-[10px] text-purple-400 font-medium">Line Margin</p>
-                      <p className="text-sm font-bold text-purple-400">{margin !== null ? `${margin.toFixed(1)}%` : '—'}</p>
+                    <div className="bg-purple-50 border border-purple-200 rounded px-3 py-2 text-center">
+                      <p className="text-[10px] text-purple-700 font-medium">Line Margin</p>
+                      <p className="text-sm font-bold text-purple-700">{margin !== null ? `${margin.toFixed(1)}%` : '—'}</p>
                     </div>
                   </div>
                 </div>
@@ -683,27 +683,27 @@ const ProfitabilityAnalyzer = () => {
             type="button"
             onClick={addLineItem}
             variant="outline"
-            className="mt-4 border-purple-500 text-purple-400 hover:bg-purple-500/15"
+            className="mt-4 border-purple-500 text-purple-700 hover:bg-purple-50"
           >
             <Plus size={18} className="mr-2" />
             Add Revenue Line Item
           </Button>
 
           {/* Overall Summary */}
-          <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-[#3D2A5C]">
-            <div className="bg-blue-500/15 border border-blue-500/30 rounded-lg p-4 text-center">
-              <p className="text-xs text-blue-400 font-medium mb-1">Total Cost</p>
-              <p className="text-xl font-bold text-blue-400">{fmt(totals.totalCost)}</p>
+          <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-[#E4DCF0]">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
+              <p className="text-xs text-blue-700 font-medium mb-1">Total Cost</p>
+              <p className="text-xl font-bold text-blue-700">{fmt(totals.totalCost)}</p>
             </div>
-            <div className={`rounded-lg p-4 text-center border ${totalProfit !== null && totalProfit < 0 ? 'bg-red-500/15 border-red-500/30' : 'bg-emerald-500/15 border-emerald-500/30'}`}>
-              <p className={`text-xs font-medium mb-1 ${totalProfit !== null && totalProfit < 0 ? 'text-red-400' : 'text-emerald-400'}`}>Total Profit</p>
-              <p className={`text-xl font-bold ${totalProfit !== null && totalProfit < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+            <div className={`rounded-lg p-4 text-center border ${totalProfit !== null && totalProfit < 0 ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-200'}`}>
+              <p className={`text-xs font-medium mb-1 ${totalProfit !== null && totalProfit < 0 ? 'text-red-700' : 'text-emerald-700'}`}>Total Profit</p>
+              <p className={`text-xl font-bold ${totalProfit !== null && totalProfit < 0 ? 'text-red-700' : 'text-emerald-700'}`}>
                 {totalProfit !== null ? fmt(totalProfit) : '—'}
               </p>
             </div>
-            <div className="bg-purple-500/15 border border-purple-500/30 rounded-lg p-4 text-center">
-              <p className="text-xs text-purple-400 font-medium mb-1">Overall Margin</p>
-              <p className="text-xl font-bold text-purple-400">
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 text-center">
+              <p className="text-xs text-purple-700 font-medium mb-1">Overall Margin</p>
+              <p className="text-xl font-bold text-purple-700">
                 {totalMargin !== null ? `${totalMargin.toFixed(1)}%` : '—'}
               </p>
             </div>
@@ -729,10 +729,10 @@ const ProfitabilityAnalyzer = () => {
         </div>
       )}
 
-      <div className="bg-[#1E1533] border border-[#3D2A5C] shadow-sm">
-        <div className="divide-y divide-[#3D2A5C]">
+      <div className="bg-[#FFFFFF] border border-[#E4DCF0] shadow-sm">
+        <div className="divide-y divide-[#E4DCF0]">
           {analyses.length === 0 ? (
-            <div className="p-12 text-center text-[#9E8FC2]" data-testid="no-analyses">
+            <div className="p-12 text-center text-[#7A6B9E]" data-testid="no-analyses">
               <p>No profitability analyses yet</p>
             </div>
           ) : (
@@ -746,50 +746,50 @@ const ProfitabilityAnalyzer = () => {
                       </h3>
                       {expandedId === analysis.id ? <CaretUp size={16} /> : <CaretDown size={16} />}
                     </div>
-                    <div className="flex items-center gap-4 text-xs text-[#9E8FC2] mb-3 mt-1">
+                    <div className="flex items-center gap-4 text-xs text-[#7A6B9E] mb-3 mt-1">
                       <span>By {analysis.created_by?.name}</span>
                       <span>•</span>
                       <span>{new Date(analysis.created_at).toLocaleDateString()}</span>
                       {analysis.proposal_id && (
                         <>
                           <span>•</span>
-                          <span className="text-purple-400 font-medium">Linked to a proposal</span>
+                          <span className="text-purple-700 font-medium">Linked to a proposal</span>
                         </>
                       )}
                       <span>•</span>
                       <span>{analysis.revenue_line_items.length} line item(s)</span>
                     </div>
                     <div className="flex items-center gap-4 text-sm">
-                      <span className="text-[#9E8FC2]">
-                        Revenue: <span className="font-semibold text-[#F5F3FA]">{analysis.total_revenue ? fmt(analysis.total_revenue) : '—'}</span>
+                      <span className="text-[#7A6B9E]">
+                        Revenue: <span className="font-semibold text-[#1E1533]">{analysis.total_revenue ? fmt(analysis.total_revenue) : '—'}</span>
                       </span>
-                      <span className="text-[#9E8FC2]">
-                        Cost: <span className="font-semibold text-[#F5F3FA]">{fmt(analysis.total_cost)}</span>
+                      <span className="text-[#7A6B9E]">
+                        Cost: <span className="font-semibold text-[#1E1533]">{fmt(analysis.total_cost)}</span>
                       </span>
-                      <span className={analysis.profit !== null && analysis.profit < 0 ? 'text-red-400' : 'text-emerald-400'}>
+                      <span className={analysis.profit !== null && analysis.profit < 0 ? 'text-red-700' : 'text-emerald-700'}>
                         Profit: <span className="font-bold">{analysis.profit !== null ? fmt(analysis.profit) : '—'}</span>
                       </span>
-                      <span className="text-purple-400">
+                      <span className="text-purple-700">
                         Margin: <span className="font-bold">{analysis.margin_percent !== null ? `${analysis.margin_percent.toFixed(1)}%` : '—'}</span>
                       </span>
                     </div>
 
                     {expandedId === analysis.id && (
-                      <div className="mt-4 space-y-2 border-t border-[#3D2A5C] pt-4">
+                      <div className="mt-4 space-y-2 border-t border-[#E4DCF0] pt-4">
                         {analysis.revenue_line_items.map((li, i) => (
-                          <div key={i} className="bg-[#150E29] rounded p-3 text-xs">
+                          <div key={i} className="bg-[#F7F4FC] rounded p-3 text-xs">
                             <div className="flex justify-between font-semibold mb-1">
                               <span>
                                 {li.label}
-                                {li.reference_note && <span className="ml-2 text-[10px] font-normal text-purple-400">({li.reference_note})</span>}
+                                {li.reference_note && <span className="ml-2 text-[10px] font-normal text-purple-700">({li.reference_note})</span>}
                               </span>
                               <span>{li.revenue !== null ? fmt(li.revenue) : '—'} revenue</span>
                             </div>
-                            <div className="text-[#9E8FC2]">
+                            <div className="text-[#7A6B9E]">
                               Cost: {fmt(li.cost)} · Profit: {li.profit !== null ? fmt(li.profit) : '—'} · Margin: {li.margin_percent !== null ? `${li.margin_percent.toFixed(1)}%` : '—'}
                             </div>
                             {li.distributor_count && li.auto_costs && (
-                              <div className="mt-2 pl-3 border-l-2 border-amber-500/40 space-y-0.5 text-amber-400">
+                              <div className="mt-2 pl-3 border-l-2 border-amber-300 space-y-0.5 text-amber-700">
                                 <div>{li.distributor_count} distributors:</div>
                                 <div className="flex justify-between"><span>L2 ({li.auto_costs.l2_required.toFixed(3)})</span><span>{fmt(li.auto_costs.l2_cost)}</span></div>
                                 <div className="flex justify-between"><span>L3 ({li.auto_costs.l3_required.toFixed(3)})</span><span>{fmt(li.auto_costs.l3_cost)}</span></div>
@@ -799,9 +799,9 @@ const ProfitabilityAnalyzer = () => {
                               </div>
                             )}
                             {li.resource_lines.length > 0 && (
-                              <div className="mt-2 pl-3 border-l-2 border-purple-500/30 space-y-0.5">
+                              <div className="mt-2 pl-3 border-l-2 border-purple-200 space-y-0.5">
                                 {li.resource_lines.map((rl, j) => (
-                                  <div key={j} className="flex justify-between text-[#9E8FC2]">
+                                  <div key={j} className="flex justify-between text-[#7A6B9E]">
                                     <span>
                                       {rl.role_name} ({rl.allocation_percent}%)
                                       {rl.quantity && rl.unit && <span> · {rl.quantity} {rl.unit}</span>}
@@ -814,7 +814,7 @@ const ProfitabilityAnalyzer = () => {
                           </div>
                         ))}
                         {analysis.notes && (
-                          <p className="text-xs text-[#9E8FC2] italic pt-2">Notes: {analysis.notes}</p>
+                          <p className="text-xs text-[#7A6B9E] italic pt-2">Notes: {analysis.notes}</p>
                         )}
                       </div>
                     )}
@@ -824,7 +824,7 @@ const ProfitabilityAnalyzer = () => {
                       <Button variant="ghost" size="sm" onClick={() => openEditForm(analysis)} data-testid={`edit-analysis-${analysis.id}`}>
                         <PencilSimple size={18} />
                       </Button>
-                      <Button variant="ghost" size="sm" onClick={() => handleDelete(analysis.id)} className="text-red-400 hover:text-red-800" data-testid={`delete-analysis-${analysis.id}`}>
+                      <Button variant="ghost" size="sm" onClick={() => handleDelete(analysis.id)} className="text-red-700 hover:text-red-800" data-testid={`delete-analysis-${analysis.id}`}>
                         <Trash size={18} />
                       </Button>
                     </div>
