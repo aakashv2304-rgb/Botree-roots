@@ -42,8 +42,8 @@ const PendingApprovals = () => {
   });
 
   const getStatusColor = (status) => {
-    if (status === 'needs_revision') return 'bg-[#EF4444] text-[#F5F3FA]';
-    return 'bg-[#F59E0B] text-[#F5F3FA]';
+    if (status === 'needs_revision') return 'bg-[#EF4444] text-[#1E1533]';
+    return 'bg-[#F59E0B] text-[#1E1533]';
   };
 
   const getStatusLabel = (status) => {
@@ -70,13 +70,13 @@ const PendingApprovals = () => {
     <div className="p-6" data-testid="pending-page">
       <div className="mb-6">
         <h1 className="text-3xl font-display font-black tracking-tight mb-2">Pending Approvals</h1>
-        <p className="text-[#9E8FC2] font-body">Proposals awaiting your action</p>
+        <p className="text-[#7A6B9E] font-body">Proposals awaiting your action</p>
       </div>
 
-      <div className="bg-[#1E1533] border border-[#3D2A5C] shadow-sm">
-        <div className="divide-y divide-[#3D2A5C]">
+      <div className="bg-[#FFFFFF] border border-[#E4DCF0] shadow-sm">
+        <div className="divide-y divide-[#E4DCF0]">
           {myProposals.length === 0 ? (
-            <div className="p-12 text-center text-[#9E8FC2]" data-testid="no-pending">
+            <div className="p-12 text-center text-[#7A6B9E]" data-testid="no-pending">
               <p>No pending proposals</p>
             </div>
           ) : (
@@ -85,15 +85,15 @@ const PendingApprovals = () => {
                 key={proposal.id}
                 onClick={() => navigate(`/dashboard/proposal/${proposal.id}`)}
                 data-testid={`pending-proposal-${proposal.id}`}
-                className="p-6 hover:bg-[#150E29] cursor-pointer transition-colors"
+                className="p-6 hover:bg-[#F7F4FC] cursor-pointer transition-colors"
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <h3 className="text-lg font-semibold mb-1 font-heading">{proposal.title}</h3>
                     {proposal.description && (
-                      <p className="text-[#9E8FC2] text-sm mb-3">{proposal.description}</p>
+                      <p className="text-[#7A6B9E] text-sm mb-3">{proposal.description}</p>
                     )}
-                    <div className="flex items-center gap-4 text-xs text-[#9E8FC2]">
+                    <div className="flex items-center gap-4 text-xs text-[#7A6B9E]">
                       <span>By {proposal.created_by.name}</span>
                       <span>•</span>
                       <span>{new Date(proposal.created_at).toLocaleDateString()}</span>
