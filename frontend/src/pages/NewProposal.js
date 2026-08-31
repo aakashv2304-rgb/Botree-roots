@@ -203,7 +203,7 @@ const NewProposal = () => {
           <Button
             onClick={() => navigate('/dashboard')}
             variant="outline"
-            className="hover-lift"
+            className="hover-lift bg-[#FFFFFF] text-[#1E1533] border-[#E4DCF0] hover:bg-[#F1EBFA]"
           >
             <ArrowLeft size={20} className="mr-2" />
             Back
@@ -232,7 +232,7 @@ const NewProposal = () => {
                   value={formData.customer_name}
                   onChange={(e) => setFormData({ ...formData, customer_name: e.target.value })}
                   placeholder="Enter customer name"
-                  className="h-10"
+                  className="h-10 bg-[#FFFFFF] text-[#1E1533]"
                 />
                 <p className="text-xs text-[#7A6B9E]">This is how the proposal will be labeled everywhere</p>
               </div>
@@ -245,7 +245,7 @@ const NewProposal = () => {
                     value={formData.industry}
                     onChange={(e) => setFormData({ ...formData, industry: e.target.value })}
                     placeholder="e.g., Healthcare, Finance"
-                    className="h-10"
+                    className="h-10 bg-[#FFFFFF] text-[#1E1533]"
                   />
                 </div>
 
@@ -260,7 +260,7 @@ const NewProposal = () => {
                     value={formData.deal_value}
                     onChange={(e) => setFormData({ ...formData, deal_value: e.target.value })}
                     placeholder="e.g., 500000"
-                    className="h-10"
+                    className="h-10 bg-[#FFFFFF] text-[#1E1533]"
                   />
                   <p className="text-xs text-[#7A6B9E]">Total value in Indian Rupees (₹)</p>
                 </div>
@@ -278,7 +278,7 @@ const NewProposal = () => {
                     value={formData.contract_years}
                     onChange={(e) => setFormData({ ...formData, contract_years: e.target.value })}
                     placeholder="e.g., 3"
-                    className="h-10"
+                    className="h-10 bg-[#FFFFFF] text-[#1E1533]"
                   />
                 </div>
 
@@ -293,7 +293,7 @@ const NewProposal = () => {
                     value={formData.price_escalation_percent}
                     onChange={(e) => setFormData({ ...formData, price_escalation_percent: e.target.value })}
                     placeholder="e.g., 5"
-                    className="h-10"
+                    className="h-10 bg-[#FFFFFF] text-[#1E1533]"
                   />
                   <p className="text-xs text-[#7A6B9E]">Used to project price increases in subsequent contract years</p>
                 </div>
@@ -446,7 +446,7 @@ const NewProposal = () => {
                       onChange={(e) => updateOngoingCharge(key, 'description', e.target.value)}
                       placeholder="Pre-filled from the base template - edit as needed"
                       rows={2}
-                      className="bg-[#FFFFFF] text-sm"
+                      className="bg-[#FFFFFF] text-sm text-[#1E1533]"
                     />
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -497,6 +497,7 @@ const NewProposal = () => {
                 onChange={(e) => setFormData({ ...formData, comments: e.target.value })}
                 placeholder="Any additional notes or comments..."
                 rows={4}
+                className="bg-[#FFFFFF] text-[#1E1533]"
               />
             </div>
           </div>
@@ -508,6 +509,7 @@ const NewProposal = () => {
               variant="outline"
               onClick={() => navigate('/dashboard')}
               disabled={loading}
+              className="bg-[#FFFFFF] text-[#1E1533] border-[#E4DCF0] hover:bg-[#F1EBFA]"
             >
               Cancel
             </Button>
