@@ -61,13 +61,13 @@ const ApprovedProposals = () => {
     <div className="p-6" data-testid="approved-page">
       <div className="mb-6">
         <h1 className="text-3xl font-display font-black tracking-tight mb-2">Approved Proposals</h1>
-        <p className="text-[#9E8FC2] font-body">The final proposal document for each approved proposal</p>
+        <p className="text-[#7A6B9E] font-body">The final proposal document for each approved proposal</p>
       </div>
 
-      <div className="bg-[#1E1533] border border-[#3D2A5C] shadow-sm">
-        <div className="divide-y divide-[#3D2A5C]">
+      <div className="bg-[#FFFFFF] border border-[#E4DCF0] shadow-sm">
+        <div className="divide-y divide-[#E4DCF0]">
           {proposals.length === 0 ? (
-            <div className="p-12 text-center text-[#9E8FC2]" data-testid="no-approved">
+            <div className="p-12 text-center text-[#7A6B9E]" data-testid="no-approved">
               <p>No approved proposals yet</p>
             </div>
           ) : (
@@ -83,14 +83,14 @@ const ApprovedProposals = () => {
                   >
                     {proposal.title}
                   </h3>
-                  <p className="text-[#9E8FC2] text-xs mt-1 truncate">
+                  <p className="text-[#7A6B9E] text-xs mt-1 truncate">
                     {proposal.file_info?.filename || 'Document'}
-                    <span className="ml-2 font-semibold text-purple-400 bg-purple-500/15 px-1.5 py-0.5 rounded" data-testid={`approved-version-${proposal.id}`}>
+                    <span className="ml-2 font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded" data-testid={`approved-version-${proposal.id}`}>
                       v{proposal.current_version || 1}
                     </span>
                   </p>
                 </div>
-                <Badge className="bg-[#10B981] text-[#F5F3FA] flex-shrink-0" data-testid={`approved-status-${proposal.id}`}>
+                <Badge className="bg-[#10B981] text-[#1E1533] flex-shrink-0" data-testid={`approved-status-${proposal.id}`}>
                   Approved
                 </Badge>
                 <Button
