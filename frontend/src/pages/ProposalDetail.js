@@ -7,6 +7,7 @@ import { Textarea } from '../components/ui/textarea';
 import { Label } from '../components/ui/label';
 import { Badge } from '../components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
+import { Tabs, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { toast } from 'sonner';
 import { ArrowLeft, Check, Clock, Download, ArrowBendUpLeft, X, GitBranch, ListNumbers, FilePdf, Eye } from '@phosphor-icons/react';
 
@@ -28,8 +29,10 @@ const ProposalDetail = () => {
   const [proposal, setProposal] = useState(null);
   const [versions, setVersions] = useState([]);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
-  const [compareMode, setCompareMode] = useState(false);
-  const [selectedVersions, setSelectedVersions] = useState([]);
+  const [versionTab, setVersionTab] = useState('history'); // 'history' | 'compare'
+  const [compareA, setCompareA] = useState('');
+  const [compareB, setCompareB] = useState('');
+  const [activeComparison, setActiveComparison] = useState(null); // { aNum, bNum } | null
   const [loading, setLoading] = useState(true);
   const [comment, setComment] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
@@ -158,25 +161,20 @@ const ProposalDetail = () => {
     }
   };
 
-  const toggleVersionForCompare = (versionNumber) => {
-    if (selectedVersions.includes(versionNumber)) {
-      setSelectedVersions(selectedVersions.filter(v => v !== versionNumber));
-    } else if (selectedVersions.length >= 2) {
-      // Swap out the first-picked selection rather than blocking the click
-      setSelectedVersions([selectedVersions[1], versionNumber]);
-    } else {
-      setSelectedVersions([...selectedVersions, versionNumber]);
+  const handleCompareClick = () => {
+    if (compareA && compareB && compareA !== compareB) {
+      setActiveComparison({ aNum: parseInt(compareA), bNum: parseInt(compareB) });
     }
   };
 
   const getVersionComparison = () => {
-    if (selectedVersions.length !== 2) return null;
-    
-    const v1 = versions.find(v => v.version_number === selectedVersions[0]);
-    const v2 = versions.find(v => v.version_number === selectedVersions[1]);
-    
+    if (!activeComparison) return null;
+
+    const v1 = versions.find(v => v.version_number === activeComparison.aNum);
+    const v2 = versions.find(v => v.version_number === activeComparison.bNum);
+
     if (!v1 || !v2) return null;
-    
+
     // Ensure v1 is older than v2
     const [older, newer] = v1.version_number < v2.version_number ? [v1, v2] : [v2, v1];
     
@@ -426,8 +424,8 @@ const ProposalDetail = () => {
   if (!proposal) {
     return (
       <div className="p-6">
-        <div className="bg-[#1E1533] border border-[#3D2A5C] p-6 text-center">
-          <p className="text-[#9E8FC2]">Proposal not found</p>
+        <div className="bg-[#FFFFFF] border border-[#E4DCF0] p-6 text-center">
+          <p className="text-[#7A6B9E]">Proposal not found</p>
         </div>
       </div>
     );
@@ -459,7 +457,7 @@ const ProposalDetail = () => {
       <Button
         onClick={() => navigate('/dashboard')}
         variant="ghost"
-        className="mb-6 text-[#9E8FC2] hover:text-[#F5F3FA]"
+        className="mb-6 text-[#7A6B9E] hover:text-[#1E1533]"
         data-testid="back-to-dashboard"
       >
         <ArrowLeft size={20} className="mr-2" />
@@ -468,14 +466,14 @@ const ProposalDetail = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 space-y-6">
-          <div className="bg-[#1E1533] border border-[#3D2A5C] p-6 shadow-sm">
+          <div className="bg-[#FFFFFF] border border-[#E4DCF0] p-6 shadow-sm">
             <div className="flex items-start justify-between mb-6">
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">
                   <h1 className="text-2xl font-bold tracking-tight" data-testid="proposal-title">
                     {proposal.title}
                   </h1>
-                  <Badge className="bg-indigo-500/25 text-indigo-400 border border-indigo-500/40 flex items-center gap-1">
+                  <Badge className="bg-indigo-100 text-indigo-700 border border-indigo-300 flex items-center gap-1">
                     <GitBranch size={14} />
                     {proposal.versions && proposal.versions.length > 0 
                       ? proposal.versions[proposal.current_version - 1]?.version_label 
@@ -494,7 +492,7 @@ const ProposalDetail = () => {
                   )}
                 </div>
                 {proposal.description && (
-                  <p className="text-[#9E8FC2]">{proposal.description}</p>
+                  <p className="text-[#7A6B9E]">{proposal.description}</p>
                 )}
               </div>
               <div className="flex items-center gap-3">
@@ -524,26 +522,26 @@ const ProposalDetail = () => {
               </div>
             </div>
 
-            <div className="space-y-3 text-sm border-t border-[#3D2A5C] pt-4 mt-4">
+            <div className="space-y-3 text-sm border-t border-[#E4DCF0] pt-4 mt-4">
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex items-center gap-2">
-                  <span className="text-[#9E8FC2] text-xs font-medium">Created by:</span>
+                  <span className="text-[#7A6B9E] text-xs font-medium">Created by:</span>
                   <span className="font-semibold text-xs">{proposal.created_by.name} ({proposal.created_by.role})</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-[#9E8FC2] text-xs font-medium">Created on:</span>
+                  <span className="text-[#7A6B9E] text-xs font-medium">Created on:</span>
                   <span className="font-semibold text-xs">{new Date(proposal.created_at).toLocaleDateString()}</span>
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[#9E8FC2] text-xs font-medium">Document:</span>
+                <span className="text-[#7A6B9E] text-xs font-medium">Document:</span>
                 {proposal.file_info ? (
                   <>
-                    <span className="text-xs text-[#E5DFF2] font-medium">{proposal.file_info.filename}</span>
+                    <span className="text-xs text-[#2D1F47] font-medium">{proposal.file_info.filename}</span>
                     <Button
                       onClick={handlePreview}
                       variant="link"
-                      className="h-auto p-0 text-blue-400 hover:text-blue-800 text-xs"
+                      className="h-auto p-0 text-blue-700 hover:text-blue-800 text-xs"
                       data-testid="preview-button"
                     >
                       <Eye size={14} className="mr-1" />
@@ -552,7 +550,7 @@ const ProposalDetail = () => {
                     <Button
                       onClick={handleDownload}
                       variant="link"
-                      className="h-auto p-0 text-pink-400 hover:text-pink-800 text-xs"
+                      className="h-auto p-0 text-pink-700 hover:text-pink-800 text-xs"
                       data-testid="download-button"
                     >
                       <Download size={14} className="mr-1" />
@@ -560,56 +558,56 @@ const ProposalDetail = () => {
                     </Button>
                   </>
                 ) : (
-                  <span className="text-xs text-[#8B7FAE] italic">No document attached</span>
+                  <span className="text-xs text-[#8577A3] italic">No document attached</span>
                 )}
               </div>
             </div>
 
             {/* Extended Fields */}
             {(proposal.customer_name || proposal.industry || proposal.deal_value || proposal.one_time_setup_fee || proposal.integration_fee || proposal.additional_fees?.length > 0 || proposal.contract_years || proposal.price_escalation_percent || proposal.comments || proposal.flexidms_distributor_charge || proposal.dms_distributor_charge || proposal.sfa_user_charge || proposal.shared_l1_support_charge || proposal.include_dms_training || proposal.include_sfa_training || proposal.include_flexidms_deployment || proposal.customization_fee || proposal.workshop_fee) && (
-              <div className="border-t border-[#3D2A5C] pt-4 mt-4">
-                <h3 className="text-sm font-heading font-bold text-[#F5F3FA] mb-3">Proposal Details</h3>
+              <div className="border-t border-[#E4DCF0] pt-4 mt-4">
+                <h3 className="text-sm font-heading font-bold text-[#1E1533] mb-3">Proposal Details</h3>
                 <div className="grid grid-cols-2 gap-3 text-xs">
                   {proposal.deal_value && (
-                    <div className="bg-emerald-500/15 p-2 rounded border border-emerald-500/30">
-                      <span className="text-emerald-400 font-medium block mb-1">Total Deal Value</span>
-                      <span className="text-emerald-400 font-bold text-base">₹{proposal.deal_value.toLocaleString('en-IN')}</span>
+                    <div className="bg-emerald-50 p-2 rounded border border-emerald-200">
+                      <span className="text-emerald-700 font-medium block mb-1">Total Deal Value</span>
+                      <span className="text-emerald-700 font-bold text-base">₹{proposal.deal_value.toLocaleString('en-IN')}</span>
                     </div>
                   )}
                   {proposal.one_time_setup_fee && (
-                    <div className="bg-blue-500/15 p-2 rounded border border-blue-500/30">
-                      <span className="text-blue-400 font-medium block mb-1">One-Time Setup</span>
-                      <span className="text-blue-400 font-bold text-base">₹{proposal.one_time_setup_fee.toLocaleString('en-IN')}</span>
+                    <div className="bg-blue-50 p-2 rounded border border-blue-200">
+                      <span className="text-blue-700 font-medium block mb-1">One-Time Setup</span>
+                      <span className="text-blue-700 font-bold text-base">₹{proposal.one_time_setup_fee.toLocaleString('en-IN')}</span>
                     </div>
                   )}
                   {proposal.integration_fee && (
-                    <div className="bg-blue-500/15 p-2 rounded border border-blue-500/30">
-                      <span className="text-blue-400 font-medium block mb-1">Integration</span>
-                      <span className="text-blue-400 font-bold text-base">₹{proposal.integration_fee.toLocaleString('en-IN')}</span>
+                    <div className="bg-blue-50 p-2 rounded border border-blue-200">
+                      <span className="text-blue-700 font-medium block mb-1">Integration</span>
+                      <span className="text-blue-700 font-bold text-base">₹{proposal.integration_fee.toLocaleString('en-IN')}</span>
                     </div>
                   )}
                   {proposal.customer_name && (
-                    <div className="bg-[#150E29] p-2 rounded">
-                      <span className="text-[#9E8FC2] font-medium block mb-1">Customer</span>
-                      <span className="text-[#F5F3FA] font-semibold">{proposal.customer_name}</span>
+                    <div className="bg-[#F7F4FC] p-2 rounded">
+                      <span className="text-[#7A6B9E] font-medium block mb-1">Customer</span>
+                      <span className="text-[#1E1533] font-semibold">{proposal.customer_name}</span>
                     </div>
                   )}
                   {proposal.industry && (
-                    <div className="bg-[#150E29] p-2 rounded">
-                      <span className="text-[#9E8FC2] font-medium block mb-1">Industry</span>
-                      <span className="text-[#F5F3FA] font-semibold">{proposal.industry}</span>
+                    <div className="bg-[#F7F4FC] p-2 rounded">
+                      <span className="text-[#7A6B9E] font-medium block mb-1">Industry</span>
+                      <span className="text-[#1E1533] font-semibold">{proposal.industry}</span>
                     </div>
                   )}
                   {proposal.contract_years && (
-                    <div className="bg-amber-500/15 p-2 rounded border border-amber-500/30">
-                      <span className="text-amber-400 font-medium block mb-1">Contract Tenure</span>
-                      <span className="text-amber-400 font-semibold">{proposal.contract_years} year{proposal.contract_years > 1 ? 's' : ''}</span>
+                    <div className="bg-amber-50 p-2 rounded border border-amber-200">
+                      <span className="text-amber-700 font-medium block mb-1">Contract Tenure</span>
+                      <span className="text-amber-700 font-semibold">{proposal.contract_years} year{proposal.contract_years > 1 ? 's' : ''}</span>
                     </div>
                   )}
                   {proposal.price_escalation_percent && (
-                    <div className="bg-amber-500/15 p-2 rounded border border-amber-500/30">
-                      <span className="text-amber-400 font-medium block mb-1">Price Escalation / Year</span>
-                      <span className="text-amber-400 font-semibold">{proposal.price_escalation_percent}%</span>
+                    <div className="bg-amber-50 p-2 rounded border border-amber-200">
+                      <span className="text-amber-700 font-medium block mb-1">Price Escalation / Year</span>
+                      <span className="text-amber-700 font-semibold">{proposal.price_escalation_percent}%</span>
                     </div>
                   )}
                 </div>
@@ -617,22 +615,22 @@ const ProposalDetail = () => {
                 {/* Other One-Time Line Items (toggles + optional TBD fees) */}
                 {(proposal.include_dms_training || proposal.include_sfa_training || proposal.include_flexidms_deployment || proposal.customization_fee || proposal.workshop_fee) && (
                   <div className="mt-4">
-                    <h4 className="font-bold text-[#F5F3FA] mb-2 text-sm">Other One-Time Line Items</h4>
+                    <h4 className="font-bold text-[#1E1533] mb-2 text-sm">Other One-Time Line Items</h4>
                     <div className="flex flex-wrap gap-2 text-xs">
                       {proposal.include_dms_training && (
-                        <span className="bg-indigo-500/15 border border-indigo-500/30 text-indigo-400 rounded px-2 py-1">DMS Training included</span>
+                        <span className="bg-indigo-50 border border-indigo-200 text-indigo-700 rounded px-2 py-1">DMS Training included</span>
                       )}
                       {proposal.include_sfa_training && (
-                        <span className="bg-indigo-500/15 border border-indigo-500/30 text-indigo-400 rounded px-2 py-1">SFA Training included</span>
+                        <span className="bg-indigo-50 border border-indigo-200 text-indigo-700 rounded px-2 py-1">SFA Training included</span>
                       )}
                       {proposal.include_flexidms_deployment && (
-                        <span className="bg-indigo-500/15 border border-indigo-500/30 text-indigo-400 rounded px-2 py-1">Flexi DMS Deployment included</span>
+                        <span className="bg-indigo-50 border border-indigo-200 text-indigo-700 rounded px-2 py-1">Flexi DMS Deployment included</span>
                       )}
                       {proposal.customization_fee && (
-                        <span className="bg-indigo-500/15 border border-indigo-500/30 text-indigo-400 rounded px-2 py-1">Customization: ₹{proposal.customization_fee.toLocaleString('en-IN')}</span>
+                        <span className="bg-indigo-50 border border-indigo-200 text-indigo-700 rounded px-2 py-1">Customization: ₹{proposal.customization_fee.toLocaleString('en-IN')}</span>
                       )}
                       {proposal.workshop_fee && (
-                        <span className="bg-indigo-500/15 border border-indigo-500/30 text-indigo-400 rounded px-2 py-1">Workshop/Data Migration: ₹{proposal.workshop_fee.toLocaleString('en-IN')}</span>
+                        <span className="bg-indigo-50 border border-indigo-200 text-indigo-700 rounded px-2 py-1">Workshop/Data Migration: ₹{proposal.workshop_fee.toLocaleString('en-IN')}</span>
                       )}
                     </div>
                   </div>
@@ -640,12 +638,12 @@ const ProposalDetail = () => {
 
                 {proposal.additional_fees && proposal.additional_fees.length > 0 && (
                   <div className="mt-4">
-                    <h4 className="font-bold text-[#F5F3FA] mb-2 text-sm">Extra Charges</h4>
+                    <h4 className="font-bold text-[#1E1533] mb-2 text-sm">Extra Charges</h4>
                     <div className="space-y-1">
                       {proposal.additional_fees.map((fee, fIndex) => (
-                        <div key={fIndex} className="flex justify-between text-xs bg-blue-500/15 border border-blue-500/30 rounded px-3 py-2">
-                          <span className="text-[#B9AED4]">{fee.name}</span>
-                          <span className="text-[#F5F3FA] font-semibold">₹{fee.value.toLocaleString('en-IN')}</span>
+                        <div key={fIndex} className="flex justify-between text-xs bg-blue-50 border border-blue-200 rounded px-3 py-2">
+                          <span className="text-[#5B4B7A]">{fee.name}</span>
+                          <span className="text-[#1E1533] font-semibold">₹{fee.value.toLocaleString('en-IN')}</span>
                         </div>
                       ))}
                     </div>
@@ -660,7 +658,7 @@ const ProposalDetail = () => {
                   { key: 'shared_l1_support_charge', label: 'Shared L1 Support Fee' },
                 ].some(({ key }) => proposal[key]) && (
                   <div className="mt-4">
-                    <h4 className="font-bold text-[#F5F3FA] mb-2 text-sm">Ongoing / Recurring &amp; Subscription Charges</h4>
+                    <h4 className="font-bold text-[#1E1533] mb-2 text-sm">Ongoing / Recurring &amp; Subscription Charges</h4>
                     <div className="space-y-2">
                       {[
                         { key: 'flexidms_distributor_charge', label: 'Flexi DMS – Distributor Users' },
@@ -668,12 +666,12 @@ const ProposalDetail = () => {
                         { key: 'sfa_user_charge', label: 'No. of SFA Users' },
                         { key: 'shared_l1_support_charge', label: 'Shared L1 Support Fee' },
                       ].filter(({ key }) => proposal[key]).map(({ key, label }) => (
-                        <div key={key} className="bg-teal-500/15 border border-teal-500/30 rounded px-3 py-2 text-xs">
-                          <span className="text-teal-400 font-semibold block mb-1">{label}</span>
+                        <div key={key} className="bg-teal-50 border border-teal-200 rounded px-3 py-2 text-xs">
+                          <span className="text-teal-700 font-semibold block mb-1">{label}</span>
                           {proposal[key].description && (
-                            <p className="text-teal-400 mb-2">{proposal[key].description}</p>
+                            <p className="text-teal-700 mb-2">{proposal[key].description}</p>
                           )}
-                          <div className="grid grid-cols-3 gap-2 text-teal-400">
+                          <div className="grid grid-cols-3 gap-2 text-teal-700">
                             {proposal[key].quantity != null && (
                               <span>Qty: <span className="font-semibold">{proposal[key].quantity}</span></span>
                             )}
@@ -691,9 +689,9 @@ const ProposalDetail = () => {
                 )}
 
                 {proposal.comments && (
-                  <div className="bg-[#150E29] p-2 rounded mt-3">
-                    <span className="text-[#9E8FC2] font-medium text-xs block mb-1">Comments</span>
-                    <p className="text-[#F5F3FA] text-xs">{proposal.comments}</p>
+                  <div className="bg-[#F7F4FC] p-2 rounded mt-3">
+                    <span className="text-[#7A6B9E] font-medium text-xs block mb-1">Comments</span>
+                    <p className="text-[#1E1533] text-xs">{proposal.comments}</p>
                   </div>
                 )}
               </div>
@@ -703,16 +701,16 @@ const ProposalDetail = () => {
                 Visible only to Finance/CFO/Admin; editable only by Finance
                 while the proposal sits at the Finance stage. */}
             {canViewFinanceFields() && (
-              <div className="border-t border-[#3D2A5C] pt-4 mt-4" data-testid="finance-only-section">
-                <h3 className="text-sm font-heading font-bold text-[#F5F3FA] mb-3 flex items-center gap-2">
+              <div className="border-t border-[#E4DCF0] pt-4 mt-4" data-testid="finance-only-section">
+                <h3 className="text-sm font-heading font-bold text-[#1E1533] mb-3 flex items-center gap-2">
                   Finance Notes
-                  <span className="text-[10px] uppercase font-semibold text-purple-400 bg-purple-500/25 px-2 py-0.5 rounded">
+                  <span className="text-[10px] uppercase font-semibold text-purple-700 bg-purple-100 px-2 py-0.5 rounded">
                     Finance / CFO only
                   </span>
                 </h3>
 
                 {canEditFinanceFields() ? (
-                  <div className="space-y-4 bg-purple-500/15 border border-purple-500/30 rounded-lg p-4">
+                  <div className="space-y-4 bg-purple-50 border border-purple-200 rounded-lg p-4">
                     <div className="space-y-2">
                       <Label htmlFor="about-customer">About the Customer</Label>
                       <Textarea
@@ -738,7 +736,7 @@ const ProposalDetail = () => {
                     <Button
                       onClick={handleSaveFinanceDetails}
                       disabled={savingFinanceDetails}
-                      className="bg-[#9B30FF] hover:bg-[#7518F2] text-[#F5F3FA]"
+                      className="bg-[#9B30FF] hover:bg-[#7518F2] text-white"
                       data-testid="save-finance-details-button"
                     >
                       {savingFinanceDetails ? 'Saving...' : 'Save Finance Notes'}
@@ -746,15 +744,15 @@ const ProposalDetail = () => {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 gap-3 text-xs">
-                    <div className="bg-purple-500/15 p-3 rounded border border-purple-500/30">
-                      <span className="text-purple-400 font-medium block mb-1">About the Customer</span>
-                      <span className="text-[#F5F3FA] whitespace-pre-wrap">
+                    <div className="bg-purple-50 p-3 rounded border border-purple-200">
+                      <span className="text-purple-700 font-medium block mb-1">About the Customer</span>
+                      <span className="text-[#1E1533] whitespace-pre-wrap">
                         {proposal.about_customer || 'Not filled in yet by Finance.'}
                       </span>
                     </div>
-                    <div className="bg-purple-500/15 p-3 rounded border border-purple-500/30">
-                      <span className="text-purple-400 font-medium block mb-1">Profitability</span>
-                      <span className="text-[#F5F3FA] whitespace-pre-wrap">
+                    <div className="bg-purple-50 p-3 rounded border border-purple-200">
+                      <span className="text-purple-700 font-medium block mb-1">Profitability</span>
+                      <span className="text-[#1E1533] whitespace-pre-wrap">
                         {proposal.profitability || 'Not filled in yet by Finance.'}
                       </span>
                     </div>
@@ -766,50 +764,80 @@ const ProposalDetail = () => {
 
           {/* Version History */}
           {showVersionHistory && versions.length > 1 && (
-            <div className="bg-[#1E1533] border border-[#3D2A5C] p-6 shadow-sm">
-              <div className="flex items-center justify-between mb-6">
+            <div className="bg-[#FFFFFF] border border-[#E4DCF0] p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
                 <h2 className="text-xl font-bold tracking-tight flex items-center gap-2">
                   <GitBranch size={24} />
                   Version History
                 </h2>
-                <div className="flex items-center gap-2">
-                  {!compareMode && (
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => {
-                        setCompareMode(true);
-                        setSelectedVersions([]);
-                      }}
-                      disabled={versions.length < 2}
-                    >
-                      Compare Versions
-                    </Button>
-                  )}
-                  {compareMode && (
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => {
-                        setCompareMode(false);
-                        setSelectedVersions([]);
-                      }}
-                    >
-                      Cancel Compare
-                    </Button>
-                  )}
-                </div>
+                <Tabs value={versionTab} onValueChange={setVersionTab}>
+                  <TabsList>
+                    <TabsTrigger value="history" data-testid="version-history-tab">History</TabsTrigger>
+                    <TabsTrigger value="compare" data-testid="version-compare-tab">Compare</TabsTrigger>
+                  </TabsList>
+                </Tabs>
               </div>
 
-              {compareMode && selectedVersions.length < 2 && (
-                <div className="mb-6 p-3 bg-blue-500/15 border border-blue-500/30 rounded text-sm text-blue-800">
-                  Select any 2 versions below to compare ({selectedVersions.length}/2 selected)
-                </div>
-              )}
+              {/* Compare tab: pick any two versions via dropdowns, then click Compare */}
+              {versionTab === 'compare' && (
+                <div className="mb-6 space-y-5">
+                  <div className="flex flex-col sm:flex-row items-end gap-4 p-4 bg-[#F7F4FC] border border-[#E4DCF0] rounded-lg">
+                    <div className="flex-1 w-full space-y-1.5">
+                      <Label className="text-xs font-semibold text-[#5B4B7A]">Version A</Label>
+                      <select
+                        value={compareA}
+                        onChange={(e) => setCompareA(e.target.value)}
+                        data-testid="compare-version-a"
+                        className="w-full h-9 px-3 rounded-lg bg-[#FFFFFF] border border-[#E4DCF0] text-sm text-[#1E1533] focus:outline-none focus:ring-2 focus:ring-[#9B30FF]/30 focus:border-[#9B30FF]"
+                      >
+                        <option value="">Select a version...</option>
+                        {versions.slice().sort((a, b) => b.version_number - a.version_number).map((v) => (
+                          <option key={v.version_number} value={v.version_number} className="bg-[#FFFFFF] text-[#1E1533]">
+                            {v.version_label}{v.version_number === proposal.current_version ? ' (Current)' : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
 
-              {/* Version Comparison View (Option A + B: full commercial diff, any two versions) */}
-              {compareMode && selectedVersions.length === 2 && getVersionComparison() && (
-                <div className="mb-6 p-6 bg-blue-500/15 border border-blue-500/30 rounded-lg">
+                    <span className="hidden sm:block text-[#8577A3] pb-2">vs</span>
+
+                    <div className="flex-1 w-full space-y-1.5">
+                      <Label className="text-xs font-semibold text-[#5B4B7A]">Version B</Label>
+                      <select
+                        value={compareB}
+                        onChange={(e) => setCompareB(e.target.value)}
+                        data-testid="compare-version-b"
+                        className="w-full h-9 px-3 rounded-lg bg-[#FFFFFF] border border-[#E4DCF0] text-sm text-[#1E1533] focus:outline-none focus:ring-2 focus:ring-[#9B30FF]/30 focus:border-[#9B30FF]"
+                      >
+                        <option value="">Select a version...</option>
+                        {versions.slice().sort((a, b) => b.version_number - a.version_number).map((v) => (
+                          <option key={v.version_number} value={v.version_number} className="bg-[#FFFFFF] text-[#1E1533]">
+                            {v.version_label}{v.version_number === proposal.current_version ? ' (Current)' : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <Button
+                      onClick={handleCompareClick}
+                      disabled={!compareA || !compareB || compareA === compareB}
+                      data-testid="compare-button"
+                      className="text-white shrink-0"
+                      style={{ backgroundColor: '#9B30FF' }}
+                    >
+                      Compare
+                    </Button>
+                  </div>
+
+                  {compareA && compareB && compareA === compareB && (
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded text-sm text-amber-800">
+                      Select two different versions to compare.
+                    </div>
+                  )}
+
+              {/* Version Comparison View: full commercial diff between the two chosen versions */}
+              {activeComparison && getVersionComparison() && (
+                <div className="p-6 bg-blue-50 border border-blue-200 rounded-lg">
                   {(() => {
                     const { older, newer } = getVersionComparison();
                     const simpleDiffs = getSimpleFieldDiffs(older, newer);
@@ -823,9 +851,9 @@ const ProposalDetail = () => {
 
                     const statusBadge = (status) => {
                       const map = {
-                        added: 'bg-emerald-500/25 text-emerald-400',
-                        removed: 'bg-red-500/25 text-red-400',
-                        changed: 'bg-amber-500/25 text-amber-400',
+                        added: 'bg-emerald-100 text-emerald-700',
+                        removed: 'bg-red-100 text-red-700',
+                        changed: 'bg-amber-100 text-amber-700',
                       };
                       return <Badge className={`text-xs font-semibold border-0 ${map[status]}`}>{status}</Badge>;
                     };
@@ -833,11 +861,11 @@ const ProposalDetail = () => {
                     return (
                       <div className="space-y-5">
                         <div className="grid grid-cols-2 gap-4">
-                          <div className="text-center p-2 bg-red-500/25 rounded">
+                          <div className="text-center p-2 bg-red-100 rounded">
                             <Badge className="bg-red-600">{older.version_label}</Badge>
                             <p className="text-xs mt-1">{new Date(older.created_at).toLocaleDateString()}</p>
                           </div>
-                          <div className="text-center p-2 bg-green-500/25 rounded">
+                          <div className="text-center p-2 bg-green-100 rounded">
                             <Badge className="bg-green-600">{newer.version_label}</Badge>
                             <p className="text-xs mt-1">{new Date(newer.created_at).toLocaleDateString()}</p>
                           </div>
@@ -853,17 +881,17 @@ const ProposalDetail = () => {
                         {simpleDiffs.map((diff) => (
                           <div
                             key={diff.key}
-                            className={`grid grid-cols-2 gap-4 p-3 rounded ${diff.changed ? 'bg-amber-500/15 border border-amber-500/40' : 'bg-[#1E1533] border border-[#3D2A5C]'}`}
+                            className={`grid grid-cols-2 gap-4 p-3 rounded ${diff.changed ? 'bg-amber-50 border border-amber-300' : 'bg-[#FFFFFF] border border-[#E4DCF0]'}`}
                           >
                             <div>
-                              <p className="text-xs font-semibold text-[#9E8FC2] mb-1">{diff.label}</p>
-                              <p className={`text-sm ${diff.changed ? 'line-through text-red-400' : 'text-[#F5F3FA]'}`}>
+                              <p className="text-xs font-semibold text-[#7A6B9E] mb-1">{diff.label}</p>
+                              <p className={`text-sm ${diff.changed ? 'line-through text-red-700' : 'text-[#1E1533]'}`}>
                                 {diff.oldDisplay}
                               </p>
                             </div>
                             <div>
-                              <p className="text-xs font-semibold text-[#9E8FC2] mb-1">{diff.label}</p>
-                              <p className={`text-sm ${diff.changed ? 'font-bold text-emerald-400' : 'text-[#F5F3FA]'}`}>
+                              <p className="text-xs font-semibold text-[#7A6B9E] mb-1">{diff.label}</p>
+                              <p className={`text-sm ${diff.changed ? 'font-bold text-emerald-700' : 'text-[#1E1533]'}`}>
                                 {diff.newDisplay}
                               </p>
                             </div>
@@ -874,17 +902,17 @@ const ProposalDetail = () => {
                         {chargeDiffs.map((diff) => (
                           <div
                             key={diff.key}
-                            className={`p-3 rounded ${diff.status !== 'unchanged' ? 'bg-amber-500/15 border border-amber-500/40' : 'bg-[#1E1533] border border-[#3D2A5C]'}`}
+                            className={`p-3 rounded ${diff.status !== 'unchanged' ? 'bg-amber-50 border border-amber-300' : 'bg-[#FFFFFF] border border-[#E4DCF0]'}`}
                           >
                             <div className="flex items-center justify-between mb-2">
-                              <p className="text-xs font-semibold text-[#9E8FC2]">{diff.label}</p>
+                              <p className="text-xs font-semibold text-[#7A6B9E]">{diff.label}</p>
                               {diff.status !== 'unchanged' && statusBadge(diff.status)}
                             </div>
                             <div className="grid grid-cols-2 gap-4">
-                              <p className={`text-sm ${diff.status === 'removed' || diff.status === 'changed' ? 'line-through text-red-400' : 'text-[#F5F3FA]'}`}>
+                              <p className={`text-sm ${diff.status === 'removed' || diff.status === 'changed' ? 'line-through text-red-700' : 'text-[#1E1533]'}`}>
                                 {formatChargeLine(diff.oldCharge) || '—'}
                               </p>
-                              <p className={`text-sm ${diff.status === 'added' || diff.status === 'changed' ? 'font-bold text-emerald-400' : 'text-[#F5F3FA]'}`}>
+                              <p className={`text-sm ${diff.status === 'added' || diff.status === 'changed' ? 'font-bold text-emerald-700' : 'text-[#1E1533]'}`}>
                                 {formatChargeLine(diff.newCharge) || '—'}
                               </p>
                             </div>
@@ -894,19 +922,19 @@ const ProposalDetail = () => {
                         {/* Extra Charges */}
                         {feeDiffs.length > 0 && (
                           <div className="space-y-2">
-                            <p className="text-xs font-semibold text-[#9E8FC2]">Extra Charges</p>
+                            <p className="text-xs font-semibold text-[#7A6B9E]">Extra Charges</p>
                             {feeDiffs.map((diff) => (
                               <div
                                 key={diff.name}
-                                className={`flex items-center justify-between p-3 rounded ${diff.status !== 'unchanged' ? 'bg-amber-500/15 border border-amber-500/40' : 'bg-[#1E1533] border border-[#3D2A5C]'}`}
+                                className={`flex items-center justify-between p-3 rounded ${diff.status !== 'unchanged' ? 'bg-amber-50 border border-amber-300' : 'bg-[#FFFFFF] border border-[#E4DCF0]'}`}
                               >
-                                <span className="text-sm text-[#F5F3FA]">{diff.name}</span>
+                                <span className="text-sm text-[#1E1533]">{diff.name}</span>
                                 <div className="flex items-center gap-3">
-                                  <span className={`text-sm ${diff.status === 'removed' ? 'line-through text-red-400' : 'text-[#F5F3FA]'}`}>
+                                  <span className={`text-sm ${diff.status === 'removed' ? 'line-through text-red-700' : 'text-[#1E1533]'}`}>
                                     {diff.oldFee ? `₹${diff.oldFee.value.toLocaleString('en-IN')}` : '—'}
                                   </span>
-                                  <span className="text-[#8B7FAE]">→</span>
-                                  <span className={`text-sm ${diff.status === 'added' || diff.status === 'changed' ? 'font-bold text-emerald-400' : 'text-[#F5F3FA]'}`}>
+                                  <span className="text-[#8577A3]">→</span>
+                                  <span className={`text-sm ${diff.status === 'added' || diff.status === 'changed' ? 'font-bold text-emerald-700' : 'text-[#1E1533]'}`}>
                                     {diff.newFee ? `₹${diff.newFee.value.toLocaleString('en-IN')}` : '—'}
                                   </span>
                                   {statusBadge(diff.status)}
@@ -920,13 +948,15 @@ const ProposalDetail = () => {
                   })()}
                 </div>
               )}
+                </div>
+              )}
 
-              {/* Change-note timeline (Option C) */}
-              {!compareMode && (
+              {/* Change-note timeline */}
+              {versionTab === 'history' && (
                 <div className="mb-6">
-                  <h3 className="text-sm font-bold text-[#B9AED4] uppercase tracking-wide mb-3">Change Timeline</h3>
+                  <h3 className="text-sm font-bold text-[#5B4B7A] uppercase tracking-wide mb-3">Change Timeline</h3>
                   <div className="relative pl-6">
-                    <div className="absolute left-[7px] top-2 bottom-2 w-px bg-[#3D2A5C]"></div>
+                    <div className="absolute left-[7px] top-2 bottom-2 w-px bg-[#E4DCF0]"></div>
                     {versions.slice().reverse().map((version) => (
                       <div key={version.version_number} className="relative pb-5 last:pb-0">
                         <div
@@ -935,55 +965,46 @@ const ProposalDetail = () => {
                           }`}
                         ></div>
                         <div className="flex items-center gap-2 flex-wrap mb-1">
-                          <span className="text-sm font-semibold text-[#F5F3FA]">{version.version_label}</span>
-                          <span className="text-xs text-[#8B7FAE]">{new Date(version.created_at).toLocaleString()}</span>
-                          <span className="text-xs text-[#8B7FAE]">· {version.created_by?.name || 'Unknown'}</span>
+                          <span className="text-sm font-semibold text-[#1E1533]">{version.version_label}</span>
+                          <span className="text-xs text-[#8577A3]">{new Date(version.created_at).toLocaleString()}</span>
+                          <span className="text-xs text-[#8577A3]">· {version.created_by?.name || 'Unknown'}</span>
                         </div>
-                        <p className="text-sm text-[#B9AED4]">{version.change_note}</p>
+                        <p className="text-sm text-[#5B4B7A]">{version.change_note}</p>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
 
+              {versionTab === 'history' && (
               <div className="space-y-4">
                 {versions.slice().reverse().map((version, index) => (
                   <div 
                     key={version.version_number} 
                     className={`p-4 rounded-lg border ${
                       version.version_number === proposal.current_version 
-                        ? 'border-indigo-500 bg-indigo-500/15' 
-                        : compareMode && selectedVersions.includes(version.version_number)
-                        ? 'border-blue-500 bg-blue-500/15'
-                        : 'border-[#3D2A5C] bg-[#150E29]'
+                        ? 'border-indigo-500 bg-indigo-50' 
+                        : 'border-[#E4DCF0] bg-[#F7F4FC]'
                     }`}
                   >
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex items-center gap-2 flex-wrap">
-                        {compareMode && (
-                          <input 
-                            type="checkbox"
-                            checked={selectedVersions.includes(version.version_number)}
-                            onChange={() => toggleVersionForCompare(version.version_number)}
-                            className="w-4 h-4 text-blue-400"
-                          />
-                        )}
                         <Badge className={
                           version.version_number === proposal.current_version 
                             ? 'bg-indigo-600 text-white' 
-                            : 'bg-[#3D2A5C] text-[#F5F3FA]'
+                            : 'bg-[#E4DCF0] text-[#1E1533]'
                         }>
                           {version.version_label}
                         </Badge>
                         {version.version_number === proposal.current_version && (
-                          <span className="text-xs text-indigo-400 font-semibold">CURRENT</span>
+                          <span className="text-xs text-indigo-700 font-semibold">CURRENT</span>
                         )}
                         {canEdit() && version.version_number !== proposal.current_version && !proposal.is_closed && (
                           <Button
                             size="sm"
                             variant="outline"
                             onClick={() => handleRestoreVersion(version.version_number)}
-                            className="text-xs border-purple-500 text-purple-400 hover:bg-purple-500 hover:text-white"
+                            className="text-xs border-purple-500 text-purple-700 hover:bg-purple-500 hover:text-white"
                           >
                             Restore This Version
                           </Button>
@@ -992,13 +1013,13 @@ const ProposalDetail = () => {
                           size="sm"
                           variant="outline"
                           onClick={() => handleDownloadPDF(version.version_number, version.version_label)}
-                          className="text-xs border-blue-500 text-blue-400 hover:bg-blue-500 hover:text-white"
+                          className="text-xs border-blue-500 text-blue-700 hover:bg-blue-500 hover:text-white"
                         >
                           <FilePdf size={14} className="mr-1" />
                           Download PDF
                         </Button>
                       </div>
-                      <span className="text-xs text-[#9E8FC2]">
+                      <span className="text-xs text-[#7A6B9E]">
                         {new Date(version.created_at).toLocaleString()}
                       </span>
                     </div>
@@ -1007,17 +1028,18 @@ const ProposalDetail = () => {
                       <p><strong>Customer:</strong> {version.customer_name || 'N/A'}</p>
                       <p><strong>Deal Value:</strong> {version.deal_value ? `₹${version.deal_value.toLocaleString('en-IN')}` : 'N/A'}</p>
                       <p><strong>Change Note:</strong> {version.change_note}</p>
-                      <p className="text-xs text-[#9E8FC2]">
+                      <p className="text-xs text-[#7A6B9E]">
                         <strong>Created by:</strong> {version.created_by?.name || 'Unknown'} ({version.created_by?.role || 'Unknown'})
                       </p>
                     </div>
                   </div>
                 ))}
               </div>
+              )}
             </div>
           )}
 
-          <div className="bg-[#1E1533] border border-[#3D2A5C] p-6 shadow-sm">
+          <div className="bg-[#FFFFFF] border border-[#E4DCF0] p-6 shadow-sm">
             <h2 className="text-xl font-bold tracking-tight mb-6 font-heading">Workflow Progress</h2>
             
             <div className="space-y-6" data-testid="workflow-stepper">
@@ -1029,22 +1051,22 @@ const ProposalDetail = () => {
                       <div
                         className={`w-10 h-10 rounded-full border flex items-center justify-center transition-all ${
                           status === 'completed'
-                            ? 'bg-[#10B981] border-[#10B981] text-[#F5F3FA]'
+                            ? 'bg-[#10B981] border-[#10B981] text-[#1E1533]'
                             : status === 'active'
-                            ? 'bg-[#3B82F6] border-[#3B82F6] text-[#F5F3FA] animate-pulse'
-                            : 'bg-[#1E1533] border-[#3D2A5C] text-[#9E8FC2]'
+                            ? 'bg-[#3B82F6] border-[#3B82F6] text-[#1E1533] animate-pulse'
+                            : 'bg-[#FFFFFF] border-[#E4DCF0] text-[#7A6B9E]'
                         }`}
                         data-testid={`stage-circle-${index}`}
                       >
                         {status === 'completed' ? <Check size={20} weight="bold" /> : status === 'active' ? <Clock size={20} /> : index + 1}
                       </div>
                       {index < WORKFLOW_STAGES.length - 1 && (
-                        <div className={`w-0.5 h-10 ${status === 'completed' ? 'bg-[#10B981]' : 'bg-[#241A3D]'}`}></div>
+                        <div className={`w-0.5 h-10 ${status === 'completed' ? 'bg-[#10B981]' : 'bg-[#F1EBFA]'}`}></div>
                       )}
                     </div>
                     <div className="flex-1 pb-4">
                       <p className="font-semibold text-sm">{stage.label}</p>
-                      {stage.role && <p className="text-xs text-[#9E8FC2]">{stage.role} Review</p>}
+                      {stage.role && <p className="text-xs text-[#7A6B9E]">{stage.role} Review</p>}
                       {status === 'completed' && getStageTimestamp(index) && (
                         <p className="text-xs text-[#10B981] font-medium mt-0.5" data-testid={`stage-timestamp-${index}`}>
                           {new Date(getStageTimestamp(index)).toLocaleString('en-IN', {
@@ -1059,23 +1081,23 @@ const ProposalDetail = () => {
             </div>
           </div>
 
-          <div className="bg-[#1E1533] border border-[#3D2A5C] p-6 shadow-sm">
+          <div className="bg-[#FFFFFF] border border-[#E4DCF0] p-6 shadow-sm">
             <h2 className="text-xl font-bold tracking-tight mb-6 font-heading">History</h2>
             <div className="space-y-4" data-testid="audit-trail">
               {proposal.history.map((entry, index) => (
-                <div key={index} className="flex gap-4 pb-4 border-b border-[#3D2A5C] last:border-0" data-testid={`history-${index}`}>
+                <div key={index} className="flex gap-4 pb-4 border-b border-[#E4DCF0] last:border-0" data-testid={`history-${index}`}>
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <span className="font-semibold text-sm">{entry.by.name}</span>
-                      <span className="text-xs text-[#9E8FC2]">({entry.by.role})</span>
+                      <span className="text-xs text-[#7A6B9E]">({entry.by.role})</span>
                       <Badge
                         className={`text-xs ${
-                          entry.action === 'approved' ? 'bg-[#10B981] text-[#F5F3FA]' : 
-                          entry.action === 'rejected_closed' ? 'bg-[#DC2626] text-[#F5F3FA]' :
-                          entry.action === 'returned_for_revision' ? 'bg-[#F59E0B] text-[#F5F3FA]' :
-                          entry.action === 'restored_version' ? 'bg-[#8B5CF6] text-[#F5F3FA]' :
-                          entry.action === 'rejected' ? 'bg-[#EF4444] text-[#F5F3FA]' : 
-                          'bg-[#241A3D] text-[#F5F3FA]'
+                          entry.action === 'approved' ? 'bg-[#10B981] text-[#1E1533]' : 
+                          entry.action === 'rejected_closed' ? 'bg-[#DC2626] text-white' :
+                          entry.action === 'returned_for_revision' ? 'bg-[#F59E0B] text-[#1E1533]' :
+                          entry.action === 'restored_version' ? 'bg-[#8B5CF6] text-white' :
+                          entry.action === 'rejected' ? 'bg-[#EF4444] text-[#1E1533]' : 
+                          'bg-[#F1EBFA] text-[#1E1533]'
                         }`}
                       >
                         {entry.action === 'rejected_closed' ? 'Rejected (Closed)' :
@@ -1089,8 +1111,8 @@ const ProposalDetail = () => {
                         </Badge>
                       )}
                     </div>
-                    <p className="text-sm text-[#9E8FC2] mb-1">{entry.comment}</p>
-                    <p className="text-xs text-[#8B7FAE]">{new Date(entry.timestamp).toLocaleString()}</p>
+                    <p className="text-sm text-[#7A6B9E] mb-1">{entry.comment}</p>
+                    <p className="text-xs text-[#8577A3]">{new Date(entry.timestamp).toLocaleString()}</p>
                   </div>
                 </div>
               ))}
@@ -1100,7 +1122,7 @@ const ProposalDetail = () => {
 
         {canTakeAction() && (
           <div className="lg:col-span-1">
-            <div className="bg-[#1E1533] border border-[#3D2A5C] p-6 shadow-sm sticky top-8" data-testid="action-panel">
+            <div className="bg-[#FFFFFF] border border-[#E4DCF0] p-6 shadow-sm sticky top-8" data-testid="action-panel">
               <h2 className="text-xl font-bold tracking-tight mb-4 font-heading">Take Action</h2>
               
               <div className="space-y-4">
@@ -1121,7 +1143,7 @@ const ProposalDetail = () => {
                     onClick={handleApprove}
                     disabled={actionLoading}
                     data-testid="approve-button"
-                    className="w-full bg-[#10B981] hover:bg-[#059669] text-[#F5F3FA]"
+                    className="w-full bg-[#10B981] hover:bg-[#059669] text-[#1E1533]"
                   >
                     <Check size={20} className="mr-2" />
                     {actionLoading ? 'Processing...' : 'Approve'}
@@ -1131,7 +1153,7 @@ const ProposalDetail = () => {
                     disabled={actionLoading}
                     data-testid="return-button"
                     variant="outline"
-                    className="w-full border-amber-500 text-amber-400 hover:bg-amber-500 hover:text-white"
+                    className="w-full border-amber-500 text-amber-700 hover:bg-amber-500 hover:text-white"
                   >
                     <ArrowBendUpLeft size={20} className="mr-2" />
                     {actionLoading ? 'Processing...' : 'Return for Revision'}
@@ -1141,13 +1163,13 @@ const ProposalDetail = () => {
                     disabled={actionLoading}
                     data-testid="reject-button"
                     variant="outline"
-                    className="w-full border-[#EF4444] text-[#EF4444] hover:bg-[#EF4444] hover:text-[#F5F3FA]"
+                    className="w-full border-[#EF4444] text-[#EF4444] hover:bg-[#EF4444] hover:text-[#1E1533]"
                   >
                     <X size={20} className="mr-2" />
                     {actionLoading ? 'Processing...' : 'Reject Permanently'}
                   </Button>
                 </div>
-                <p className="text-xs text-[#9E8FC2] border-t pt-3">
+                <p className="text-xs text-[#7A6B9E] border-t pt-3">
                   <strong>Return for Revision:</strong> Sends back to Sales for editing (resubmittable).
                   <br />
                   <strong>Reject Permanently:</strong> Closes proposal (cannot be reopened).
@@ -1160,7 +1182,7 @@ const ProposalDetail = () => {
 
       {/* Document Preview Modal */}
       <Dialog open={previewOpen} onOpenChange={(open) => { if (!open) closePreview(); }}>
-        <DialogContent className="bg-[#1E1533] max-w-4xl max-h-[85vh] flex flex-col">
+        <DialogContent className="bg-[#FFFFFF] max-w-4xl max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center justify-between gap-4">
               <span className="truncate">{proposal?.file_info?.filename || 'Document Preview'}</span>
@@ -1168,21 +1190,21 @@ const ProposalDetail = () => {
                 onClick={handleDownload}
                 size="sm"
                 variant="outline"
-                className="border-[#3D2A5C] shrink-0"
+                className="border-[#E4DCF0] shrink-0"
               >
                 <Download size={16} className="mr-2" />
                 Download
               </Button>
             </DialogTitle>
           </DialogHeader>
-          <div className="flex-1 overflow-auto border border-[#3D2A5C] rounded bg-[#150E29] min-h-[400px]">
+          <div className="flex-1 overflow-auto border border-[#E4DCF0] rounded bg-[#F7F4FC] min-h-[400px]">
             {previewLoading && (
               <div className="flex items-center justify-center h-full py-20">
                 <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#9B30FF]"></div>
               </div>
             )}
             {!previewLoading && previewError && (
-              <div className="flex items-center justify-center h-full py-20 text-sm text-[#9E8FC2] px-6 text-center">
+              <div className="flex items-center justify-center h-full py-20 text-sm text-[#7A6B9E] px-6 text-center">
                 {previewError}
               </div>
             )}
@@ -1195,7 +1217,7 @@ const ProposalDetail = () => {
             )}
             <div
               ref={previewContainerRef}
-              className={previewKind === 'docx' ? 'p-4 bg-[#1E1533]' : 'hidden'}
+              className={previewKind === 'docx' ? 'p-4 bg-[#FFFFFF]' : 'hidden'}
             />
           </div>
         </DialogContent>
