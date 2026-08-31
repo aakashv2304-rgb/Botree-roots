@@ -263,6 +263,7 @@ const EditProposal = () => {
               <Label htmlFor="title">Proposal Title</Label>
               <Input
                 id="title"
+                className="bg-[#FFFFFF]"
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                 required
@@ -275,6 +276,7 @@ const EditProposal = () => {
               <Label htmlFor="description">Description</Label>
               <Textarea
                 id="description"
+                className="bg-[#FFFFFF]"
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 required
@@ -289,6 +291,7 @@ const EditProposal = () => {
                 <Label htmlFor="deal_value">Deal Value (INR)</Label>
                 <Input
                   id="deal_value"
+                className="bg-[#FFFFFF]"
                   type="number"
                   value={formData.deal_value}
                   onChange={(e) => setFormData({ ...formData, deal_value: e.target.value })}
@@ -299,6 +302,7 @@ const EditProposal = () => {
                 <Label htmlFor="customer_name">Customer Name</Label>
                 <Input
                   id="customer_name"
+                className="bg-[#FFFFFF]"
                   value={formData.customer_name}
                   onChange={(e) => setFormData({ ...formData, customer_name: e.target.value })}
                   placeholder="Customer name"
@@ -308,6 +312,7 @@ const EditProposal = () => {
                 <Label htmlFor="industry">Industry</Label>
                 <Input
                   id="industry"
+                className="bg-[#FFFFFF]"
                   value={formData.industry}
                   onChange={(e) => setFormData({ ...formData, industry: e.target.value })}
                   placeholder="e.g., Healthcare"
@@ -320,6 +325,7 @@ const EditProposal = () => {
                 <Label htmlFor="one_time_setup_fee">One-Time Setup Fee (₹)</Label>
                 <Input
                   id="one_time_setup_fee"
+                className="bg-[#FFFFFF]"
                   type="number"
                   value={formData.one_time_setup_fee}
                   onChange={(e) => setFormData({ ...formData, one_time_setup_fee: e.target.value })}
@@ -330,6 +336,7 @@ const EditProposal = () => {
                 <Label htmlFor="integration_fee">Integration Fee (₹)</Label>
                 <Input
                   id="integration_fee"
+                className="bg-[#FFFFFF]"
                   type="number"
                   value={formData.integration_fee}
                   onChange={(e) => setFormData({ ...formData, integration_fee: e.target.value })}
@@ -359,14 +366,14 @@ const EditProposal = () => {
                         value={fee.name}
                         onChange={(e) => updateAdditionalFee(fIndex, 'name', e.target.value)}
                         placeholder="Fee name (e.g., Customization, Data Migration)"
-                        className="flex-1"
+                        className="flex-1 bg-[#FFFFFF]"
                       />
                       <Input
                         type="number"
                         value={fee.value}
                         onChange={(e) => updateAdditionalFee(fIndex, 'value', e.target.value)}
                         placeholder="Amount (₹)"
-                        className="w-40"
+                        className="w-40 bg-[#FFFFFF]"
                       />
                       <Button
                         type="button"
@@ -407,18 +414,21 @@ const EditProposal = () => {
                       value={ongoingCharges[key].quantity}
                       onChange={(e) => updateOngoingCharge(key, 'quantity', e.target.value)}
                       placeholder="Quantity"
+                      className="bg-[#FFFFFF]"
                     />
                     <Input
                       type="number"
                       value={ongoingCharges[key].rate_per_user_month}
                       onChange={(e) => updateOngoingCharge(key, 'rate_per_user_month', e.target.value)}
                       placeholder="Rate ₹/user/month"
+                      className="bg-[#FFFFFF]"
                     />
                     <Input
                       type="number"
                       value={ongoingCharges[key].monthly_minimum_billing}
                       onChange={(e) => updateOngoingCharge(key, 'monthly_minimum_billing', e.target.value)}
                       placeholder="Monthly minimum billing ₹"
+                      className="bg-[#FFFFFF]"
                     />
                   </div>
                 </div>
@@ -430,6 +440,7 @@ const EditProposal = () => {
                 <Label htmlFor="contract_years">Contract Tenure (years)</Label>
                 <Input
                   id="contract_years"
+                className="bg-[#FFFFFF]"
                   type="number"
                   min="1"
                   value={formData.contract_years}
@@ -441,6 +452,7 @@ const EditProposal = () => {
                 <Label htmlFor="price_escalation_percent">Price Escalation % Each Year</Label>
                 <Input
                   id="price_escalation_percent"
+                className="bg-[#FFFFFF]"
                   type="number"
                   step="0.1"
                   value={formData.price_escalation_percent}
@@ -459,30 +471,35 @@ const EditProposal = () => {
                   value={oneTimeOptionalFees.dms_training_fee}
                   onChange={(e) => setOneTimeOptionalFees({ ...oneTimeOptionalFees, dms_training_fee: e.target.value })}
                   placeholder="DMS Training Fee ₹ (blank = not required)"
+                      className="bg-[#FFFFFF]"
                 />
                 <Input
                   type="number"
                   value={oneTimeOptionalFees.sfa_training_fee}
                   onChange={(e) => setOneTimeOptionalFees({ ...oneTimeOptionalFees, sfa_training_fee: e.target.value })}
                   placeholder="SFA Training Fee ₹ (blank = not required)"
+                      className="bg-[#FFFFFF]"
                 />
                 <Input
                   type="number"
                   value={oneTimeOptionalFees.flexidms_deployment_fee}
                   onChange={(e) => setOneTimeOptionalFees({ ...oneTimeOptionalFees, flexidms_deployment_fee: e.target.value })}
                   placeholder="Flexi DMS Deployment Fee ₹ (blank = not required)"
+                      className="bg-[#FFFFFF]"
                 />
                 <Input
                   type="number"
                   value={oneTimeOptionalFees.customization_fee}
                   onChange={(e) => setOneTimeOptionalFees({ ...oneTimeOptionalFees, customization_fee: e.target.value })}
                   placeholder="Customization Fee ₹ (blank = not required)"
+                      className="bg-[#FFFFFF]"
                 />
                 <Input
                   type="number"
                   value={oneTimeOptionalFees.workshop_fee}
                   onChange={(e) => setOneTimeOptionalFees({ ...oneTimeOptionalFees, workshop_fee: e.target.value })}
                   placeholder="Workshop/Data Migration Fee ₹ (blank = not required)"
+                      className="bg-[#FFFFFF]"
                 />
               </div>
             </div>
@@ -491,6 +508,7 @@ const EditProposal = () => {
               <Label htmlFor="change_note">Change Note <span className="text-red-700">*</span></Label>
               <Textarea
                 id="change_note"
+                        className="bg-[#FFFFFF]"
                 value={formData.change_note}
                 onChange={(e) => setFormData({ ...formData, change_note: e.target.value })}
                 placeholder="Explain what changes were made based on reviewer feedback..."
