@@ -73,10 +73,10 @@ const Overview = () => {
 
   // Functional status colors per the Botree design system
   const getStatusColor = (status) => {
-    if (status === 'approved') return { backgroundColor: '#0F3D2E', color: '#34D399' };
-    if (status === 'needs_revision') return { backgroundColor: '#3D1424', color: '#FB7185' };
-    if (status === 'sales_submitted') return { backgroundColor: '#3D2A0F', color: '#FBBF24' };
-    return { backgroundColor: '#2A1745', color: '#E64AD1' }; // *_review states = Under Review
+    if (status === 'approved') return { backgroundColor: '#D1FAE5', color: '#059669' };
+    if (status === 'needs_revision') return { backgroundColor: '#FFE4E6', color: '#E11D48' };
+    if (status === 'sales_submitted') return { backgroundColor: '#FEF3C7', color: '#D97706' };
+    return { backgroundColor: '#F3E8FF', color: '#7209B7' }; // *_review states = Under Review
   };
 
   const getStatusLabel = (status) => {
@@ -132,7 +132,7 @@ const Overview = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[calc(100vh-113px)] bg-[#150E29]">
+      <div className="flex items-center justify-center min-h-[calc(100vh-113px)] bg-[#F7F4FC]">
         <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-[#9B30FF]"></div>
       </div>
     );
@@ -163,18 +163,18 @@ const Overview = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-[#150E29]" data-testid="overview-page">
+    <div className="min-h-screen bg-[#F7F4FC]" data-testid="overview-page">
       <div className="px-6 py-6 max-w-[1600px] mx-auto space-y-6">
 
         {/* Month selector */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <CalendarBlank size={20} className="text-[#9B30FF]" />
-            <span className="text-sm font-semibold text-[#B9AED4]">Monthly Stats:</span>
-            <span className="text-lg font-bold text-[#F5F3FA]">{analytics.monthlyData?.month_name || 'Loading...'}</span>
+            <span className="text-sm font-semibold text-[#5B4B7A]">Monthly Stats:</span>
+            <span className="text-lg font-bold text-[#1E1533]">{analytics.monthlyData?.month_name || 'Loading...'}</span>
           </div>
           <div className="flex items-center gap-2">
-            <Button onClick={() => navigateMonth(-1)} size="sm" variant="ghost" className="text-[#B9AED4] hover:text-[#F5F3FA]">
+            <Button onClick={() => navigateMonth(-1)} size="sm" variant="ghost" className="text-[#5B4B7A] hover:text-[#1E1533]">
               <CaretLeft size={18} weight="bold" />
             </Button>
             {!analytics.monthlyData?.is_current_month && (
@@ -186,7 +186,7 @@ const Overview = () => {
               onClick={() => navigateMonth(1)}
               size="sm"
               variant="ghost"
-              className="text-[#B9AED4] hover:text-[#F5F3FA]"
+              className="text-[#5B4B7A] hover:text-[#1E1533]"
               disabled={analytics.monthlyData?.is_current_month}
             >
               <CaretRight size={18} weight="bold" />
@@ -197,55 +197,55 @@ const Overview = () => {
         {/* KPI Metric Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {kpiCards.map((card) => (
-            <div key={card.label} className="bg-[#1E1533] rounded-xl border border-[#3D2A5C] shadow-sm p-5 hover:shadow-md transition-shadow">
+            <div key={card.label} className="bg-[#FFFFFF] rounded-xl border border-[#E4DCF0] shadow-sm p-5 hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-semibold text-[#B9AED4] uppercase tracking-wider">{card.label}</span>
+                <span className="text-xs font-semibold text-[#5B4B7A] uppercase tracking-wider">{card.label}</span>
                 <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${card.accent}1A` }}>
                   <card.icon size={16} style={{ color: card.accent }} />
                 </div>
               </div>
-              <div className="text-2xl font-bold text-[#F5F3FA] mb-1">{card.value}</div>
-              <div className="text-xs text-[#8B7FAE]">{card.sub}</div>
+              <div className="text-2xl font-bold text-[#1E1533] mb-1">{card.value}</div>
+              <div className="text-xs text-[#8577A3]">{card.sub}</div>
             </div>
           ))}
         </div>
 
         {/* Filters + View Switcher */}
-        <div className="bg-[#1E1533] rounded-xl border border-[#3D2A5C] shadow-sm p-4">
+        <div className="bg-[#FFFFFF] rounded-xl border border-[#E4DCF0] shadow-sm p-4">
           <div className="flex flex-col md:flex-row md:items-center gap-3">
-            <div className="flex-1 flex items-center gap-2 bg-[#150E29] border border-[#3D2A5C] rounded-lg px-3 py-2">
-              <MagnifyingGlass size={16} className="text-[#8B7FAE]" />
+            <div className="flex-1 flex items-center gap-2 bg-[#F7F4FC] border border-[#E4DCF0] rounded-lg px-3 py-2">
+              <MagnifyingGlass size={16} className="text-[#8577A3]" />
               <Input
                 type="text"
                 placeholder="Search proposals by title, client, or description..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 data-testid="search-input"
-                className="flex-1 bg-transparent border-none shadow-none focus-visible:ring-0 text-sm text-[#F5F3FA] placeholder:text-[#6B5D91] p-0 h-auto"
+                className="flex-1 bg-transparent border-none shadow-none focus-visible:ring-0 text-sm text-[#1E1533] placeholder:text-[#A99BC7] p-0 h-auto"
               />
             </div>
             <div className="flex items-center gap-2">
-              <Funnel size={16} className="text-[#8B7FAE]" />
+              <Funnel size={16} className="text-[#8577A3]" />
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="bg-[#150E29] border border-[#3D2A5C] text-[#F5F3FA] text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#9B30FF]/30 focus:border-[#9B30FF]"
+                className="bg-[#F7F4FC] border border-[#E4DCF0] text-[#1E1533] text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#9B30FF]/30 focus:border-[#9B30FF]"
               >
-                <option value="all" className="bg-[#150E29] text-[#F5F3FA]">All Status</option>
-                <option value="sales_submitted" className="bg-[#150E29] text-[#F5F3FA]">Draft</option>
-                <option value="cgo_review" className="bg-[#150E29] text-[#F5F3FA]">CGO Review</option>
-                <option value="finance_review" className="bg-[#150E29] text-[#F5F3FA]">Finance Review</option>
-                <option value="legal_review" className="bg-[#150E29] text-[#F5F3FA]">Legal Review</option>
-                <option value="cfo_review" className="bg-[#150E29] text-[#F5F3FA]">CFO Review</option>
-                <option value="approved" className="bg-[#150E29] text-[#F5F3FA]">Approved</option>
-                <option value="needs_revision" className="bg-[#150E29] text-[#F5F3FA]">Needs Revision</option>
+                <option value="all" className="bg-[#F7F4FC] text-[#1E1533]">All Status</option>
+                <option value="sales_submitted" className="bg-[#F7F4FC] text-[#1E1533]">Draft</option>
+                <option value="cgo_review" className="bg-[#F7F4FC] text-[#1E1533]">CGO Review</option>
+                <option value="finance_review" className="bg-[#F7F4FC] text-[#1E1533]">Finance Review</option>
+                <option value="legal_review" className="bg-[#F7F4FC] text-[#1E1533]">Legal Review</option>
+                <option value="cfo_review" className="bg-[#F7F4FC] text-[#1E1533]">CFO Review</option>
+                <option value="approved" className="bg-[#F7F4FC] text-[#1E1533]">Approved</option>
+                <option value="needs_revision" className="bg-[#F7F4FC] text-[#1E1533]">Needs Revision</option>
               </select>
             </div>
-            <div className="flex items-center bg-[#150E29] border border-[#3D2A5C] rounded-lg p-1">
+            <div className="flex items-center bg-[#F7F4FC] border border-[#E4DCF0] rounded-lg p-1">
               <button
                 onClick={() => setViewMode('table')}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold transition-colors ${
-                  viewMode === 'table' ? 'bg-[#1E1533] text-[#9B30FF] shadow-sm' : 'text-[#B9AED4]'
+                  viewMode === 'table' ? 'bg-[#FFFFFF] text-[#9B30FF] shadow-sm' : 'text-[#5B4B7A]'
                 }`}
               >
                 <Table size={14} /> Table
@@ -253,7 +253,7 @@ const Overview = () => {
               <button
                 onClick={() => setViewMode('pipeline')}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold transition-colors ${
-                  viewMode === 'pipeline' ? 'bg-[#1E1533] text-[#9B30FF] shadow-sm' : 'text-[#B9AED4]'
+                  viewMode === 'pipeline' ? 'bg-[#FFFFFF] text-[#9B30FF] shadow-sm' : 'text-[#5B4B7A]'
                 }`}
               >
                 <SquaresFour size={14} /> Pipeline
@@ -264,29 +264,29 @@ const Overview = () => {
 
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-6">
           {/* Main data table / pipeline */}
-          <div className="bg-[#1E1533] rounded-xl border border-[#3D2A5C] shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-[#3D2A5C]">
-              <h2 className="text-base font-bold text-[#F5F3FA]">Proposal Pipeline</h2>
-              <span className="text-sm text-[#B9AED4]">{filteredProposals.length} proposals</span>
+          <div className="bg-[#FFFFFF] rounded-xl border border-[#E4DCF0] shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-[#E4DCF0]">
+              <h2 className="text-base font-bold text-[#1E1533]">Proposal Pipeline</h2>
+              <span className="text-sm text-[#5B4B7A]">{filteredProposals.length} proposals</span>
             </div>
 
             {viewMode === 'table' ? (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-[#150E29] border-b border-[#3D2A5C]">
+                  <thead className="bg-[#F7F4FC] border-b border-[#E4DCF0]">
                     <tr>
-                      <th className="text-left py-3 px-5 text-xs font-semibold text-[#B9AED4] uppercase tracking-wider">Proposal ID</th>
-                      <th className="text-left py-3 px-5 text-xs font-semibold text-[#B9AED4] uppercase tracking-wider">Client Name</th>
-                      <th className="text-left py-3 px-5 text-xs font-semibold text-[#B9AED4] uppercase tracking-wider">Deal Value</th>
-                      <th className="text-left py-3 px-5 text-xs font-semibold text-[#B9AED4] uppercase tracking-wider">Stage / Status</th>
-                      <th className="text-left py-3 px-5 text-xs font-semibold text-[#B9AED4] uppercase tracking-wider">Commercial Lead</th>
-                      <th className="text-left py-3 px-5 text-xs font-semibold text-[#B9AED4] uppercase tracking-wider">Last Updated</th>
+                      <th className="text-left py-3 px-5 text-xs font-semibold text-[#5B4B7A] uppercase tracking-wider">Proposal ID</th>
+                      <th className="text-left py-3 px-5 text-xs font-semibold text-[#5B4B7A] uppercase tracking-wider">Client Name</th>
+                      <th className="text-left py-3 px-5 text-xs font-semibold text-[#5B4B7A] uppercase tracking-wider">Deal Value</th>
+                      <th className="text-left py-3 px-5 text-xs font-semibold text-[#5B4B7A] uppercase tracking-wider">Stage / Status</th>
+                      <th className="text-left py-3 px-5 text-xs font-semibold text-[#5B4B7A] uppercase tracking-wider">Commercial Lead</th>
+                      <th className="text-left py-3 px-5 text-xs font-semibold text-[#5B4B7A] uppercase tracking-wider">Last Updated</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#3D2A5C]">
+                  <tbody className="divide-y divide-[#E4DCF0]">
                     {filteredProposals.length === 0 ? (
                       <tr>
-                        <td colSpan="6" className="py-10 text-center text-[#8B7FAE] text-sm">
+                        <td colSpan="6" className="py-10 text-center text-[#8577A3] text-sm">
                           No proposals found
                         </td>
                       </tr>
@@ -298,17 +298,17 @@ const Overview = () => {
                             key={proposal.id}
                             onClick={() => navigate(`/dashboard/proposal/${proposal.id}`)}
                             data-testid={`proposal-${proposal.id}`}
-                            className="hover:bg-[#150E29] cursor-pointer transition-colors"
+                            className="hover:bg-[#F7F4FC] cursor-pointer transition-colors"
                           >
-                            <td className="py-3 px-5 text-[#B9AED4] font-mono text-xs">#{String(index + 1).padStart(3, '0')}</td>
+                            <td className="py-3 px-5 text-[#5B4B7A] font-mono text-xs">#{String(index + 1).padStart(3, '0')}</td>
                             <td className="py-3 px-5">
-                              <div className="text-[#F5F3FA] font-semibold text-sm mb-0.5 truncate max-w-[240px]">{proposal.title}</div>
+                              <div className="text-[#1E1533] font-semibold text-sm mb-0.5 truncate max-w-[240px]">{proposal.title}</div>
                               {proposal.customer_name && (
-                                <div className="text-xs text-[#8B7FAE]">{proposal.customer_name}</div>
+                                <div className="text-xs text-[#8577A3]">{proposal.customer_name}</div>
                               )}
                             </td>
                             <td className="py-3 px-5">
-                              <span className="text-[#34D399] font-semibold">{formatCurrency(proposal.deal_value)}</span>
+                              <span className="text-[#059669] font-semibold">{formatCurrency(proposal.deal_value)}</span>
                             </td>
                             <td className="py-3 px-5">
                               <div className="flex items-center gap-2">
@@ -330,10 +330,10 @@ const Overview = () => {
                                 >
                                   {proposal.created_by.name[0]}
                                 </div>
-                                <span className="text-[#B9AED4] text-xs">{proposal.created_by.name.split(' ')[0]}</span>
+                                <span className="text-[#5B4B7A] text-xs">{proposal.created_by.name.split(' ')[0]}</span>
                               </div>
                             </td>
-                            <td className="py-3 px-5 text-[#8B7FAE] text-xs">
+                            <td className="py-3 px-5 text-[#8577A3] text-xs">
                               {new Date(proposal.updated_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
                             </td>
                           </tr>
@@ -348,22 +348,22 @@ const Overview = () => {
                 {['sales_submitted', 'cgo_review', 'finance_review', 'legal_review', 'cfo_review', 'approved'].map((stage) => {
                   const stageProposals = filteredProposals.filter(p => p.status === stage);
                   return (
-                    <div key={stage} className="bg-[#150E29] border border-[#3D2A5C] rounded-lg p-3 min-h-[120px]">
+                    <div key={stage} className="bg-[#F7F4FC] border border-[#E4DCF0] rounded-lg p-3 min-h-[120px]">
                       <div className="flex items-center justify-between mb-3">
                         <Badge className="text-xs font-semibold px-2 py-1 border-0" style={getStatusColor(stage)}>
                           {getStatusLabel(stage)}
                         </Badge>
-                        <span className="text-xs text-[#8B7FAE] font-semibold">{stageProposals.length}</span>
+                        <span className="text-xs text-[#8577A3] font-semibold">{stageProposals.length}</span>
                       </div>
                       <div className="space-y-2">
                         {stageProposals.slice(0, 5).map((p) => (
                           <div
                             key={p.id}
                             onClick={() => navigate(`/dashboard/proposal/${p.id}`)}
-                            className="bg-[#1E1533] border border-[#3D2A5C] rounded-lg p-2.5 cursor-pointer hover:shadow-sm transition-shadow"
+                            className="bg-[#FFFFFF] border border-[#E4DCF0] rounded-lg p-2.5 cursor-pointer hover:shadow-sm transition-shadow"
                           >
-                            <div className="text-xs font-semibold text-[#F5F3FA] truncate">{p.title}</div>
-                            <div className="text-xs text-[#34D399] font-semibold mt-1">{formatCurrency(p.deal_value)}</div>
+                            <div className="text-xs font-semibold text-[#1E1533] truncate">{p.title}</div>
+                            <div className="text-xs text-[#059669] font-semibold mt-1">{formatCurrency(p.deal_value)}</div>
                           </div>
                         ))}
                         {stageProposals.length === 0 && (
@@ -380,14 +380,14 @@ const Overview = () => {
           {/* Quick Analytics Panel */}
           <div className="space-y-4">
             {/* Live Activity Feed */}
-            <div className="bg-[#1E1533] rounded-xl border border-[#3D2A5C] shadow-sm p-4">
+            <div className="bg-[#FFFFFF] rounded-xl border border-[#E4DCF0] shadow-sm p-4">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-xs font-bold text-[#F5F3FA] uppercase tracking-wider">Live System Activity</h3>
-                <Clock size={16} className="text-[#8B7FAE]" />
+                <h3 className="text-xs font-bold text-[#1E1533] uppercase tracking-wider">Live System Activity</h3>
+                <Clock size={16} className="text-[#8577A3]" />
               </div>
               <div className="max-h-[280px] overflow-y-auto space-y-3">
                 {analytics.activityFeed?.activities?.length === 0 ? (
-                  <p className="text-[#8B7FAE] text-xs text-center py-4">No recent activity</p>
+                  <p className="text-[#8577A3] text-xs text-center py-4">No recent activity</p>
                 ) : (
                   analytics.activityFeed?.activities?.map((activity, idx) => (
                     <div key={idx} className="flex gap-3 pb-3 border-b border-[#F1F5F9] last:border-0">
@@ -398,12 +398,12 @@ const Overview = () => {
                         {activity.by.name[0]}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-xs text-[#B9AED4] mb-1">
-                          <span className="font-semibold text-[#F5F3FA]">{activity.by.name}</span>
-                          <span className="text-[#8B7FAE] mx-1">
+                        <div className="text-xs text-[#5B4B7A] mb-1">
+                          <span className="font-semibold text-[#1E1533]">{activity.by.name}</span>
+                          <span className="text-[#8577A3] mx-1">
                             {activity.action === 'approved' ? 'approved' : activity.action === 'rejected' ? 'rejected' : 'updated'}
                           </span>
-                          <span className="text-[#B9AED4] truncate inline-block max-w-[160px] align-bottom">{activity.proposal_title}</span>
+                          <span className="text-[#5B4B7A] truncate inline-block max-w-[160px] align-bottom">{activity.proposal_title}</span>
                         </div>
                         <div className="text-[10px] text-[#CBD5E1]">{formatTimestamp(activity.timestamp)}</div>
                       </div>
@@ -414,13 +414,13 @@ const Overview = () => {
             </div>
 
             {/* Bottleneck Alerts */}
-            <div className="bg-[#1E1533] rounded-xl border border-[#3D2A5C] shadow-sm p-4">
+            <div className="bg-[#FFFFFF] rounded-xl border border-[#E4DCF0] shadow-sm p-4">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-xs font-bold text-[#F5F3FA] uppercase tracking-wider">Bottleneck Alerts</h3>
+                <h3 className="text-xs font-bold text-[#1E1533] uppercase tracking-wider">Bottleneck Alerts</h3>
                 <Warning size={16} className="text-[#D97706]" />
               </div>
               {analytics.bottlenecks?.bottlenecks?.length === 0 ? (
-                <div className="flex items-center gap-2 text-[#34D399] text-sm">
+                <div className="flex items-center gap-2 text-[#059669] text-sm">
                   <CheckCircle size={18} weight="fill" />
                   <span>All proposals flowing smoothly</span>
                 </div>
@@ -431,11 +431,11 @@ const Overview = () => {
                       key={bottleneck.id}
                       onClick={() => navigate(`/dashboard/proposal/${bottleneck.id}`)}
                       className="flex items-center justify-between p-2 rounded-lg cursor-pointer hover:opacity-80 transition-opacity"
-                      style={{ backgroundColor: '#3D1424' }}
+                      style={{ backgroundColor: '#FFE4E6' }}
                     >
                       <div className="flex-1 min-w-0">
-                        <div className="text-xs font-semibold text-[#F5F3FA] truncate">{bottleneck.title}</div>
-                        <div className="text-[10px] text-[#B9AED4]">{getStatusLabel(bottleneck.status)}</div>
+                        <div className="text-xs font-semibold text-[#1E1533] truncate">{bottleneck.title}</div>
+                        <div className="text-[10px] text-[#5B4B7A]">{getStatusLabel(bottleneck.status)}</div>
                       </div>
                       <div className="text-xs font-bold text-[#E11D48] shrink-0 ml-2">{bottleneck.days_stuck}d</div>
                     </div>
@@ -445,18 +445,18 @@ const Overview = () => {
             </div>
 
             {/* System Health / Approval Rate */}
-            <div className="rounded-xl border p-4" style={{ backgroundColor: '#0F3D2E', borderColor: '#1D6B4F' }}>
+            <div className="rounded-xl border p-4" style={{ backgroundColor: '#D1FAE5', borderColor: '#A7F3D0' }}>
               <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-semibold text-[#6EE7B7]">Approval Rate</span>
-                <span className="text-2xl font-bold text-[#34D399]">{winRate}%</span>
+                <span className="text-xs font-semibold text-[#065F46]">Approval Rate</span>
+                <span className="text-2xl font-bold text-[#059669]">{winRate}%</span>
               </div>
-              <div className="h-2 bg-[#1E1533]/60 rounded-full overflow-hidden">
+              <div className="h-2 bg-[#FFFFFF]/60 rounded-full overflow-hidden">
                 <div
                   className="h-full rounded-full"
-                  style={{ width: `${winRate}%`, backgroundColor: '#34D399' }}
+                  style={{ width: `${winRate}%`, backgroundColor: '#059669' }}
                 ></div>
               </div>
-              <div className="mt-3 text-[10px] text-[#6EE7B7]">
+              <div className="mt-3 text-[10px] text-[#065F46]">
                 {analytics.approvalRate?.approved_count} of {analytics.approvalRate?.total_proposals} proposals approved
               </div>
             </div>
