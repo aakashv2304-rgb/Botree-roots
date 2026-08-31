@@ -9,7 +9,7 @@ body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 code {
@@ -23,26 +23,26 @@ h1, h2, h3, h4, h5, h6 {
 
 @layer base {
   :root {
-    /* Botree Software brand system - dark mode blended with logo pink/purple
-       (values are H S% L%) */
-    --background: 256 49% 11%;        /* #150E29 deep purple-black canvas */
-    --foreground: 257 41% 97%;        /* #F5F3FA primary text */
-    --card: 258 42% 14%;              /* #1E1533 panels */
-    --card-foreground: 257 41% 97%;
-    --popover: 258 42% 14%;
-    --popover-foreground: 257 41% 97%;
+    /* Botree Software brand system - semi-light mode, holding the logo's
+       purple/pink identity (values are H S% L%) */
+    --background: 262 57% 97%;        /* #F7F4FC soft lavender-white canvas */
+    --foreground: 258 42% 14%;        /* #1E1533 primary text (deep purple-navy) */
+    --card: 0 0% 100%;                /* #FFFFFF panels */
+    --card-foreground: 258 42% 14%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 258 42% 14%;
     --primary: 271 100% 59%;          /* #9B30FF logo purple */
     --primary-foreground: 0 0% 100%;
-    --secondary: 263 37% 26%;         /* #3D2A5C */
-    --secondary-foreground: 257 41% 97%;
-    --muted: 257 40% 17%;             /* #241A3D */
-    --muted-foreground: 257 31% 76%;  /* #B9AED4 secondary text */
+    --secondary: 264 40% 90%;         /* #E4DCF0 */
+    --secondary-foreground: 258 42% 14%;
+    --muted: 264 60% 95%;             /* #F1EBFA */
+    --muted-foreground: 260 24% 39%;  /* #5B4B7A secondary text */
     --accent: 308 76% 60%;            /* #E64AD1 logo magenta accent */
     --accent-foreground: 0 0% 100%;
     --destructive: 347 77% 50%;       /* #E11D48 rose */
     --destructive-foreground: 0 0% 100%;
-    --border: 263 37% 26%;            /* #3D2A5C */
-    --input: 263 37% 26%;
+    --border: 264 40% 90%;            /* #E4DCF0 */
+    --input: 264 40% 90%;
     --ring: 271 100% 59%;             /* #9B30FF */
     --radius: 0.75rem;
   }
