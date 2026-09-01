@@ -4,9 +4,10 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   House, ClockCounterClockwise, CheckCircle, Users, SignOut,
-  Plus, Calculator, MagnifyingGlass, Bell
+  Plus, Calculator, MagnifyingGlass, Bell, GearSix
 } from '@phosphor-icons/react';
 import { Button } from './ui/button';
+import AccountSettingsModal from './AccountSettingsModal';
 
 const BOTREE_LOGO = "https://customer-assets-7cd3h4nn.emergentagent.net/job_proposal-tracker-app/artifacts/12kvgckj_Botree%20Logo-white-bg.webp";
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -15,6 +16,7 @@ const TopBar = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [profileOpen, setProfileOpen] = useState(false);
+  const [accountSettingsOpen, setAccountSettingsOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
@@ -205,6 +207,14 @@ const TopBar = () => {
                   <p className="text-xs text-[#8577A3] uppercase tracking-wide font-bold mt-0.5">{user?.role}</p>
                 </div>
                 <button
+                  onClick={() => { setAccountSettingsOpen(true); setProfileOpen(false); }}
+                  data-testid="account-settings-button"
+                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-[#5B4B7A] hover:bg-[#F7F4FC] hover:text-[#1E1533] transition-colors"
+                >
+                  <GearSix size={16} />
+                  Account Settings
+                </button>
+                <button
                   onClick={handleLogout}
                   data-testid="logout-button"
                   className="w-full flex items-center gap-2 px-4 py-2 text-sm text-[#5B4B7A] hover:bg-[#F7F4FC] hover:text-[#E11D48] transition-colors"
@@ -239,6 +249,12 @@ const TopBar = () => {
           </NavLink>
         ))}
       </nav>
+
+      <AccountSettingsModal
+        open={accountSettingsOpen}
+        onClose={() => setAccountSettingsOpen(false)}
+        user={user}
+      />
     </header>
   );
 };
