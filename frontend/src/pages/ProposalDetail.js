@@ -396,6 +396,7 @@ const ProposalDetail = () => {
   const canTakeAction = () => {
     if (!proposal) return false;
     if (proposal.status === 'approved') return false;
+    if (proposal.status === 'needs_revision') return false; // ball is with Sales to fix and resubmit, not an approver
     
     const currentStage = WORKFLOW_STAGES[proposal.current_stage];
     return currentStage && currentStage.role === user.role;
@@ -411,7 +412,10 @@ const ProposalDetail = () => {
   };
 
   const canEdit = () => {
-    return user.role === 'Sales' && proposal.status === 'needs_revision' && proposal.created_by.id === user.id;
+    if (!proposal) return false;
+    if (proposal.status !== 'needs_revision') return false;
+    if (user.role === 'Admin') return true; // Admin can step in and edit/resubmit any proposal
+    return user.role === 'Sales' && proposal.created_by.id === user.id;
   };
 
   const canOverrideWorkflow = () => user.role === 'Admin' && proposal && !proposal.is_closed && proposal.status !== 'approved';
