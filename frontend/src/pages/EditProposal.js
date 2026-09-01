@@ -226,7 +226,7 @@ const EditProposal = () => {
     return <LoadingSpinner fullScreen label="Loading proposal..." />
   }
 
-  const canAccessEdit = (user?.role === 'Sales' || user?.role === 'Admin') && proposal.status === 'needs_revision';
+  const canAccessEdit = (user?.role === 'Sales' || user?.role === 'Admin') && proposal.status === 'needs_revision' && !proposal.is_closed;
   if (!canAccessEdit) {
     return (
       <div className="p-6">
