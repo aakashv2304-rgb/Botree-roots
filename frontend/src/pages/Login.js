@@ -84,7 +84,7 @@ const Login = () => {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="your.email@botree.com"
+                  placeholder="your.email@botree.ai"
                   required
                   data-testid="email-input"
                   className="h-10 bg-[#F7F4FC] border-[#E4DCF0] text-[#1E1533] placeholder:text-[#A99BC7] focus:border-[#9B30FF] focus:ring-[#9B30FF]"
