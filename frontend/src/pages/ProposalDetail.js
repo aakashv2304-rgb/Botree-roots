@@ -414,8 +414,11 @@ const ProposalDetail = () => {
   const canEdit = () => {
     if (!proposal) return false;
     if (proposal.status !== 'needs_revision') return false;
-    if (user.role === 'Admin') return true; // Admin can step in and edit/resubmit any proposal
-    return user.role === 'Sales' && proposal.created_by.id === user.id;
+    if (proposal.is_closed) return false;
+    // Any Sales user (not just the exact original creator) or Admin can pick
+    // up a proposal that needs revision - avoids proposals getting stuck if
+    // the original creator's account was deleted/recreated.
+    return user.role === 'Sales' || user.role === 'Admin';
   };
 
   const canOverrideWorkflow = () => user.role === 'Admin' && proposal && !proposal.is_closed && proposal.status !== 'approved';
@@ -580,7 +583,10 @@ const ProposalDetail = () => {
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex items-center gap-2">
                   <span className="text-[#7A6B9E] text-xs font-medium">Created by:</span>
-                  <span className="font-semibold text-xs">{proposal.created_by.name} ({proposal.created_by.role})</span>
+                  <span className="font-semibold text-xs">
+                    {proposal.created_by.name} ({proposal.created_by.role}
+                    {proposal.created_by.email ? ` · ${proposal.created_by.email}` : ''})
+                  </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-[#7A6B9E] text-xs font-medium">Created on:</span>
