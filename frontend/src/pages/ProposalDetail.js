@@ -528,13 +528,14 @@ const ProposalDetail = () => {
                   </Badge>
                   {versions.length > 1 && (
                     <Button
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
                       onClick={() => setShowVersionHistory(!showVersionHistory)}
-                      className="text-xs"
+                      className="text-xs border-[#9B30FF] text-[#9B30FF] hover:bg-[#9B30FF]/5"
+                      data-testid="toggle-version-history-button"
                     >
                       <ListNumbers size={16} className="mr-1" />
-                      {versions.length} versions
+                      {versions.length} versions · History &amp; Compare
                     </Button>
                   )}
                 </div>
