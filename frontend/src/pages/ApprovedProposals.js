@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import LoadingSpinner from '../components/LoadingSpinner';
 import axios from 'axios';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
@@ -50,11 +51,7 @@ const ApprovedProposals = () => {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-10 w-12 border-t-2 border-b-2 border-[#9B30FF]"></div>
-      </div>
-    );
+    return <LoadingSpinner fullScreen label="Loading approved proposals..." />
   }
 
   return (
@@ -90,7 +87,7 @@ const ApprovedProposals = () => {
                     </span>
                   </p>
                 </div>
-                <Badge className="bg-[#10B981] text-[#1E1533] flex-shrink-0" data-testid={`approved-status-${proposal.id}`}>
+                <Badge className="bg-[#D1FAE5] text-[#059669] flex-shrink-0" data-testid={`approved-status-${proposal.id}`}>
                   Approved
                 </Badge>
                 <Button
