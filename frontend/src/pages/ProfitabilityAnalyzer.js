@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import LoadingSpinner from '../components/LoadingSpinner';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/button';
@@ -356,11 +357,7 @@ const ProfitabilityAnalyzer = () => {
   const canEdit = (analysis) => analysis.created_by?.id === user?.id || user?.role === 'Admin';
 
   if (loading || !rateCard) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-10 w-12 border-t-2 border-b-2 border-[#9B30FF]"></div>
-      </div>
-    );
+    return <LoadingSpinner fullScreen label="Crunching the numbers..." />
   }
 
   return (
