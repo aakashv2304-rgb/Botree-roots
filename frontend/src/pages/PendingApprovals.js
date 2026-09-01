@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import LoadingSpinner from '../components/LoadingSpinner';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -42,8 +43,8 @@ const PendingApprovals = () => {
   });
 
   const getStatusColor = (status) => {
-    if (status === 'needs_revision') return 'bg-[#EF4444] text-[#1E1533]';
-    return 'bg-[#F59E0B] text-[#1E1533]';
+    if (status === 'needs_revision') return 'bg-[#FFE4E6] text-[#E11D48]';
+    return 'bg-[#FEF3C7] text-[#D97706]';
   };
 
   const getStatusLabel = (status) => {
@@ -59,11 +60,7 @@ const PendingApprovals = () => {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-10 w-12 border-t-2 border-b-2 border-[#9B30FF]"></div>
-      </div>
-    );
+    return <LoadingSpinner fullScreen label="Loading pending approvals..." />
   }
 
   return (
