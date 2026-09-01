@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import LoadingSpinner from '../components/LoadingSpinner';
 import axios from 'axios';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -413,12 +414,51 @@ const ProposalDetail = () => {
     return user.role === 'Sales' && proposal.status === 'needs_revision' && proposal.created_by.id === user.id;
   };
 
+  const canOverrideWorkflow = () => user.role === 'Admin' && proposal && !proposal.is_closed && proposal.status !== 'approved';
+
+  const canDeleteProposal = () => {
+    if (!proposal) return false;
+    return user.role === 'Admin' || (user.role === 'Sales' && proposal.created_by.id === user.id);
+  };
+
+  const [overrideTarget, setOverrideTarget] = useState('');
+  const [overrideLoading, setOverrideLoading] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  const handleOverrideStage = async () => {
+    if (!overrideTarget) return;
+    setOverrideLoading(true);
+    try {
+      await axios.post(
+        `${API}/proposals/${id}/override-stage`,
+        { target_stage: overrideTarget, comment: comment || undefined },
+        { withCredentials: true }
+      );
+      toast.success('Workflow stage updated');
+      setOverrideTarget('');
+      fetchProposal();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to update workflow stage');
+    } finally {
+      setOverrideLoading(false);
+    }
+  };
+
+  const handleDeleteProposal = async () => {
+    setDeleteLoading(true);
+    try {
+      await axios.delete(`${API}/proposals/${id}`, { withCredentials: true });
+      toast.success('Proposal deleted');
+      navigate('/dashboard');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to delete proposal');
+      setDeleteLoading(false);
+    }
+  };
+
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-10 w-12 border-t-2 border-b-2 border-[#9B30FF]"></div>
-      </div>
-    );
+    return <LoadingSpinner fullScreen label="Loading proposal..." />
   }
 
   if (!proposal) {
@@ -517,6 +557,16 @@ const ProposalDetail = () => {
                     data-testid="edit-proposal-button"
                   >
                     Edit & Resubmit
+                  </Button>
+                )}
+                {canDeleteProposal() && (
+                  <Button
+                    onClick={() => setDeleteConfirmOpen(true)}
+                    variant="outline"
+                    className="border-[#EF4444] text-[#EF4444] hover:bg-[#EF4444] hover:text-white"
+                    data-testid="delete-proposal-button"
+                  >
+                    Delete Proposal
                   </Button>
                 )}
               </div>
@@ -1092,11 +1142,11 @@ const ProposalDetail = () => {
                       <span className="text-xs text-[#7A6B9E]">({entry.by.role})</span>
                       <Badge
                         className={`text-xs ${
-                          entry.action === 'approved' ? 'bg-[#10B981] text-[#1E1533]' : 
+                          entry.action === 'approved' ? 'bg-[#D1FAE5] text-[#059669]' : 
                           entry.action === 'rejected_closed' ? 'bg-[#DC2626] text-white' :
-                          entry.action === 'returned_for_revision' ? 'bg-[#F59E0B] text-[#1E1533]' :
+                          entry.action === 'returned_for_revision' ? 'bg-[#FEF3C7] text-[#D97706]' :
                           entry.action === 'restored_version' ? 'bg-[#8B5CF6] text-white' :
-                          entry.action === 'rejected' ? 'bg-[#EF4444] text-[#1E1533]' : 
+                          entry.action === 'rejected' ? 'bg-[#FFE4E6] text-[#E11D48]' : 
                           'bg-[#F1EBFA] text-[#1E1533]'
                         }`}
                       >
@@ -1178,7 +1228,67 @@ const ProposalDetail = () => {
             </div>
           </div>
         )}
+
+        {canOverrideWorkflow() && (
+          <div className="lg:col-span-1">
+            <div className="bg-[#FFFFFF] border border-[#E4DCF0] p-6 shadow-sm" data-testid="admin-override-panel">
+              <h2 className="text-lg font-bold tracking-tight mb-2 font-heading">Admin: Override Workflow Stage</h2>
+              <p className="text-xs text-[#7A6B9E] mb-4">
+                Move this proposal directly to any stage, bypassing the normal one-step-at-a-time approval flow (e.g. CGO straight to CFO).
+              </p>
+              <div className="space-y-3">
+                <select
+                  value={overrideTarget}
+                  onChange={(e) => setOverrideTarget(e.target.value)}
+                  data-testid="override-stage-select"
+                  className="w-full h-9 px-3 rounded-lg bg-[#FFFFFF] border border-[#E4DCF0] text-sm text-[#1E1533] focus:outline-none focus:ring-2 focus:ring-[#9B30FF]/30 focus:border-[#9B30FF]"
+                >
+                  <option value="">Select target stage...</option>
+                  {WORKFLOW_STAGES.map((stage, idx) => (
+                    <option key={stage.key} value={stage.key} disabled={idx === proposal.current_stage}>
+                      {stage.label}{idx === proposal.current_stage ? ' (current)' : ''}
+                    </option>
+                  ))}
+                </select>
+                <Button
+                  onClick={handleOverrideStage}
+                  disabled={!overrideTarget || overrideLoading}
+                  data-testid="override-stage-button"
+                  className="w-full text-white"
+                  style={{ backgroundColor: '#9B30FF' }}
+                >
+                  {overrideLoading ? 'Updating...' : 'Move Workflow'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* Delete Proposal confirmation */}
+      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <DialogContent className="bg-[#FFFFFF]">
+          <DialogHeader>
+            <DialogTitle>Delete this proposal?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-[#5B4B7A]">
+            This permanently deletes <strong>{proposal?.title}</strong> and its entire version and approval history. This cannot be undone.
+          </p>
+          <div className="flex gap-3 justify-end mt-4">
+            <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)} disabled={deleteLoading}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleDeleteProposal}
+              disabled={deleteLoading}
+              data-testid="confirm-delete-button"
+              className="bg-[#EF4444] hover:bg-[#DC2626] text-white"
+            >
+              {deleteLoading ? 'Deleting...' : 'Delete Permanently'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Document Preview Modal */}
       <Dialog open={previewOpen} onOpenChange={(open) => { if (!open) closePreview(); }}>
