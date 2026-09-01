@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import LoadingSpinner from '../components/LoadingSpinner';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/button';
@@ -8,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../components/ui/alert-dialog';
 import { toast } from 'sonner';
-import { Plus, Trash, PencilSimple, Upload, FileText } from '@phosphor-icons/react';
+import { Plus, Trash, PencilSimple, Upload, FileText, Key } from '@phosphor-icons/react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -17,10 +18,12 @@ const UserManagement = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
-  const [editRoleOpen, setEditRoleOpen] = useState(false);
-  const [selectedUser, setSelectedUser] = useState(null);
+  const [editRoleOpen, setEditRoleOpen] = useState(false);  const [selectedUser, setSelectedUser] = useState(null);
   const [newRole, setNewRole] = useState('');
-  const [formData, setFormData] = useState({ email: '', password: '', name: '', role: 'Sales', department: 'Sales' });
+  const [resetPasswordOpen, setResetPasswordOpen] = useState(false);
+  const [resetPasswordValue, setResetPasswordValue] = useState('');
+  const [resetPasswordLoading, setResetPasswordLoading] = useState(false);
+  const [formData, setFormData] = useState({ email: '', name: '', role: 'Sales', department: 'Sales' });
   const [baseTemplate, setBaseTemplate] = useState(null);
   const [templateUploading, setTemplateUploading] = useState(false);
 
@@ -62,6 +65,21 @@ const UserManagement = () => {
     }
   };
 
+  const [migratingDomain, setMigratingDomain] = useState(false);
+  const handleMigrateEmailDomain = async () => {
+    if (!window.confirm('Update any user accounts still on @botree.co.in to @botree.ai?')) return;
+    setMigratingDomain(true);
+    try {
+      const { data } = await axios.post(`${API}/admin/migrate-email-domain`, {}, { withCredentials: true });
+      toast.success(data.message);
+      fetchUsers();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Migration failed');
+    } finally {
+      setMigratingDomain(false);
+    }
+  };
+
   const fetchUsers = async () => {
     try {
       const { data } = await axios.get(`${API}/users`, { withCredentials: true });
@@ -79,7 +97,7 @@ const UserManagement = () => {
       await axios.post(`${API}/users`, formData, { withCredentials: true });
       toast.success('User created successfully');
       setOpen(false);
-      setFormData({ email: '', password: '', name: '', role: 'Sales', department: 'Sales' });
+      setFormData({ email: '', name: '', role: 'Sales', department: 'Sales' });
       fetchUsers();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to create user');
@@ -109,6 +127,25 @@ const UserManagement = () => {
     }
   };
 
+  const handleResetPassword = async () => {
+    setResetPasswordLoading(true);
+    try {
+      const { data } = await axios.patch(
+        `${API}/users/${selectedUser.id}/password`,
+        { new_password: resetPasswordValue || undefined },
+        { withCredentials: true }
+      );
+      toast.success(`Password reset for ${selectedUser.name} (${data.new_password})`);
+      setResetPasswordOpen(false);
+      setSelectedUser(null);
+      setResetPasswordValue('');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to reset password');
+    } finally {
+      setResetPasswordLoading(false);
+    }
+  };
+
   if (user?.role !== 'Admin') {
     return (
       <div className="p-6">
@@ -120,11 +157,7 @@ const UserManagement = () => {
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-10 w-12 border-t-2 border-b-2 border-[#9B30FF]"></div>
-      </div>
-    );
+    return <LoadingSpinner fullScreen label="Loading users..." />
   }
 
   return (
@@ -167,16 +200,8 @@ const UserManagement = () => {
                   data-testid="user-email-input"
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  required
-                  data-testid="user-password-input"
-                />
+              <div className="p-3 bg-[#F1EBFA] border border-[#E4DCF0] rounded text-xs text-[#5B4B7A]">
+                New users are created with the standard password <strong>Botree@123</strong>. They can change it anytime from Account Settings.
               </div>
               <div className="space-y-2">
                 <Label htmlFor="role">Role</Label>
@@ -255,6 +280,22 @@ const UserManagement = () => {
         </div>
       </div>
 
+      {/* Account Maintenance */}
+      <div className="bg-[#FFFFFF] border border-[#E4DCF0] rounded-lg shadow-sm p-6 mb-6">
+        <h2 className="text-lg font-bold text-[#1E1533] mb-1">Account Maintenance</h2>
+        <p className="text-sm text-[#7A6B9E] mb-4">
+          One-time cleanup: update any user still on the old @botree.co.in email domain to the current @botree.ai.
+        </p>
+        <Button
+          onClick={handleMigrateEmailDomain}
+          disabled={migratingDomain}
+          variant="outline"
+          data-testid="migrate-email-domain-button"
+        >
+          {migratingDomain ? 'Updating...' : 'Migrate botree.co.in → botree.ai'}
+        </Button>
+      </div>
+
       <div className="bg-[#FFFFFF] border border-[#E4DCF0] rounded-lg shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -298,6 +339,19 @@ const UserManagement = () => {
                         className="border-[#E4DCF0] text-[#5B4B7A] hover:bg-[#EDE4F9]"
                       >
                         <PencilSimple size={16} />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setSelectedUser(u);
+                          setResetPasswordOpen(true);
+                        }}
+                        data-testid={`reset-password-${u.id}`}
+                        className="border-[#E4DCF0] text-[#5B4B7A] hover:bg-[#EDE4F9]"
+                        title="Reset password"
+                      >
+                        <Key size={16} />
                       </Button>
                       {u.id !== user.id && (
                         <AlertDialog>
@@ -371,6 +425,46 @@ const UserManagement = () => {
               </Button>
               <Button onClick={handleRoleChange} className="flex-1 text-white font-semibold shadow-md" style={{background: 'linear-gradient(135deg, #F72585 0%, #7209B7 100%)'}}>
                 Update Role
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={resetPasswordOpen} onOpenChange={(o) => { setResetPasswordOpen(o); if (!o) setResetPasswordValue(''); }}>
+        <DialogContent className="bg-[#FFFFFF] text-[#1E1533]">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold">Reset Password</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm text-[#7A6B9E] mb-2">User: <span className="font-semibold text-[#1E1533]">{selectedUser?.name}</span></p>
+              <p className="text-sm text-[#7A6B9E]">Email: <span className="font-semibold text-[#1E1533]">{selectedUser?.email}</span></p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="reset_password_value">New Password (optional)</Label>
+              <Input
+                id="reset_password_value"
+                type="text"
+                value={resetPasswordValue}
+                onChange={(e) => setResetPasswordValue(e.target.value)}
+                placeholder="Leave blank to reset to Botree@123"
+                data-testid="reset-password-input"
+              />
+              <p className="text-xs text-[#8577A3]">Leave this blank to reset the user back to the standard password, Botree@123.</p>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setResetPasswordOpen(false)} className="flex-1 bg-[#FFFFFF] text-[#1E1533] border-[#E4DCF0] hover:bg-[#F1EBFA]">
+                Cancel
+              </Button>
+              <Button
+                onClick={handleResetPassword}
+                disabled={resetPasswordLoading}
+                className="flex-1 text-white font-semibold shadow-md"
+                style={{background: 'linear-gradient(135deg, #F72585 0%, #7209B7 100%)'}}
+                data-testid="confirm-reset-password-button"
+              >
+                {resetPasswordLoading ? 'Resetting...' : 'Reset Password'}
               </Button>
             </div>
           </div>
