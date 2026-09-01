@@ -397,13 +397,14 @@ input[type="checkbox"]:checked::after {
 
 /* Page transition wrapper */
 .page-transition {
-  animation-duration: 300ms;
+  animation-duration: 380ms;
   animation-fill-mode: both;
-  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .page-transition.fadeOut {
   animation-name: fadeOutPage;
+  animation-duration: 180ms;
 }
 
 .page-transition.fadeIn {
@@ -413,23 +414,71 @@ input[type="checkbox"]:checked::after {
 @keyframes fadeOutPage {
   from {
     opacity: 1;
-    transform: translateX(0);
+    filter: blur(0px);
+    transform: translateY(0) scale(1);
   }
   to {
     opacity: 0;
-    transform: translateX(-30px);
+    filter: blur(4px);
+    transform: translateY(-8px) scale(0.985);
   }
 }
 
 @keyframes fadeInPage {
   from {
     opacity: 0;
-    transform: translateX(30px);
+    filter: blur(4px);
+    transform: translateY(10px) scale(0.985);
   }
   to {
     opacity: 1;
-    transform: translateX(0);
+    filter: blur(0px);
+    transform: translateY(0) scale(1);
   }
+}
+
+/* Branded dual-ring loading spinner */
+.brand-spinner {
+  position: relative;
+  display: inline-block;
+}
+
+.brand-spinner .ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 3px solid transparent;
+}
+
+.brand-spinner .ring-outer {
+  border-top-color: #9B30FF;
+  border-right-color: #9B30FF;
+  animation: spinBrand 0.9s cubic-bezier(0.55, 0.15, 0.45, 0.85) infinite;
+}
+
+.brand-spinner .ring-inner {
+  inset: 6px;
+  border-bottom-color: #E64AD1;
+  border-left-color: #E64AD1;
+  animation: spinBrandReverse 0.7s cubic-bezier(0.55, 0.15, 0.45, 0.85) infinite;
+}
+
+@keyframes spinBrand {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes spinBrandReverse {
+  to { transform: rotate(-360deg); }
+}
+
+/* Full-page loading overlay with the brand spinner + fading label */
+.brand-loading-label {
+  animation: labelPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes labelPulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
 }
 
 /* Card entry animations */
