@@ -1481,15 +1481,16 @@ async def download_version_pdf(proposal_id: str, version_number: int, request: R
 async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: Request):
     current_user = await get_current_user(request)
     
-    if current_user["role"] != "Sales":
-        raise HTTPException(status_code=403, detail="Only Sales can edit proposals")
+    if current_user["role"] not in ("Sales", "Admin"):
+        raise HTTPException(status_code=403, detail="Only Sales or Admin can edit proposals")
     
     existing_proposal = await db.proposals.find_one({"_id": ObjectId(proposal_id)})
     if not existing_proposal:
         raise HTTPException(status_code=404, detail="Proposal not found")
     
-    # Only allow editing if proposal is rejected (needs_revision) and created by this user
-    if existing_proposal["created_by"] != current_user["id"]:
+    # Sales can only edit their own proposals; Admin can edit any proposal
+    # that needs revision, as a fallback if the original creator is unavailable.
+    if current_user["role"] == "Sales" and existing_proposal["created_by"] != current_user["id"]:
         raise HTTPException(status_code=403, detail="You can only edit your own proposals")
     
     if existing_proposal["status"] != "needs_revision":
