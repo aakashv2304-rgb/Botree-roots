@@ -526,18 +526,16 @@ const ProposalDetail = () => {
                       ? proposal.versions[proposal.current_version - 1]?.version_label 
                       : `v${proposal.current_version || 1}`}
                   </Badge>
-                  {versions.length > 1 && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowVersionHistory(!showVersionHistory)}
-                      className="text-xs border-[#9B30FF] text-[#9B30FF] hover:bg-[#9B30FF]/5"
-                      data-testid="toggle-version-history-button"
-                    >
-                      <ListNumbers size={16} className="mr-1" />
-                      {versions.length} versions · History &amp; Compare
-                    </Button>
-                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowVersionHistory(!showVersionHistory)}
+                    className="text-xs border-[#9B30FF] text-[#9B30FF] hover:bg-[#9B30FF]/5"
+                    data-testid="toggle-version-history-button"
+                  >
+                    <ListNumbers size={16} className="mr-1" />
+                    {versions.length} version{versions.length === 1 ? '' : 's'} · History &amp; Compare
+                  </Button>
                 </div>
                 {proposal.description && (
                   <p className="text-[#7A6B9E]">{proposal.description}</p>
@@ -824,7 +822,7 @@ const ProposalDetail = () => {
           </div>
 
           {/* Version History */}
-          {showVersionHistory && versions.length > 1 && (
+          {showVersionHistory && (
             <div className="bg-[#FFFFFF] border border-[#E4DCF0] p-6 shadow-sm">
               <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
                 <h2 className="text-xl font-bold tracking-tight flex items-center gap-2">
@@ -842,6 +840,12 @@ const ProposalDetail = () => {
               {/* Compare tab: pick any two versions via dropdowns, then click Compare */}
               {versionTab === 'compare' && (
                 <div className="mb-6 space-y-5">
+                  {versions.length < 2 ? (
+                    <div className="p-4 bg-[#F7F4FC] border border-[#E4DCF0] rounded-lg text-sm text-[#5B4B7A]">
+                      This proposal only has one version so far — there's nothing to compare yet. Once it's been revised and resubmitted, you'll be able to pick any two versions here.
+                    </div>
+                  ) : (
+                    <>
                   <div className="flex flex-col sm:flex-row items-end gap-4 p-4 bg-[#F7F4FC] border border-[#E4DCF0] rounded-lg">
                     <div className="flex-1 w-full space-y-1.5">
                       <Label className="text-xs font-semibold text-[#5B4B7A]">Version A</Label>
@@ -1009,6 +1013,8 @@ const ProposalDetail = () => {
                   })()}
                 </div>
               )}
+                    </>
+                  )}
                 </div>
               )}
 
