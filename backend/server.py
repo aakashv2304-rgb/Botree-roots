@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
+import re
 import certifi
 import logging
 from pathlib import Path
@@ -65,6 +66,7 @@ logger = logging.getLogger(__name__)
 JWT_ALGORITHM = "HS256"
 JWT_SECRET = os.environ.get("JWT_SECRET")
 APP_NAME = "proposal-tracker"
+DEFAULT_USER_PASSWORD = "Botree@123"  # standard password for all seed/new accounts; users can change it under Account Settings
 
 # Cookie security: since frontend and backend are served from the SAME origin
 # in production (backend serves the built frontend), "lax" + secure-in-prod is enough.
@@ -73,7 +75,7 @@ IS_PRODUCTION = os.environ.get("ENVIRONMENT", "development") == "production"
 COOKIE_SECURE = IS_PRODUCTION
 COOKIE_SAMESITE = "lax"
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
-SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "noreply@botree.co.in")
+SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "noreply@botree.ai")
 APP_URL = os.environ.get("APP_URL", "https://botree-roots.onrender.com").rstrip("/")
 
 # Initialize Resend
@@ -347,7 +349,7 @@ class RegisterRequest(BaseModel):
 
 class UserCreate(BaseModel):
     email: EmailStr
-    password: str
+    password: Optional[str] = None  # defaults to the standard Botree@123 if not provided
     name: str
     role: str
     department: str
@@ -420,6 +422,7 @@ class ProposalCreate(BaseModel):
 
 class ProposalAction(BaseModel):
     comment: Optional[str] = None
+    target_stage: Optional[str] = None  # used only by the admin stage-override endpoint
 
 # ============ Profitability Analyzer: hardcoded rate card ============
 # Fixed monthly cost per role. Not editable via API - change here only.
@@ -511,17 +514,14 @@ async def startup():
     # File storage is MongoDB GridFS - no separate init step needed
 
 async def seed_users():
-    # Admin (super admin)
-    admin_email = os.environ.get("ADMIN_EMAIL", "admin@botree.com")
-    admin_password = os.environ.get("ADMIN_PASSWORD", "Admin@123")
     
     users_to_seed = [
-        {"email": "admin@botree.co.in", "password": "Admin@123", "name": "System Admin", "role": "Admin", "department": "Admin"},
-        {"email": "sales@botree.co.in", "password": "Sales@123", "name": "Sales User", "role": "Sales", "department": "Sales"},
-        {"email": "varun.gupta@botree.co.in", "password": "Varun@123", "name": "Varun Gupta", "role": "CGO", "department": "CGO"},
-        {"email": "aakash.vimalanathan@botree.co.in", "password": "Aakash@123", "name": "Aakash Vimalanathan", "role": "Finance", "department": "Finance"},
-        {"email": "anakha.sajikumar@botree.co.in", "password": "Anakha@123", "name": "Anakha Sajikumar", "role": "Legal", "department": "Legal"},
-        {"email": "chandra.prakash@botree.co.in", "password": "CP@123", "name": "Chandra Prakash", "role": "CFO", "department": "CFO"},
+        {"email": "admin@botree.ai", "password": DEFAULT_USER_PASSWORD, "name": "System Admin", "role": "Admin", "department": "Admin"},
+        {"email": "sales@botree.ai", "password": DEFAULT_USER_PASSWORD, "name": "Sales User", "role": "Sales", "department": "Sales"},
+        {"email": "varun.gupta@botree.ai", "password": DEFAULT_USER_PASSWORD, "name": "Varun Gupta", "role": "CGO", "department": "CGO"},
+        {"email": "aakash.vimalanathan@botree.ai", "password": DEFAULT_USER_PASSWORD, "name": "Aakash Vimalanathan", "role": "Finance", "department": "Finance"},
+        {"email": "anakha.sajikumar@botree.ai", "password": DEFAULT_USER_PASSWORD, "name": "Anakha Sajikumar", "role": "Legal", "department": "Legal"},
+        {"email": "chandra.prakash@botree.ai", "password": DEFAULT_USER_PASSWORD, "name": "Chandra Prakash", "role": "CFO", "department": "CFO"},
     ]
     
     for user_data in users_to_seed:
@@ -613,7 +613,7 @@ async def create_user(user_data: UserCreate, request: Request):
     if existing:
         raise HTTPException(status_code=400, detail="User already exists")
     
-    hashed = hash_password(user_data.password)
+    hashed = hash_password(user_data.password or DEFAULT_USER_PASSWORD)
     new_user = {
         "email": user_data.email.lower(),
         "password_hash": hashed,
@@ -632,6 +632,58 @@ async def create_user(user_data: UserCreate, request: Request):
         "department": new_user["department"],
         "created_at": new_user["created_at"]
     }
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+class AdminResetPasswordRequest(BaseModel):
+    new_password: Optional[str] = None  # if omitted, resets to the standard default
+
+@api_router.patch("/users/me/password")
+async def change_own_password(payload: ChangePasswordRequest, request: Request):
+    """Self-service: any logged-in user can change their own password from
+    Account Settings, as long as they know their current one."""
+    current_user = await get_current_user(request)
+
+    user_doc = await db.users.find_one({"_id": ObjectId(current_user["id"])})
+    if not user_doc:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if not verify_password(payload.current_password, user_doc["password_hash"]):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+
+    if len(payload.new_password) < 6:
+        raise HTTPException(status_code=400, detail="New password must be at least 6 characters")
+
+    await db.users.update_one(
+        {"_id": ObjectId(current_user["id"])},
+        {"$set": {"password_hash": hash_password(payload.new_password)}}
+    )
+    return {"message": "Password updated successfully"}
+
+@api_router.patch("/users/{user_id}/password")
+async def admin_reset_password(user_id: str, payload: AdminResetPasswordRequest, request: Request):
+    """Admin-only: reset any user's password (e.g. if they're locked out),
+    without needing to know their current one. Defaults to the standard
+    Botree@123 password if no new_password is supplied."""
+    current_user = await get_current_user(request)
+    if current_user["role"] != "Admin":
+        raise HTTPException(status_code=403, detail="Only Admin can reset another user's password")
+
+    target_user = await db.users.find_one({"_id": ObjectId(user_id)})
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    new_password = payload.new_password or DEFAULT_USER_PASSWORD
+    if len(new_password) < 6:
+        raise HTTPException(status_code=400, detail="New password must be at least 6 characters")
+
+    await db.users.update_one(
+        {"_id": ObjectId(user_id)},
+        {"$set": {"password_hash": hash_password(new_password)}}
+    )
+    return {"message": f"Password reset for {target_user['name']}", "new_password": new_password}
 
 @api_router.delete("/users/{user_id}")
 async def delete_user(user_id: str, request: Request):
@@ -746,6 +798,29 @@ async def get_base_template(request: Request):
         "filename": setting.get("filename"),
         "updated_at": setting.get("updated_at"),
         "row_defaults": row_defaults
+    }
+
+@api_router.post("/admin/migrate-email-domain")
+async def migrate_email_domain(request: Request):
+    """One-time migration: update any existing user (and created_by/actor
+    references stored inline on proposals) whose email ends in the old
+    @botree.co.in domain to the current @botree.ai domain."""
+    current_user = await get_current_user(request)
+    if current_user["role"] != "Admin":
+        raise HTTPException(status_code=403, detail="Only Admin can run this migration")
+
+    OLD_DOMAIN = "@botree.co.in"
+    NEW_DOMAIN = "@botree.ai"
+
+    updated_users = 0
+    async for u in db.users.find({"email": {"$regex": f"{re.escape(OLD_DOMAIN)}$", "$options": "i"}}):
+        new_email = u["email"][: -len(OLD_DOMAIN)] + NEW_DOMAIN
+        await db.users.update_one({"_id": u["_id"]}, {"$set": {"email": new_email.lower()}})
+        updated_users += 1
+
+    return {
+        "message": f"Migrated {updated_users} user account(s) from {OLD_DOMAIN} to {NEW_DOMAIN}",
+        "updated_users": updated_users
     }
 
 @api_router.post("/base-template/upload")
@@ -998,6 +1073,24 @@ async def get_proposals(request: Request, status: Optional[str] = None, search: 
         })
     
     return result
+
+@api_router.delete("/proposals/{proposal_id}")
+async def delete_proposal(proposal_id: str, request: Request):
+    """Permanently delete a proposal and its full version/workflow history.
+    Only the Sales user who created it, or an Admin, may do this."""
+    current_user = await get_current_user(request)
+
+    proposal = await db.proposals.find_one({"_id": ObjectId(proposal_id)})
+    if not proposal:
+        raise HTTPException(status_code=404, detail="Proposal not found")
+
+    is_owner = current_user["role"] == "Sales" and proposal["created_by"] == current_user["id"]
+    is_admin = current_user["role"] == "Admin"
+    if not (is_owner or is_admin):
+        raise HTTPException(status_code=403, detail="Only the proposal's Sales owner or an Admin can delete it")
+
+    await db.proposals.delete_one({"_id": ObjectId(proposal_id)})
+    return {"message": "Proposal deleted"}
 
 @api_router.get("/proposals/{proposal_id}")
 async def get_proposal(proposal_id: str, request: Request):
@@ -1590,6 +1683,62 @@ async def update_finance_details(proposal_id: str, details: FinanceDetailsUpdate
 
     await db.proposals.update_one({"_id": ObjectId(proposal_id)}, {"$set": update_fields})
     return {"message": "Finance details saved"}
+
+@api_router.post("/proposals/{proposal_id}/override-stage")
+async def override_proposal_stage(proposal_id: str, action: ProposalAction, request: Request):
+    """Admin-only: jump a proposal directly to any workflow stage (e.g. CGO
+    straight to CFO), bypassing the normal one-step-at-a-time approval flow."""
+    current_user = await get_current_user(request)
+    if current_user["role"] != "Admin":
+        raise HTTPException(status_code=403, detail="Only Admin can override the workflow stage")
+
+    proposal = await db.proposals.find_one({"_id": ObjectId(proposal_id)})
+    if not proposal:
+        raise HTTPException(status_code=404, detail="Proposal not found")
+
+    target_key = action.target_stage
+    target_index = next((i for i, s in enumerate(WORKFLOW_STAGES) if s["key"] == target_key), None)
+    if target_index is None:
+        raise HTTPException(status_code=400, detail="Invalid target stage")
+
+    old_label = WORKFLOW_STAGES[proposal["current_stage"]]["label"]
+    new_label = WORKFLOW_STAGES[target_index]["label"]
+
+    history_entry = {
+        "action": "admin_override",
+        "by": {"id": current_user["id"], "name": current_user["name"], "role": current_user["role"]},
+        "comment": action.comment or f"Workflow moved from {old_label} to {new_label} by Admin",
+        "version": proposal.get("current_version", 1),
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+
+    await db.proposals.update_one(
+        {"_id": ObjectId(proposal_id)},
+        {
+            "$set": {
+                "current_stage": target_index,
+                "status": WORKFLOW_STAGES[target_index]["key"],
+                "updated_at": datetime.now(timezone.utc).isoformat()
+            },
+            "$push": {"history": history_entry}
+        }
+    )
+
+    next_role = WORKFLOW_STAGES[target_index]["role"]
+    if next_role:
+        next_approver = await db.users.find_one({"department": next_role}, {"_id": 0, "email": 1, "name": 1})
+        if next_approver:
+            await send_workflow_notification(
+                recipient_email=next_approver["email"],
+                recipient_name=next_approver["name"],
+                proposal_title=proposal["title"],
+                proposal_id=proposal_id,
+                stage=new_label,
+                action="assigned",
+                comment=action.comment
+            )
+
+    return {"message": f"Workflow moved to {new_label}", "new_status": WORKFLOW_STAGES[target_index]["key"]}
 
 @api_router.post("/proposals/{proposal_id}/approve")
 async def approve_proposal(proposal_id: str, action: ProposalAction, request: Request):
