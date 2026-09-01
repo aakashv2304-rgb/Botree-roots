@@ -1102,7 +1102,7 @@ async def get_proposal(proposal_id: str, request: Request):
     
     creator = await db.users.find_one({"_id": ObjectId(proposal["created_by"])})
     if not creator:
-        creator = {"_id": proposal["created_by"], "name": "Deleted User", "role": "Unknown"}
+        creator = {"_id": proposal["created_by"], "name": "Deleted User", "role": "Unknown", "email": ""}
     
     response = {
         "id": str(proposal["_id"]),
@@ -1112,7 +1112,7 @@ async def get_proposal(proposal_id: str, request: Request):
         "current_stage": proposal["current_stage"],
         "current_version": proposal.get("current_version", 1),
         "is_closed": proposal.get("is_closed", False),
-        "created_by": {"id": str(creator["_id"]), "name": creator["name"], "role": creator["role"]},
+        "created_by": {"id": str(creator["_id"]), "name": creator["name"], "role": creator["role"], "email": creator.get("email", "")},
         "file_info": proposal.get("file_info"),
         "products": proposal.get("products", []),
         "customer_name": proposal.get("customer_name"),
@@ -1488,11 +1488,10 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
     if not existing_proposal:
         raise HTTPException(status_code=404, detail="Proposal not found")
     
-    # Sales can only edit their own proposals; Admin can edit any proposal
-    # that needs revision, as a fallback if the original creator is unavailable.
-    if current_user["role"] == "Sales" and existing_proposal["created_by"] != current_user["id"]:
-        raise HTTPException(status_code=403, detail="You can only edit your own proposals")
-    
+    # Any Sales user (not just the exact original creator) or Admin can pick
+    # up a proposal that needs revision and resubmit it - avoids proposals
+    # getting stuck if the original creator's account was deleted/recreated
+    # (e.g. via the idempotent seed_users() startup routine).
     if existing_proposal["status"] != "needs_revision":
         raise HTTPException(status_code=400, detail="Can only edit proposals that need revision")
     
