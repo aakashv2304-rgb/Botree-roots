@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { SignIn, Eye, EyeSlash, ShieldCheck, ChartLineUp, FileText } from '@phosphor-icons/react';
+import { SignIn, Eye, EyeSlash } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 
 const BOTREE_LOGO = "https://customer-assets-7cd3h4nn.emergentagent.net/job_proposal-tracker-app/artifacts/12kvgckj_Botree%20Logo-white-bg.webp";
@@ -64,44 +64,18 @@ const Login = () => {
           style={{ background: 'radial-gradient(circle, #E64AD1 0%, transparent 70%)', bottom: '5%', right: '5%' }}
         ></div>
 
-        <div className="relative z-10 flex flex-col items-center px-8 py-12 text-center">
-          {/* Animated logo with pulsing rings */}
-          <div className="relative flex items-center justify-center mb-8" style={{ width: 140, height: 140 }}>
-            <div className="login-logo-ring ring-1"></div>
-            <div className="login-logo-ring ring-2"></div>
-            <div className="login-logo-ring ring-3"></div>
-            <div className="animate-float bg-white rounded-3xl shadow-2xl p-5 flex items-center justify-center relative z-10">
-              <img src={BOTREE_LOGO} alt="Botree Software" className="h-14 w-auto" />
+        <div className="relative z-10 flex flex-col items-center px-8">
+          {/* Big animated logo - single rotating glow halo behind it */}
+          <div className="relative flex items-center justify-center mb-6" style={{ width: 260, height: 260 }}>
+            <div className="login-logo-glow"></div>
+            <div className="animate-float bg-white rounded-[2rem] shadow-2xl p-8 flex items-center justify-center relative z-10">
+              <img src={BOTREE_LOGO} alt="Botree Software" className="h-24 w-auto" />
             </div>
           </div>
 
-          <h1 className="text-3xl font-bold text-white mb-2 font-heading">
-            Botree <span className="login-brand-glow bg-gradient-to-r from-[#9B30FF] to-[#E64AD1] bg-clip-text text-transparent">Roots</span>
-          </h1>
-          <p className="text-[#C3B9D6] text-base max-w-sm mb-10">
-            Run your route-to-market business in one place — proposals, approvals, and profitability, all connected.
+          <p className="text-[#C3B9D6] text-sm tracking-wide">
+            Enterprise Proposal Tracker
           </p>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 max-w-md">
-            <div className="flex flex-col items-center gap-2">
-              <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
-                <FileText size={20} className="text-[#E64AD1]" />
-              </div>
-              <span className="text-xs text-[#C3B9D6]">Proposal Tracking</span>
-            </div>
-            <div className="flex flex-col items-center gap-2">
-              <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
-                <ShieldCheck size={20} className="text-[#E64AD1]" />
-              </div>
-              <span className="text-xs text-[#C3B9D6]">Secure Approvals</span>
-            </div>
-            <div className="flex flex-col items-center gap-2">
-              <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
-                <ChartLineUp size={20} className="text-[#E64AD1]" />
-              </div>
-              <span className="text-xs text-[#C3B9D6]">Live Profitability</span>
-            </div>
-          </div>
         </div>
       </div>
 
