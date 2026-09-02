@@ -568,11 +568,11 @@ input[type="checkbox"]:checked::after {
 
 .login-logo-glow {
   position: absolute;
-  inset: -30px;
+  inset: -14px;
   border-radius: 9999px;
   background: conic-gradient(from 0deg, #9B30FF, #E64AD1, #7518F2, #9B30FF);
-  filter: blur(28px);
-  opacity: 0.55;
+  filter: blur(18px);
+  opacity: 0.6;
   animation: logoGlowRotate 8s linear infinite;
 }
 
