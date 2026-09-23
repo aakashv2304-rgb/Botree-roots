@@ -1,5 +1,5 @@
 from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Header, Query, UploadFile, File, Depends
-from fastapi.responses import Response as FastAPIResponse, StreamingResponse
+from fastapi.responses import Response as FastAPIResponse, StreamingResponse, RedirectResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -17,6 +17,7 @@ import jwt
 from bson import ObjectId
 import requests
 import asyncio
+import secrets
 import resend
 from reportlab.lib.pagesizes import letter, A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -77,6 +78,12 @@ COOKIE_SAMESITE = "lax"
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
 SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "noreply@botree.ai")
 APP_URL = os.environ.get("APP_URL", "https://botree-roots.onrender.com").rstrip("/")
+
+# Zoho OAuth ("Sign in with Zoho") - optional, alongside email/password login
+ZOHO_CLIENT_ID = os.environ.get("ZOHO_CLIENT_ID")
+ZOHO_CLIENT_SECRET = os.environ.get("ZOHO_CLIENT_SECRET")
+ZOHO_REDIRECT_URI = f"{APP_URL}/api/auth/zoho/callback"
+ZOHO_ACCOUNTS_BASE = os.environ.get("ZOHO_ACCOUNTS_BASE", "https://accounts.zoho.com")  # use https://accounts.zoho.eu / .in / .com.au etc. for other data centers
 
 # Initialize Resend
 resend.api_key = RESEND_API_KEY
@@ -582,6 +589,105 @@ async def logout(response: Response):
     response.delete_cookie(key="access_token", path="/")
     response.delete_cookie(key="refresh_token", path="/")
     return {"message": "Logged out"}
+
+@api_router.get("/auth/zoho/login")
+async def zoho_login(response: Response):
+    """Starts 'Sign in with Zoho' - redirects the browser to Zoho's consent screen."""
+    if not ZOHO_CLIENT_ID:
+        raise HTTPException(status_code=503, detail="Zoho login is not configured")
+
+    state = secrets.token_urlsafe(24)
+    auth_url = (
+        f"{ZOHO_ACCOUNTS_BASE}/oauth/v2/auth"
+        f"?response_type=code"
+        f"&client_id={ZOHO_CLIENT_ID}"
+        f"&scope=AaaServer.profile.Read"
+        f"&redirect_uri={ZOHO_REDIRECT_URI}"
+        f"&access_type=offline"
+        f"&prompt=consent"
+        f"&state={state}"
+    )
+    redirect = RedirectResponse(url=auth_url)
+    # Short-lived state cookie for CSRF protection on the callback
+    redirect.set_cookie(key="zoho_oauth_state", value=state, httponly=True, secure=COOKIE_SECURE, samesite=COOKIE_SAMESITE, max_age=600, path="/")
+    return redirect
+
+@api_router.get("/auth/zoho/callback")
+async def zoho_callback(request: Request, response: Response, code: str = None, state: str = None, error: str = None):
+    """Handles Zoho's redirect back after consent: exchanges the code, finds-or-creates
+    the matching Botree user by email, and logs them in exactly like normal login."""
+    if error:
+        return RedirectResponse(url=f"{APP_URL}/?error=zoho_denied")
+
+    saved_state = request.cookies.get("zoho_oauth_state")
+    if not code or not state or not saved_state or state != saved_state:
+        return RedirectResponse(url=f"{APP_URL}/?error=zoho_failed")
+
+    try:
+        token_resp = await asyncio.to_thread(
+            requests.post,
+            f"{ZOHO_ACCOUNTS_BASE}/oauth/v2/token",
+            params={
+                "client_id": ZOHO_CLIENT_ID,
+                "client_secret": ZOHO_CLIENT_SECRET,
+                "code": code,
+                "grant_type": "authorization_code",
+                "redirect_uri": ZOHO_REDIRECT_URI,
+            },
+            timeout=15,
+        )
+        token_data = token_resp.json()
+        access_token_zoho = token_data.get("access_token")
+        if not access_token_zoho:
+            logger.error(f"Zoho token exchange failed: {token_data}")
+            return RedirectResponse(url=f"{APP_URL}/?error=zoho_failed")
+
+        profile_resp = await asyncio.to_thread(
+            requests.get,
+            f"{ZOHO_ACCOUNTS_BASE}/oauth/user/info",
+            headers={"Authorization": f"Zoho-oauthtoken {access_token_zoho}"},
+            timeout=15,
+        )
+        profile = profile_resp.json()
+        zoho_email = (profile.get("Email") or "").lower().strip()
+        zoho_name = profile.get("Display_Name") or f"{profile.get('First_Name', '')} {profile.get('Last_Name', '')}".strip()
+
+        if not zoho_email:
+            logger.error(f"Zoho profile fetch missing email: {profile}")
+            return RedirectResponse(url=f"{APP_URL}/?error=zoho_failed")
+
+    except Exception as e:
+        logger.error(f"Zoho OAuth error: {str(e)}")
+        return RedirectResponse(url=f"{APP_URL}/?error=zoho_failed")
+
+    user = await db.users.find_one({"email": zoho_email})
+    if not user:
+        # Auto-create: default role is Sales (lowest-privilege, non-gating) -
+        # an Admin can reassign it afterward in User Management.
+        # Password login stays disabled for this account (random unusable hash)
+        # since it's meant to be used via Zoho login only, unless an Admin sets one.
+        new_user_doc = {
+            "email": zoho_email,
+            "name": zoho_name or zoho_email.split("@")[0],
+            "password_hash": hash_password(secrets.token_urlsafe(32)),
+            "role": "Sales",
+            "department": "Sales",
+            "auth_provider": "zoho",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        result = await db.users.insert_one(new_user_doc)
+        user = new_user_doc
+        user["_id"] = result.inserted_id
+
+    user_id = str(user["_id"])
+    access_token = create_access_token(user_id, user["email"])
+    refresh_token = create_refresh_token(user_id)
+
+    redirect = RedirectResponse(url=f"{APP_URL}/dashboard")
+    redirect.set_cookie(key="access_token", value=access_token, httponly=True, secure=COOKIE_SECURE, samesite=COOKIE_SAMESITE, max_age=3600, path="/")
+    redirect.set_cookie(key="refresh_token", value=refresh_token, httponly=True, secure=COOKIE_SECURE, samesite=COOKIE_SAMESITE, max_age=604800, path="/")
+    redirect.delete_cookie(key="zoho_oauth_state", path="/")
+    return redirect
 
 @api_router.get("/auth/me")
 async def get_me(request: Request):
