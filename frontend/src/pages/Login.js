@@ -140,10 +140,11 @@ const Login = () => {
           display: grid;
           grid-template-columns: 1.1fr 0.9fr;
           width: 100%;
-          max-width: 1120px;
-          padding: 40px;
-          gap: 70px;
+          max-width: 1080px;
+          padding: 24px;
+          gap: 50px;
           align-items: center;
+          max-height: 100vh;
         }
 
         .identity-column {
@@ -156,8 +157,8 @@ const Login = () => {
           display: flex;
           flex-direction: row;
           align-items: center;
-          gap: 28px;
-          margin-bottom: 24px;
+          gap: 24px;
+          margin-bottom: 16px;
         }
 
         /* Settles in via entrance keyframes, then keeps a gentle continuous float */
@@ -273,9 +274,9 @@ const Login = () => {
         .secure-card-panel {
           background: #ffffff;
           width: 100%;
-          max-width: 400px;
-          padding: 40px;
-          border-radius: 16px;
+          max-width: 380px;
+          padding: 32px 32px 26px;
+          border-radius: 20px;
           box-shadow: 0 30px 70px rgba(0, 0, 0, 0.45);
         }
 
@@ -298,7 +299,7 @@ const Login = () => {
 
         .card-brand-header {
           text-align: center;
-          margin-bottom: 30px;
+          margin-bottom: 20px;
           opacity: 0;
           transform: translateY(10px);
           animation: fieldFadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards 1.2s;
@@ -327,7 +328,7 @@ const Login = () => {
           font-weight: 500;
         }
 
-        .control-group { margin-bottom: 20px; display: flex; flex-direction: column; }
+        .control-group { margin-bottom: 14px; display: flex; flex-direction: column; }
 
         .control-label {
           font-size: 11px;
@@ -344,10 +345,10 @@ const Login = () => {
           font-size: 15px;
           font-weight: 400;
           color: #1a1c21;
-          padding: 14px 16px;
+          padding: 13px 18px;
           background-color: #ffffff;
           border: 1px solid #e3e6ef;
-          border-radius: 8px;
+          border-radius: 14px;
           outline: none;
           transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.15s ease;
         }
@@ -369,9 +370,9 @@ const Login = () => {
           color: #ffffff;
           background-color: #51258d;
           border: none;
-          border-radius: 10px;
-          padding: 16px;
-          margin-top: 6px;
+          border-radius: 14px;
+          padding: 14px;
+          margin-top: 4px;
           cursor: pointer;
           box-shadow: 0 8px 24px rgba(81, 37, 141, 0.25);
           transition: transform 0.15s ease, opacity 0.2s ease, box-shadow 0.2s ease;
@@ -412,7 +413,7 @@ const Login = () => {
         }
         .portal-utility-link:hover { color: #ff007f; text-decoration: underline; }
 
-        .portal-divider { display: flex; align-items: center; gap: 12px; margin: 20px 0; }
+        .portal-divider { display: flex; align-items: center; gap: 12px; margin: 14px 0; }
         .portal-divider-line { flex: 1; height: 1px; background: #e3e6ef; }
         .portal-divider-text { font-size: 11px; color: #a2a8ba; font-weight: 700; letter-spacing: 1px; }
 
@@ -423,7 +424,7 @@ const Login = () => {
           align-items: center;
           justify-content: center;
           gap: 8px;
-          border-radius: 8px;
+          border-radius: 14px;
           border: 1px solid #e3e6ef;
           background: #ffffff;
           color: #1a1c21;
@@ -437,8 +438,8 @@ const Login = () => {
 
         .portal-footer {
           text-align: center;
-          padding-top: 22px;
-          margin-top: 22px;
+          padding-top: 14px;
+          margin-top: 14px;
           border-top: 1px solid #e3e6ef;
           font-size: 11px;
           color: #8a8fa3;
