@@ -1,13 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
-import { Label } from '../components/ui/label';
-import { SignIn, Eye, EyeSlash } from '@phosphor-icons/react';
+import { Eye, EyeSlash } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 
-const BOTREE_LOGO = "https://customer-assets-7cd3h4nn.emergentagent.net/job_proposal-tracker-app/artifacts/12kvgckj_Botree%20Logo-white-bg.webp";
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const Login = () => {
@@ -15,14 +11,9 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [pageLoading, setPageLoading] = useState(true);
   const { login } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-
-  useEffect(() => {
-    setTimeout(() => setPageLoading(false), 500);
-  }, []);
 
   useEffect(() => {
     const error = searchParams.get('error');
@@ -37,6 +28,11 @@ const Login = () => {
 
   const handleZohoLogin = () => {
     window.location.href = `${API}/auth/zoho/login`;
+  };
+
+  const handleForgotPassword = (e) => {
+    e.preventDefault();
+    toast.info('Password resets are handled by your Admin — reach out to them directly.');
   };
 
   const handleSubmit = async (e) => {
@@ -58,136 +54,394 @@ const Login = () => {
     }
   };
 
-  if (pageLoading) {
-    return (
-      <div className="min-h-screen bg-[#F7F4FC] flex items-center justify-center">
-        <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-[#9B30FF]"></div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-[#F7F4FC] flex items-center justify-center p-4 sm:p-8">
-      <div className="w-full max-w-4xl bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col md:flex-row animate-fade-in-up">
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700;900&display=swap');
 
-        {/* LEFT: Branding panel */}
-        <div className="relative md:w-[42%] min-h-[200px] md:min-h-[520px] flex items-center justify-center overflow-hidden bg-gradient-to-br from-[#1E1533] to-[#2D1F47] px-8 py-10 md:py-0">
-          <div
-            className="login-orb-1 absolute w-56 h-56 rounded-full opacity-20 blur-3xl"
-            style={{ background: 'radial-gradient(circle, #9B30FF 0%, transparent 70%)', top: '-10%', left: '-10%' }}
-          ></div>
-          <div
-            className="login-orb-2 absolute w-56 h-56 rounded-full opacity-20 blur-3xl"
-            style={{ background: 'radial-gradient(circle, #E64AD1 0%, transparent 70%)', bottom: '-10%', right: '-10%' }}
-          ></div>
+        .botree-login-surface, .botree-login-surface *, .botree-login-surface *::before, .botree-login-surface *::after {
+          box-sizing: border-box;
+        }
 
-          <div className="relative z-10 flex flex-col items-center text-center">
-            <div className="relative flex items-center justify-center mb-5">
-              <div className="login-logo-glow"></div>
-              <div className="animate-float bg-white rounded-xl shadow-2xl px-6 py-4 flex items-center justify-center relative z-10">
-                <img src={BOTREE_LOGO} alt="Botree Software" className="h-10 w-auto" />
+        html:has(.botree-login-surface), body:has(.botree-login-surface) {
+          overflow: hidden;
+        }
+
+        .botree-login-surface {
+          position: fixed;
+          inset: 0;
+          background: radial-gradient(circle at 50% 50%, #110626 0%, #06020f 85%);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 1;
+          font-family: 'DM Sans', sans-serif;
+          overflow-y: auto;
+        }
+
+        .identity-ambient-glow {
+          position: absolute;
+          width: 500px; height: 500px;
+          background: radial-gradient(circle, rgba(255, 0, 127, 0.08) 0%, rgba(120, 12, 227, 0.04) 55%, transparent 100%);
+          filter: blur(50px);
+          pointer-events: none;
+          transform: translate(-50%, -50%);
+          top: 50%; left: 50%;
+          animation: slowPulse 8s ease-in-out infinite alternate;
+        }
+        @keyframes slowPulse {
+          0% { transform: translate(-50%, -50%) scale(0.9); opacity: 0.8; }
+          100% { transform: translate(-50%, -50%) scale(1.1); opacity: 1; }
+        }
+
+        .app-frame-grid {
+          position: relative;
+          z-index: 10;
+          display: grid;
+          grid-template-columns: 1.1fr 0.9fr;
+          width: 100%;
+          max-width: 1120px;
+          padding: 40px;
+          gap: 70px;
+          align-items: center;
+        }
+
+        .identity-column {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+        }
+
+        .brand-lockup-row {
+          display: flex;
+          flex-direction: row;
+          align-items: center;
+          gap: 28px;
+          margin-bottom: 24px;
+        }
+
+        .vector-brandmark-container {
+          width: 90px;
+          height: 90px;
+          flex-shrink: 0;
+          position: relative;
+        }
+
+        .logo-chevron-shape { opacity: 0; transform-origin: center; }
+
+        .chv-top-asset {
+          fill: #ff007f;
+          transform: translate(25px, -25px) scale(0.9);
+          animation: slideAndLockTop 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards 0.2s;
+        }
+        .chv-bottom-asset {
+          fill: #730ce3;
+          transform: translate(-25px, 25px) scale(0.9);
+          animation: slideAndLockBottom 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards 0.4s;
+        }
+        @keyframes slideAndLockTop { to { opacity: 1; transform: translate(0, 0) scale(1); } }
+        @keyframes slideAndLockBottom { to { opacity: 1; transform: translate(0, 0) scale(1); } }
+
+        .brand-typography-group {
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          text-align: left;
+        }
+
+        .text-botree-main {
+          font-size: 60px;
+          font-weight: 900;
+          color: #ffffff;
+          line-height: 0.75;
+          letter-spacing: -1.5px;
+          text-transform: uppercase;
+          opacity: 0;
+          transform: translateX(-15px);
+          animation: textRevealMove 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards 0.5s;
+        }
+
+        .text-software-sub {
+          display: block;
+          font-size: 12px;
+          font-weight: 900;
+          color: #ffffff;
+          line-height: 1;
+          letter-spacing: 10px;
+          margin-top: 10px;
+          padding-left: 2px;
+          text-transform: uppercase;
+          opacity: 0;
+          transform: translateX(-10px);
+          animation: textRevealMove 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards 0.7s;
+        }
+        @keyframes textRevealMove { to { opacity: 1; transform: translateX(0); } }
+
+        .system-meta-tag {
+          font-size: 13px;
+          font-weight: 500;
+          color: #4c4663;
+          letter-spacing: 2.5px;
+          text-transform: uppercase;
+          line-height: 1.5;
+          padding-left: 4px;
+          opacity: 0;
+          transform: translateY(10px);
+          animation: elementFadeUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards 0.9s;
+        }
+
+        .interface-portal-column {
+          display: flex;
+          justify-content: flex-end;
+          opacity: 0;
+          transform: translateY(20px) scale(0.98);
+          animation: elementFadeUp 1.0s cubic-bezier(0.16, 1, 0.3, 1) forwards 1.1s;
+        }
+        @keyframes elementFadeUp { to { opacity: 1; transform: translateY(0) scale(1); } }
+
+        .secure-card-panel {
+          background: #ffffff;
+          width: 100%;
+          max-width: 400px;
+          padding: 40px;
+          border-radius: 16px;
+          box-shadow: 0 30px 70px rgba(0, 0, 0, 0.45);
+        }
+
+        .control-group { margin-bottom: 20px; display: flex; flex-direction: column; }
+
+        .control-label {
+          font-size: 11px;
+          font-weight: 700;
+          color: #4f566b;
+          letter-spacing: 1.5px;
+          text-transform: uppercase;
+          margin-bottom: 10px;
+        }
+
+        .control-input {
+          width: 100%;
+          font-family: 'DM Sans', sans-serif;
+          font-size: 15px;
+          font-weight: 400;
+          color: #1a1c21;
+          padding: 14px 16px;
+          background-color: #ffffff;
+          border: 1px solid #e3e6ef;
+          border-radius: 8px;
+          outline: none;
+          transition: border-color 0.25s ease, box-shadow 0.25s ease;
+        }
+        .control-input::placeholder { color: #a2a8ba; }
+        .control-input:focus {
+          border-color: #51258d;
+          box-shadow: 0 0 0 4px rgba(81, 37, 141, 0.12);
+        }
+
+        .portal-action-button {
+          width: 100%;
+          font-family: 'DM Sans', sans-serif;
+          font-size: 15px;
+          font-weight: 700;
+          color: #ffffff;
+          background-color: #51258d;
+          border: none;
+          border-radius: 10px;
+          padding: 16px;
+          margin-top: 6px;
+          cursor: pointer;
+          box-shadow: 0 8px 24px rgba(81, 37, 141, 0.25);
+          transition: background-color 0.2s ease, transform 0.15s ease, opacity 0.2s ease;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+        }
+        .portal-action-button:hover:not(:disabled) { background-color: #421d75; }
+        .portal-action-button:active:not(:disabled) { transform: scale(0.985); }
+        .portal-action-button:disabled { opacity: 0.75; cursor: not-allowed; }
+
+        .portal-utility-link {
+          display: block;
+          text-align: center;
+          margin-top: 18px;
+          font-size: 13px;
+          font-weight: 700;
+          color: #421d75;
+          background: none;
+          border: none;
+          cursor: pointer;
+          width: 100%;
+          transition: color 0.2s ease;
+        }
+        .portal-utility-link:hover { color: #ff007f; text-decoration: underline; }
+
+        .portal-divider { display: flex; align-items: center; gap: 12px; margin: 20px 0; }
+        .portal-divider-line { flex: 1; height: 1px; background: #e3e6ef; }
+        .portal-divider-text { font-size: 11px; color: #a2a8ba; font-weight: 700; letter-spacing: 1px; }
+
+        .zoho-button {
+          width: 100%;
+          height: 44px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          border-radius: 8px;
+          border: 1px solid #e3e6ef;
+          background: #ffffff;
+          color: #1a1c21;
+          font-family: 'DM Sans', sans-serif;
+          font-weight: 700;
+          font-size: 14px;
+          cursor: pointer;
+          transition: background-color 0.2s ease;
+        }
+        .zoho-button:hover { background-color: #f7f4fc; }
+
+        .portal-footer {
+          text-align: center;
+          padding-top: 22px;
+          margin-top: 22px;
+          border-top: 1px solid #e3e6ef;
+          font-size: 11px;
+          color: #8a8fa3;
+        }
+
+        .password-field-wrap { position: relative; }
+        .password-toggle-btn {
+          position: absolute;
+          right: 14px;
+          top: 50%;
+          transform: translateY(-50%);
+          background: none;
+          border: none;
+          color: #a2a8ba;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          padding: 0;
+        }
+        .password-toggle-btn:hover { color: #1a1c21; }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        @media (max-width: 960px) {
+          .app-frame-grid {
+            grid-template-columns: 1fr;
+            gap: 40px;
+            max-width: 480px;
+            padding: 40px 24px;
+          }
+          .identity-column { align-items: center; text-align: center; }
+          .brand-lockup-row { flex-direction: column; text-align: center; gap: 14px; }
+          .brand-typography-group { text-align: center; }
+          .text-software-sub { padding-left: 0; }
+          .system-meta-tag { text-align: center; padding-left: 0; }
+          .interface-portal-column { justify-content: center; }
+        }
+      `}</style>
+
+      <div className="botree-login-surface">
+        <div className="identity-ambient-glow"></div>
+
+        <div className="app-frame-grid">
+          <div className="identity-column">
+            <div className="brand-lockup-row">
+              <div className="vector-brandmark-container">
+                <svg width="100%" height="100%" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+                  <polygon className="logo-chevron-shape chv-top-asset" points="100,20 180,88 142,88 100,52 58,88 20,88" />
+                  <polygon className="logo-chevron-shape chv-bottom-asset" points="100,90 180,158 142,158 100,122 58,158 20,158" />
+                </svg>
+              </div>
+              <div className="brand-typography-group">
+                <h1 className="text-botree-main">BOTREE</h1>
+                <span className="text-software-sub">SOFTWARE</span>
               </div>
             </div>
-            <p className="text-[#C3B9D6] text-xs font-semibold tracking-widest uppercase">
-              Enterprise Proposal Tracker
-            </p>
+            <div className="system-meta-tag">Enterprise Proposal Tracker</div>
           </div>
-        </div>
 
-        {/* RIGHT: Login form */}
-        <div className="md:w-[58%] flex items-center justify-center px-8 py-10 sm:px-12 sm:py-12">
-          <div className="w-full max-w-sm">
-            <div className="text-center space-y-1 mb-8">
-              <h2 className="text-2xl font-bold text-[#1E1533]">
-                Welcome Back
-              </h2>
-              <p className="text-[#7A6B9E] text-sm">Sign in to your account</p>
-            </div>
-
-            <form onSubmit={handleSubmit} className="space-y-5">
-              <div className="space-y-2">
-                <Label htmlFor="email" className="text-[#5B4B7A] font-semibold">Email Address</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="your.email@botree.ai"
-                  required
-                  data-testid="email-input"
-                  className="h-10 bg-[#F7F4FC] border-[#E4DCF0] text-[#1E1533] placeholder:text-[#A99BC7] focus:border-[#9B30FF] focus:ring-[#9B30FF]"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="password" className="text-[#5B4B7A] font-semibold">Password</Label>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter your password"
+          <div className="interface-portal-column">
+            <div className="secure-card-panel">
+              <form onSubmit={handleSubmit}>
+                <div className="control-group">
+                  <label className="control-label" htmlFor="email">Email Address</label>
+                  <input
+                    id="email"
+                    type="email"
+                    className="control-input"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="your.email@botree.ai"
                     required
-                    data-testid="password-input"
-                    className="h-10 pr-12 bg-[#F7F4FC] border-[#E4DCF0] text-[#1E1533] placeholder:text-[#A99BC7] focus:border-[#9B30FF] focus:ring-[#9B30FF]"
+                    autoComplete="username"
+                    data-testid="email-input"
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 transform -translate-y-1/2 text-[#8577A3] hover:text-[#1E1533] transition-colors"
-                  >
-                    {showPassword ? <EyeSlash size={20} /> : <Eye size={20} />}
-                  </button>
                 </div>
+
+                <div className="control-group">
+                  <label className="control-label" htmlFor="password">Password</label>
+                  <div className="password-field-wrap">
+                    <input
+                      id="password"
+                      type={showPassword ? 'text' : 'password'}
+                      className="control-input"
+                      style={{ paddingRight: '44px' }}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Enter password"
+                      required
+                      autoComplete="current-password"
+                      data-testid="password-input"
+                    />
+                    <button
+                      type="button"
+                      className="password-toggle-btn"
+                      onClick={() => setShowPassword(!showPassword)}
+                      tabIndex={-1}
+                    >
+                      {showPassword ? <EyeSlash size={19} /> : <Eye size={19} />}
+                    </button>
+                  </div>
+                </div>
+
+                <button type="submit" className="portal-action-button" disabled={loading} data-testid="login-button">
+                  {loading ? (
+                    <>
+                      <div style={{
+                        width: 16, height: 16, borderRadius: '50%',
+                        border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff',
+                        animation: 'spin 0.7s linear infinite'
+                      }}></div>
+                      Signing in...
+                    </>
+                  ) : 'Sign In'}
+                </button>
+
+                <button type="button" className="portal-utility-link" onClick={handleForgotPassword}>
+                  Forgot Password?
+                </button>
+              </form>
+
+              <div className="portal-divider">
+                <div className="portal-divider-line"></div>
+                <span className="portal-divider-text">OR</span>
+                <div className="portal-divider-line"></div>
               </div>
 
-              <Button
-                type="submit"
-                disabled={loading}
-                data-testid="login-button"
-                className="w-full h-10 text-base font-bold text-white shadow-md hover:shadow-xl transition-all duration-300"
-                style={{ background: 'linear-gradient(135deg, #9B30FF 0%, #E64AD1 100%)' }}
-              >
-                {loading ? (
-                  <div className="flex items-center gap-2">
-                    <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white"></div>
-                    <span>Signing in...</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <SignIn size={20} weight="bold" />
-                    <span>Sign In</span>
-                  </div>
-                )}
-              </Button>
-            </form>
+              <button type="button" className="zoho-button" onClick={handleZohoLogin} data-testid="zoho-login-button">
+                Sign in with Zoho
+              </button>
 
-            <div className="flex items-center gap-3 my-5">
-              <div className="flex-1 h-px bg-[#E4DCF0]"></div>
-              <span className="text-xs text-[#A99BC7] font-medium">OR</span>
-              <div className="flex-1 h-px bg-[#E4DCF0]"></div>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleZohoLogin}
-              data-testid="zoho-login-button"
-              className="w-full h-10 flex items-center justify-center gap-2 rounded-md border border-[#E4DCF0] bg-white text-[#1E1533] font-semibold text-sm hover:bg-[#F7F4FC] transition-colors"
-            >
-              <SignIn size={18} />
-              Sign in with Zoho
-            </button>
-
-            <div className="text-center pt-6 mt-6 border-t border-[#E4DCF0]">
-              <p className="text-xs text-[#7A6B9E]">
-                Botree Software © 2026 | <span className="font-semibold text-[#5B4B7A]">Botree Roots</span>
-              </p>
+              <div className="portal-footer">
+                Botree Software © 2026 | Botree Roots
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 
