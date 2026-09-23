@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../components/ui/alert-dialog';
 import { toast } from 'sonner';
-import { Plus, Trash, PencilSimple, Upload, FileText, Key } from '@phosphor-icons/react';
+import { Plus, Trash, PencilSimple, Upload, FileText, Key, Check, X, UserCirclePlus } from '@phosphor-icons/react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -26,13 +26,67 @@ const UserManagement = () => {
   const [formData, setFormData] = useState({ email: '', name: '', role: 'Sales', department: 'Sales' });
   const [baseTemplate, setBaseTemplate] = useState(null);
   const [templateUploading, setTemplateUploading] = useState(false);
+  const [accessRequests, setAccessRequests] = useState([]);
+  const [approveOpen, setApproveOpen] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState(null);
+  const [approveRole, setApproveRole] = useState('Sales');
+  const [approveDepartment, setApproveDepartment] = useState('Sales');
+  const [approveLoading, setApproveLoading] = useState(false);
 
   useEffect(() => {
     if (user?.role === 'Admin') {
       fetchUsers();
       fetchBaseTemplate();
+      fetchAccessRequests();
     }
   }, [user]);
+
+  const fetchAccessRequests = async () => {
+    try {
+      const { data } = await axios.get(`${API}/access-requests`, { withCredentials: true });
+      setAccessRequests(data);
+    } catch (error) {
+      // non-fatal
+    }
+  };
+
+  const openApproveDialog = (req) => {
+    setSelectedRequest(req);
+    setApproveRole('Sales');
+    setApproveDepartment('Sales');
+    setApproveOpen(true);
+  };
+
+  const handleApproveRequest = async () => {
+    setApproveLoading(true);
+    try {
+      await axios.post(
+        `${API}/access-requests/${selectedRequest.id}/approve`,
+        { role: approveRole, department: approveDepartment },
+        { withCredentials: true }
+      );
+      toast.success(`${selectedRequest.name} approved as ${approveRole}`);
+      setApproveOpen(false);
+      setSelectedRequest(null);
+      fetchAccessRequests();
+      fetchUsers();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to approve access request');
+    } finally {
+      setApproveLoading(false);
+    }
+  };
+
+  const handleRejectRequest = async (req) => {
+    if (!window.confirm(`Decline access for ${req.name} (${req.email})?`)) return;
+    try {
+      await axios.post(`${API}/access-requests/${req.id}/reject`, {}, { withCredentials: true });
+      toast.success('Access request declined');
+      fetchAccessRequests();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to decline access request');
+    }
+  };
 
   const fetchBaseTemplate = async () => {
     try {
@@ -296,6 +350,53 @@ const UserManagement = () => {
         </Button>
       </div>
 
+      {/* Pending Access Requests (Zoho SSO) */}
+      {accessRequests.length > 0 && (
+        <div className="bg-[#FFFFFF] border border-amber-300 rounded-lg shadow-sm p-6 mb-6" data-testid="access-requests-section">
+          <h2 className="text-lg font-bold text-[#1E1533] mb-1 flex items-center gap-2">
+            <UserCirclePlus size={22} className="text-amber-600" />
+            Pending Access Requests
+            <span className="text-xs font-semibold text-white bg-amber-500 rounded-full px-2 py-0.5">{accessRequests.length}</span>
+          </h2>
+          <p className="text-sm text-[#7A6B9E] mb-4">
+            These people signed in with Zoho but don't have a Botree Roots account yet. Approve to assign them a role, or decline.
+          </p>
+          <div className="space-y-2">
+            {accessRequests.map((req) => (
+              <div key={req.id} className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-lg px-4 py-3" data-testid={`access-request-${req.id}`}>
+                <div>
+                  <p className="font-semibold text-[#1E1533]">{req.name}</p>
+                  <p className="text-sm text-[#7A6B9E]">{req.email}</p>
+                  <p className="text-xs text-[#8577A3]">Requested {new Date(req.created_at).toLocaleString()}</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    onClick={() => openApproveDialog(req)}
+                    data-testid={`approve-request-${req.id}`}
+                    className="text-white font-semibold"
+                    style={{ background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)' }}
+                  >
+                    <Check size={16} className="mr-1" />
+                    Approve
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleRejectRequest(req)}
+                    data-testid={`reject-request-${req.id}`}
+                    className="border-red-300 text-red-700 hover:bg-red-50"
+                  >
+                    <X size={16} className="mr-1" />
+                    Decline
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="bg-[#FFFFFF] border border-[#E4DCF0] rounded-lg shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -465,6 +566,65 @@ const UserManagement = () => {
                 data-testid="confirm-reset-password-button"
               >
                 {resetPasswordLoading ? 'Resetting...' : 'Reset Password'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={approveOpen} onOpenChange={setApproveOpen}>
+        <DialogContent className="bg-[#FFFFFF] text-[#1E1533]">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold">Approve Access Request</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm text-[#7A6B9E] mb-2">Name: <span className="font-semibold text-[#1E1533]">{selectedRequest?.name}</span></p>
+              <p className="text-sm text-[#7A6B9E]">Email: <span className="font-semibold text-[#1E1533]">{selectedRequest?.email}</span></p>
+            </div>
+            <div className="space-y-2">
+              <Label>Assign Role</Label>
+              <Select value={approveRole} onValueChange={setApproveRole}>
+                <SelectTrigger data-testid="approve-role-select">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Admin">Admin</SelectItem>
+                  <SelectItem value="Sales">Sales</SelectItem>
+                  <SelectItem value="CGO">CGO</SelectItem>
+                  <SelectItem value="Finance">Finance</SelectItem>
+                  <SelectItem value="Legal">Legal</SelectItem>
+                  <SelectItem value="CFO">CFO</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Assign Department</Label>
+              <Select value={approveDepartment} onValueChange={setApproveDepartment}>
+                <SelectTrigger data-testid="approve-department-select">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Sales">Sales</SelectItem>
+                  <SelectItem value="CGO">CGO</SelectItem>
+                  <SelectItem value="Finance">Finance</SelectItem>
+                  <SelectItem value="Legal">Legal</SelectItem>
+                  <SelectItem value="CFO">CFO</SelectItem>
+                  <SelectItem value="Admin">Admin</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setApproveOpen(false)} className="flex-1">
+                Cancel
+              </Button>
+              <Button
+                onClick={handleApproveRequest}
+                disabled={approveLoading}
+                className="flex-1 text-white font-semibold shadow-md"
+                style={{ background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)' }}
+                data-testid="confirm-approve-button"
+              >
+                {approveLoading ? 'Approving...' : 'Approve & Grant Access'}
               </Button>
             </div>
           </div>
