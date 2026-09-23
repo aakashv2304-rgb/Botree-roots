@@ -284,6 +284,32 @@ h4, h5, h6 {
   animation: spin 1s linear infinite;
 }
 
+/* Brand dual-ring loading spinner, used by LoadingSpinner.js across the app
+   (proposal lists, protected-route auth check, etc.) */
+.brand-spinner {
+  position: relative;
+}
+.brand-spinner .ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 3px solid transparent;
+}
+.brand-spinner .ring-outer {
+  border-top-color: #9B30FF;
+  border-right-color: #9B30FF;
+  animation: spin 0.9s linear infinite;
+}
+.brand-spinner .ring-inner {
+  inset: 22%;
+  border-bottom-color: #E64AD1;
+  border-left-color: #E64AD1;
+  animation: spin 0.7s linear infinite reverse;
+}
+.brand-loading-label {
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
 /* Page transitions */
 .page-enter {
   opacity: 0;
