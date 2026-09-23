@@ -30,6 +30,8 @@ const Login = () => {
       toast.error('Zoho sign-in was cancelled.');
     } else if (error === 'zoho_failed') {
       toast.error('Zoho sign-in failed. Please try again or use your email and password.');
+    } else if (error === 'zoho_access_denied') {
+      toast.error('Your access request was declined. Contact an Admin for help.');
     }
   }, [searchParams]);
 
