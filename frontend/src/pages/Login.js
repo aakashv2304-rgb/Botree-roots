@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -8,6 +8,7 @@ import { SignIn, Eye, EyeSlash } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 
 const BOTREE_LOGO = "https://customer-assets-7cd3h4nn.emergentagent.net/job_proposal-tracker-app/artifacts/12kvgckj_Botree%20Logo-white-bg.webp";
+const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -17,10 +18,24 @@ const Login = () => {
   const [pageLoading, setPageLoading] = useState(true);
   const { login } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   useEffect(() => {
     setTimeout(() => setPageLoading(false), 500);
   }, []);
+
+  useEffect(() => {
+    const error = searchParams.get('error');
+    if (error === 'zoho_denied') {
+      toast.error('Zoho sign-in was cancelled.');
+    } else if (error === 'zoho_failed') {
+      toast.error('Zoho sign-in failed. Please try again or use your email and password.');
+    }
+  }, [searchParams]);
+
+  const handleZohoLogin = () => {
+    window.location.href = `${API}/auth/zoho/login`;
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -145,6 +160,22 @@ const Login = () => {
                 )}
               </Button>
             </form>
+
+            <div className="flex items-center gap-3 my-5">
+              <div className="flex-1 h-px bg-[#E4DCF0]"></div>
+              <span className="text-xs text-[#A99BC7] font-medium">OR</span>
+              <div className="flex-1 h-px bg-[#E4DCF0]"></div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleZohoLogin}
+              data-testid="zoho-login-button"
+              className="w-full h-10 flex items-center justify-center gap-2 rounded-md border border-[#E4DCF0] bg-white text-[#1E1533] font-semibold text-sm hover:bg-[#F7F4FC] transition-colors"
+            >
+              <SignIn size={18} />
+              Sign in with Zoho
+            </button>
 
             <div className="text-center pt-6 mt-6 border-t border-[#E4DCF0]">
               <p className="text-xs text-[#7A6B9E]">
