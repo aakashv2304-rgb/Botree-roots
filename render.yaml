@@ -22,6 +22,12 @@ services:
         sync: false
       - key: APP_URL
         sync: false
+      - key: ZOHO_CLIENT_ID
+        sync: false
+      - key: ZOHO_CLIENT_SECRET
+        sync: false
+      - key: ZOHO_ACCOUNTS_BASE
+        value: https://accounts.zoho.com
       - key: ADMIN_EMAIL
         sync: false
       - key: ADMIN_PASSWORD
