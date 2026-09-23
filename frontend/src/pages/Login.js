@@ -329,14 +329,14 @@ const Login = () => {
 
         /* Animated gradient sweep across the primary CTA */
         .portal-action-button {
+          position: relative;
+          overflow: hidden;
           width: 100%;
           font-family: 'DM Sans', sans-serif;
           font-size: 15px;
           font-weight: 700;
           color: #ffffff;
-          background: linear-gradient(100deg, #51258d 0%, #7a3fc7 25%, #51258d 50%, #7a3fc7 75%, #51258d 100%);
-          background-size: 300% 100%;
-          animation: ctaSweep 6s linear infinite;
+          background-color: #51258d;
           border: none;
           border-radius: 10px;
           padding: 16px;
@@ -349,10 +349,22 @@ const Login = () => {
           justify-content: center;
           gap: 8px;
         }
+        /* Sweep lives on a separate pseudo-element layer so it never conflicts
+           with the button's own entrance animation */
+        .portal-action-button::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(100deg, transparent 0%, rgba(255,255,255,0.22) 50%, transparent 100%);
+          background-size: 200% 100%;
+          animation: ctaSweep 3.5s linear infinite;
+          pointer-events: none;
+        }
         @keyframes ctaSweep { 0% { background-position: 0% 0; } 100% { background-position: 100% 0; } }
         .portal-action-button:hover:not(:disabled) { box-shadow: 0 10px 30px rgba(81, 37, 141, 0.4); transform: translateY(-1px); }
         .portal-action-button:active:not(:disabled) { transform: scale(0.985); }
-        .portal-action-button:disabled { opacity: 0.75; cursor: not-allowed; animation: none; }
+        .portal-action-button:disabled { opacity: 0.75; cursor: not-allowed; }
+        .portal-action-button:disabled::after { animation: none; }
 
         .portal-utility-link {
           display: block;
