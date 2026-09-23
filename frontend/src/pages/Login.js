@@ -79,6 +79,7 @@ const Login = () => {
           overflow-y: auto;
         }
 
+        /* Primary ambient glow, slow breathing pulse */
         .identity-ambient-glow {
           position: absolute;
           width: 500px; height: 500px;
@@ -92,6 +93,45 @@ const Login = () => {
         @keyframes slowPulse {
           0% { transform: translate(-50%, -50%) scale(0.9); opacity: 0.8; }
           100% { transform: translate(-50%, -50%) scale(1.1); opacity: 1; }
+        }
+
+        /* Extra drifting orbs for a livelier cinematic backdrop */
+        .drift-orb {
+          position: absolute;
+          border-radius: 50%;
+          filter: blur(60px);
+          pointer-events: none;
+          opacity: 0.5;
+        }
+        .drift-orb-1 {
+          width: 340px; height: 340px;
+          background: radial-gradient(circle, rgba(255,0,127,0.16) 0%, transparent 70%);
+          top: 8%; left: 6%;
+          animation: driftA 14s ease-in-out infinite alternate;
+        }
+        .drift-orb-2 {
+          width: 300px; height: 300px;
+          background: radial-gradient(circle, rgba(115,12,227,0.18) 0%, transparent 70%);
+          bottom: 6%; right: 8%;
+          animation: driftB 17s ease-in-out infinite alternate;
+        }
+        .drift-orb-3 {
+          width: 220px; height: 220px;
+          background: radial-gradient(circle, rgba(81,37,141,0.16) 0%, transparent 70%);
+          top: 55%; right: 20%;
+          animation: driftC 12s ease-in-out infinite alternate;
+        }
+        @keyframes driftA {
+          0% { transform: translate(0, 0) scale(1); }
+          100% { transform: translate(40px, 30px) scale(1.15); }
+        }
+        @keyframes driftB {
+          0% { transform: translate(0, 0) scale(1); }
+          100% { transform: translate(-35px, -25px) scale(1.1); }
+        }
+        @keyframes driftC {
+          0% { transform: translate(0, 0) scale(1); }
+          100% { transform: translate(-25px, 35px) scale(0.9); }
         }
 
         .app-frame-grid {
@@ -120,23 +160,42 @@ const Login = () => {
           margin-bottom: 24px;
         }
 
+        /* Settles in via entrance keyframes, then keeps a gentle continuous float */
         .vector-brandmark-container {
           width: 90px;
           height: 90px;
           flex-shrink: 0;
           position: relative;
+          animation: logoFloat 4.5s ease-in-out infinite 2s;
         }
+        @keyframes logoFloat {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-6px); }
+        }
+
+        /* Soft rotating glow ring behind the logo */
+        .logo-glow-ring {
+          position: absolute;
+          inset: -14px;
+          border-radius: 50%;
+          background: conic-gradient(from 0deg, rgba(255,0,127,0.35), rgba(115,12,227,0.35), rgba(255,0,127,0.35));
+          filter: blur(18px);
+          opacity: 0;
+          animation: glowRingIn 1s ease forwards 1.1s, glowRingSpin 6s linear infinite 1.1s;
+        }
+        @keyframes glowRingIn { to { opacity: 0.55; } }
+        @keyframes glowRingSpin { to { transform: rotate(360deg); } }
 
         .logo-chevron-shape { opacity: 0; transform-origin: center; }
 
         .chv-top-asset {
           fill: #ff007f;
-          transform: translate(25px, -25px) scale(0.9);
+          transform: translate(20px, -20px) scale(0.9);
           animation: slideAndLockTop 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards 0.2s;
         }
         .chv-bottom-asset {
           fill: #730ce3;
-          transform: translate(-25px, 25px) scale(0.9);
+          transform: translate(-20px, 20px) scale(0.9);
           animation: slideAndLockBottom 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards 0.4s;
         }
         @keyframes slideAndLockTop { to { opacity: 1; transform: translate(0, 0) scale(1); } }
@@ -159,6 +218,18 @@ const Login = () => {
           opacity: 0;
           transform: translateX(-15px);
           animation: textRevealMove 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards 0.5s;
+          background: linear-gradient(120deg, #ffffff 40%, #ffd6ec 50%, #ffffff 60%);
+          background-size: 250% 100%;
+          -webkit-background-clip: text;
+          background-clip: text;
+        }
+        .text-botree-main.shimmer-on {
+          animation: textRevealMove 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards 0.5s,
+                     textShimmer 5s ease-in-out infinite 1.6s;
+        }
+        @keyframes textShimmer {
+          0% { background-position: 200% 0; }
+          100% { background-position: -50% 0; }
         }
 
         .text-software-sub {
@@ -208,6 +279,23 @@ const Login = () => {
           box-shadow: 0 30px 70px rgba(0, 0, 0, 0.45);
         }
 
+        /* Individually staggered field entrances for a livelier cascading reveal */
+        .field-stagger {
+          opacity: 0;
+          transform: translateY(14px);
+          animation: fieldFadeUp 0.55s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        .field-stagger:nth-child(1) { animation-delay: 1.3s; }
+        .field-stagger:nth-child(2) { animation-delay: 1.42s; }
+        @keyframes fieldFadeUp { to { opacity: 1; transform: translateY(0); } }
+
+        .btn-stagger { opacity: 0; transform: translateY(14px); animation: fieldFadeUp 0.55s cubic-bezier(0.16, 1, 0.3, 1) forwards 1.54s; }
+        .link-stagger { opacity: 0; animation: fieldFadeIn 0.5s ease forwards 1.64s; }
+        .divider-stagger { opacity: 0; animation: fieldFadeIn 0.5s ease forwards 1.72s; }
+        .zoho-stagger { opacity: 0; transform: translateY(14px); animation: fieldFadeUp 0.55s cubic-bezier(0.16, 1, 0.3, 1) forwards 1.8s; }
+        .footer-stagger { opacity: 0; animation: fieldFadeIn 0.5s ease forwards 1.9s; }
+        @keyframes fieldFadeIn { to { opacity: 1; } }
+
         .control-group { margin-bottom: 20px; display: flex; flex-direction: column; }
 
         .control-label {
@@ -230,36 +318,41 @@ const Login = () => {
           border: 1px solid #e3e6ef;
           border-radius: 8px;
           outline: none;
-          transition: border-color 0.25s ease, box-shadow 0.25s ease;
+          transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.15s ease;
         }
         .control-input::placeholder { color: #a2a8ba; }
         .control-input:focus {
           border-color: #51258d;
           box-shadow: 0 0 0 4px rgba(81, 37, 141, 0.12);
+          transform: translateY(-1px);
         }
 
+        /* Animated gradient sweep across the primary CTA */
         .portal-action-button {
           width: 100%;
           font-family: 'DM Sans', sans-serif;
           font-size: 15px;
           font-weight: 700;
           color: #ffffff;
-          background-color: #51258d;
+          background: linear-gradient(100deg, #51258d 0%, #7a3fc7 25%, #51258d 50%, #7a3fc7 75%, #51258d 100%);
+          background-size: 300% 100%;
+          animation: ctaSweep 6s linear infinite;
           border: none;
           border-radius: 10px;
           padding: 16px;
           margin-top: 6px;
           cursor: pointer;
           box-shadow: 0 8px 24px rgba(81, 37, 141, 0.25);
-          transition: background-color 0.2s ease, transform 0.15s ease, opacity 0.2s ease;
+          transition: transform 0.15s ease, opacity 0.2s ease, box-shadow 0.2s ease;
           display: flex;
           align-items: center;
           justify-content: center;
           gap: 8px;
         }
-        .portal-action-button:hover:not(:disabled) { background-color: #421d75; }
+        @keyframes ctaSweep { 0% { background-position: 0% 0; } 100% { background-position: 100% 0; } }
+        .portal-action-button:hover:not(:disabled) { box-shadow: 0 10px 30px rgba(81, 37, 141, 0.4); transform: translateY(-1px); }
         .portal-action-button:active:not(:disabled) { transform: scale(0.985); }
-        .portal-action-button:disabled { opacity: 0.75; cursor: not-allowed; }
+        .portal-action-button:disabled { opacity: 0.75; cursor: not-allowed; animation: none; }
 
         .portal-utility-link {
           display: block;
@@ -295,9 +388,9 @@ const Login = () => {
           font-weight: 700;
           font-size: 14px;
           cursor: pointer;
-          transition: background-color 0.2s ease;
+          transition: background-color 0.2s ease, transform 0.15s ease;
         }
-        .zoho-button:hover { background-color: #f7f4fc; }
+        .zoho-button:hover { background-color: #f7f4fc; transform: translateY(-1px); }
 
         .portal-footer {
           text-align: center;
@@ -321,6 +414,7 @@ const Login = () => {
           display: flex;
           align-items: center;
           padding: 0;
+          transition: color 0.2s ease;
         }
         .password-toggle-btn:hover { color: #1a1c21; }
 
@@ -344,18 +438,22 @@ const Login = () => {
 
       <div className="botree-login-surface">
         <div className="identity-ambient-glow"></div>
+        <div className="drift-orb drift-orb-1"></div>
+        <div className="drift-orb drift-orb-2"></div>
+        <div className="drift-orb drift-orb-3"></div>
 
         <div className="app-frame-grid">
           <div className="identity-column">
             <div className="brand-lockup-row">
               <div className="vector-brandmark-container">
-                <svg width="100%" height="100%" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-                  <polygon className="logo-chevron-shape chv-top-asset" points="100,20 180,88 142,88 100,52 58,88 20,88" />
-                  <polygon className="logo-chevron-shape chv-bottom-asset" points="100,90 180,158 142,158 100,122 58,158 20,158" />
+                <div className="logo-glow-ring"></div>
+                <svg width="100%" height="100%" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" style={{ position: 'relative' }}>
+                  <polygon className="logo-chevron-shape chv-top-asset" points="100,38 150,88 126,88 100,68 74,88 50,88" />
+                  <polygon className="logo-chevron-shape chv-bottom-asset" points="100,80 180,160 140,160 100,120 60,160 20,160" />
                 </svg>
               </div>
               <div className="brand-typography-group">
-                <h1 className="text-botree-main">BOTREE</h1>
+                <h1 className="text-botree-main shimmer-on">BOTREE</h1>
                 <span className="text-software-sub">SOFTWARE</span>
               </div>
             </div>
@@ -365,7 +463,7 @@ const Login = () => {
           <div className="interface-portal-column">
             <div className="secure-card-panel">
               <form onSubmit={handleSubmit}>
-                <div className="control-group">
+                <div className="control-group field-stagger">
                   <label className="control-label" htmlFor="email">Email Address</label>
                   <input
                     id="email"
@@ -380,7 +478,7 @@ const Login = () => {
                   />
                 </div>
 
-                <div className="control-group">
+                <div className="control-group field-stagger">
                   <label className="control-label" htmlFor="password">Password</label>
                   <div className="password-field-wrap">
                     <input
@@ -406,7 +504,7 @@ const Login = () => {
                   </div>
                 </div>
 
-                <button type="submit" className="portal-action-button" disabled={loading} data-testid="login-button">
+                <button type="submit" className="portal-action-button btn-stagger" disabled={loading} data-testid="login-button">
                   {loading ? (
                     <>
                       <div style={{
@@ -419,22 +517,22 @@ const Login = () => {
                   ) : 'Sign In'}
                 </button>
 
-                <button type="button" className="portal-utility-link" onClick={handleForgotPassword}>
+                <button type="button" className="portal-utility-link link-stagger" onClick={handleForgotPassword}>
                   Forgot Password?
                 </button>
               </form>
 
-              <div className="portal-divider">
+              <div className="portal-divider divider-stagger">
                 <div className="portal-divider-line"></div>
                 <span className="portal-divider-text">OR</span>
                 <div className="portal-divider-line"></div>
               </div>
 
-              <button type="button" className="zoho-button" onClick={handleZohoLogin} data-testid="zoho-login-button">
+              <button type="button" className="zoho-button zoho-stagger" onClick={handleZohoLogin} data-testid="zoho-login-button">
                 Sign in with Zoho
               </button>
 
-              <div className="portal-footer">
+              <div className="portal-footer footer-stagger">
                 Botree Software © 2026 | Botree Roots
               </div>
             </div>
