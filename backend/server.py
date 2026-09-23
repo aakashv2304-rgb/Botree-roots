@@ -342,6 +342,68 @@ async def send_workflow_notification(
         # Don't raise exception - email failures shouldn't block workflow
         return None
 
+async def send_access_request_notification(requester_email: str, requester_name: str):
+    """Emails every Admin when a new Zoho SSO user requests access."""
+    try:
+        if not RESEND_API_KEY:
+            logger.warning("RESEND_API_KEY not configured, skipping access request email")
+            return
+
+        admins = await db.users.find({"role": "Admin", "status": {"$ne": "pending"}}).to_list(100)
+        if not admins:
+            logger.warning("No Admin users found to notify about new access request")
+            return
+
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <style>
+                body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                .header {{ background: linear-gradient(135deg, #F72585 0%, #7209B7 100%); color: white; padding: 20px; border-radius: 8px 8px 0 0; }}
+                .content {{ background: #f9f9f9; padding: 30px; border: 1px solid #ddd; border-top: none; }}
+                .footer {{ background: #333; color: white; padding: 15px; text-align: center; border-radius: 0 0 8px 8px; font-size: 12px; }}
+                .btn {{ display: inline-block; padding: 12px 24px; background: linear-gradient(135deg, #F72585 0%, #7209B7 100%); color: white; text-decoration: none; border-radius: 6px; margin: 20px 0; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1 style="margin: 0;">Botree Roots</h1>
+                    <p style="margin: 5px 0 0 0;">New Access Request</p>
+                </div>
+                <div class="content">
+                    <p><strong>{requester_name}</strong> ({requester_email}) signed in with Zoho and is requesting access to Botree Roots.</p>
+                    <p>Review and assign them a role to approve access.</p>
+                    <a href="{APP_URL}/dashboard/users" class="btn" target="_blank" rel="noopener noreferrer" style="color: white;">Review Access Requests</a>
+                    <p style="font-size: 12px; color: #666;">If the button doesn't work, copy and paste this link into your browser:<br>{APP_URL}/dashboard/users</p>
+                </div>
+                <div class="footer">
+                    <p>&copy; 2026 Botree Software Solutions. All rights reserved.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+
+        for admin in admins:
+            recipient = admin["email"]
+            # TEMPORARY FOR TESTING: same sandbox-mode override as send_workflow_notification
+            # TODO: remove alongside the other override once the sending domain is verified
+            recipient = "aakashv2304@gmail.com"
+            try:
+                await asyncio.to_thread(resend.Emails.send, {
+                    "from": SENDER_EMAIL,
+                    "to": [recipient],
+                    "subject": f"New access request: {requester_name}",
+                    "html": html_content
+                })
+            except Exception as e:
+                logger.error(f"Failed to email admin {admin['email']} about access request: {str(e)}")
+    except Exception as e:
+        logger.error(f"send_access_request_notification failed: {str(e)}")
+
 # Models
 class LoginRequest(BaseModel):
     email: EmailStr
@@ -358,6 +420,10 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: Optional[str] = None  # defaults to the standard Botree@123 if not provided
     name: str
+    role: str
+    department: str
+
+class AccessRequestApproval(BaseModel):
     role: str
     department: str
 
@@ -566,7 +632,12 @@ async def seed_users():
 @api_router.post("/auth/login")
 async def login(request: LoginRequest, response: Response):
     user = await db.users.find_one({"email": request.email.lower()})
-    if not user or not verify_password(request.password, user["password_hash"]):
+
+    if user and user.get("status") == "pending":
+        raise HTTPException(status_code=403, detail="Your access request is still pending Admin approval")
+    if user and user.get("status") == "rejected":
+        raise HTTPException(status_code=403, detail="Your access request was declined. Contact an Admin.")
+    if not user or not user.get("password_hash") or not verify_password(request.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
     user_id = str(user["_id"])
@@ -662,22 +733,27 @@ async def zoho_callback(request: Request, response: Response, code: str = None, 
 
     user = await db.users.find_one({"email": zoho_email})
     if not user:
-        # Auto-create: default role is Sales (lowest-privilege, non-gating) -
-        # an Admin can reassign it afterward in User Management.
-        # Password login stays disabled for this account (random unusable hash)
-        # since it's meant to be used via Zoho login only, unless an Admin sets one.
-        new_user_doc = {
+        # New user: create a pending access request, no role/password yet.
+        # They get no session until an Admin approves and assigns a role.
+        new_request_doc = {
             "email": zoho_email,
             "name": zoho_name or zoho_email.split("@")[0],
-            "password_hash": hash_password(secrets.token_urlsafe(32)),
-            "role": "Sales",
-            "department": "Sales",
+            "password_hash": None,
+            "role": None,
+            "department": None,
             "auth_provider": "zoho",
+            "status": "pending",
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
-        result = await db.users.insert_one(new_user_doc)
-        user = new_user_doc
-        user["_id"] = result.inserted_id
+        await db.users.insert_one(new_request_doc)
+        await send_access_request_notification(zoho_email, new_request_doc["name"])
+        return RedirectResponse(url=f"{APP_URL}/access-pending")
+
+    status = user.get("status", "active")  # existing users created before this feature default to active
+    if status == "pending":
+        return RedirectResponse(url=f"{APP_URL}/access-pending")
+    if status == "rejected":
+        return RedirectResponse(url=f"{APP_URL}/?error=zoho_access_denied")
 
     user_id = str(user["_id"])
     access_token = create_access_token(user_id, user["email"])
@@ -701,8 +777,52 @@ async def get_users(request: Request):
     if current_user["role"] != "Admin":
         raise HTTPException(status_code=403, detail="Only Admin can manage users")
     
-    users = await db.users.find({}, {"password_hash": 0}).to_list(1000)
+    users = await db.users.find({"status": {"$nin": ["pending", "rejected"]}}, {"password_hash": 0}).to_list(1000)
     return [{"id": str(u["_id"]), "email": u["email"], "name": u["name"], "role": u["role"], "department": u.get("department", ""), "created_at": u["created_at"]} for u in users]
+
+@api_router.get("/access-requests")
+async def get_access_requests(request: Request):
+    current_user = await get_current_user(request)
+    if current_user["role"] != "Admin":
+        raise HTTPException(status_code=403, detail="Only Admin can view access requests")
+
+    pending = await db.users.find({"status": "pending"}, {"password_hash": 0}).to_list(1000)
+    return [{"id": str(r["_id"]), "email": r["email"], "name": r["name"], "created_at": r["created_at"]} for r in pending]
+
+@api_router.post("/access-requests/{request_id}/approve")
+async def approve_access_request(request_id: str, approval: AccessRequestApproval, request: Request):
+    current_user = await get_current_user(request)
+    if current_user["role"] != "Admin":
+        raise HTTPException(status_code=403, detail="Only Admin can approve access requests")
+
+    valid_roles = ["Admin", "Finance", "Sales", "CGO", "Legal", "CFO"]
+    if approval.role not in valid_roles:
+        raise HTTPException(status_code=400, detail=f"Invalid role. Must be one of: {', '.join(valid_roles)}")
+    valid_departments = ["Sales", "CGO", "Finance", "Legal", "CFO", "Admin"]
+    if approval.department not in valid_departments:
+        raise HTTPException(status_code=400, detail=f"Invalid department. Must be one of: {', '.join(valid_departments)}")
+
+    result = await db.users.update_one(
+        {"_id": ObjectId(request_id), "status": "pending"},
+        {"$set": {"role": approval.role, "department": approval.department, "status": "active"}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Access request not found or already handled")
+    return {"message": "Access approved"}
+
+@api_router.post("/access-requests/{request_id}/reject")
+async def reject_access_request(request_id: str, request: Request):
+    current_user = await get_current_user(request)
+    if current_user["role"] != "Admin":
+        raise HTTPException(status_code=403, detail="Only Admin can reject access requests")
+
+    result = await db.users.update_one(
+        {"_id": ObjectId(request_id), "status": "pending"},
+        {"$set": {"status": "rejected"}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Access request not found or already handled")
+    return {"message": "Access rejected"}
 
 @api_router.post("/users")
 async def create_user(user_data: UserCreate, request: Request):
