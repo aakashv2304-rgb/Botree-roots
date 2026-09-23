@@ -296,6 +296,37 @@ const Login = () => {
         .footer-stagger { opacity: 0; animation: fieldFadeIn 0.5s ease forwards 1.9s; }
         @keyframes fieldFadeIn { to { opacity: 1; } }
 
+        .card-brand-header {
+          text-align: center;
+          margin-bottom: 30px;
+          opacity: 0;
+          transform: translateY(10px);
+          animation: fieldFadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards 1.2s;
+        }
+        .card-brand-name {
+          display: block;
+          font-family: 'DM Sans', sans-serif;
+          font-size: 26px;
+          font-weight: 900;
+          color: #1a1c21;
+          letter-spacing: -0.5px;
+        }
+        .card-brand-accent {
+          display: block;
+          width: 46px;
+          height: 3px;
+          margin: 10px auto 0;
+          border-radius: 2px;
+          background: linear-gradient(90deg, #ff007f 0%, #730ce3 100%);
+        }
+        .card-brand-tagline {
+          display: block;
+          margin-top: 12px;
+          font-size: 12.5px;
+          color: #8a8fa3;
+          font-weight: 500;
+        }
+
         .control-group { margin-bottom: 20px; display: flex; flex-direction: column; }
 
         .control-label {
@@ -474,6 +505,11 @@ const Login = () => {
 
           <div className="interface-portal-column">
             <div className="secure-card-panel">
+              <div className="card-brand-header">
+                <span className="card-brand-name">Botree Roots</span>
+                <span className="card-brand-accent"></span>
+                <span className="card-brand-tagline">Sign in to your account</span>
+              </div>
               <form onSubmit={handleSubmit}>
                 <div className="control-group field-stagger">
                   <label className="control-label" htmlFor="email">Email Address</label>
