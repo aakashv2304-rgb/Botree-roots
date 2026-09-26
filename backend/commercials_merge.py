@@ -232,11 +232,22 @@ def _merge_ongoing_table(doc: Document, commercial_data: dict):
         elif h == "description":
             col_idx["description"] = i
 
+    # Clone the "SFA Users" row (a clean single-line row) as the template
+    # for any custom/freeform recurring charges, before removing anything.
+    extra_charge_template = None
+    for row in table.rows[1:]:
+        if "sfa users" in row.cells[0].text.strip().lower():
+            extra_charge_template = copy.deepcopy(row._tr)
+            break
+
     rows_to_remove = []
+    last_kept_row = table.rows[0]
     for row in list(table.rows)[1:]:
         label = row.cells[0].text.strip().lower()
+        matched = False
         for key, field in ONGOING_ROW_MAP.items():
             if key in label:
+                matched = True
                 charge = commercial_data.get(field)
                 if not charge or all(
                     charge.get(k) is None
@@ -253,9 +264,35 @@ def _merge_ongoing_table(doc: Document, commercial_data: dict):
                     if charge.get("description") is not None and "description" in col_idx:
                         _set_cell_text(row.cells[col_idx["description"]], charge["description"])
                 break
+        if matched and row not in rows_to_remove:
+            last_kept_row = row
 
     for row in rows_to_remove:
         _remove_row(table, row)
+
+    extra_ongoing_charges = commercial_data.get("extra_ongoing_charges") or []
+    if extra_ongoing_charges and extra_charge_template is not None:
+        anchor_tr = last_kept_row._tr if last_kept_row not in rows_to_remove else table.rows[0]._tr
+        anchor_row = _Row(anchor_tr, table)
+        num_cols = len(table.rows[0].cells)
+        for charge in extra_ongoing_charges:
+            if all(charge.get(k) is None for k in ("quantity", "rate_per_user_month", "monthly_minimum_billing")):
+                continue
+            # Every column gets an explicit string (blank if unset) - this is
+            # what actually overwrites any inherited content on the cloned
+            # row, since a None here would leave the clone's original text.
+            cell_texts = [""] * num_cols
+            cell_texts[0] = charge.get("name") or "Additional Charge"
+            if "quantity" in col_idx:
+                cell_texts[col_idx["quantity"]] = _format_inr(charge.get("quantity")) if charge.get("quantity") is not None else ""
+            if "rate" in col_idx:
+                cell_texts[col_idx["rate"]] = _format_inr(charge.get("rate_per_user_month")) if charge.get("rate_per_user_month") is not None else ""
+            if "min_billing" in col_idx:
+                cell_texts[col_idx["min_billing"]] = _format_inr(charge.get("monthly_minimum_billing")) if charge.get("monthly_minimum_billing") is not None else ""
+            if "description" in col_idx:
+                cell_texts[col_idx["description"]] = charge.get("description") or ""
+            new_row = _clone_row_after(table, anchor_row, cell_texts)
+            anchor_row = new_row
 
 
 def _replace_price_escalation(doc: Document, percent_value: Optional[float]):
@@ -357,6 +394,10 @@ def fill_commercials(docx_bytes: bytes, commercial_data: dict) -> bytes:
       flexidms_distributor_charge / dms_distributor_charge /
       sfa_user_charge / shared_l1_support_charge: dict with
         quantity, rate_per_user_month, monthly_minimum_billing, description
+      extra_ongoing_charges: list of {"name": str, "quantity": float,
+        "rate_per_user_month": float, "monthly_minimum_billing": float,
+        "description": str} - each becomes a new row in Table B.2, cloned
+        from the "SFA Users" row's formatting.
       additional_fees: list of {"name": str, "value": float, "description": str, "invoicing": str}
       price_escalation_percent: float
       contract_years: int
