@@ -11,7 +11,7 @@ const ThemeToggle = () => {
     const nextTheme = goingDark ? 'dark' : 'light';
 
     // Origin point for the wave: the button's own center, so the effect
-    // visibly emanates from the sun/moon icon the person just clicked.
+    // visibly grows outward from the sun/moon icon the person just clicked.
     const rect = btnRef.current?.getBoundingClientRect();
     const x = rect ? rect.left + rect.width / 2 : window.innerWidth - 40;
     const y = rect ? rect.top + rect.height / 2 : 40;
@@ -20,33 +20,68 @@ const ThemeToggle = () => {
     const vh = window.innerHeight;
     const maxRadius = Math.hypot(Math.max(x, vw - x), Math.max(y, vh - y)) * 1.05;
 
-    // Single-swipe reveal: the overlay appears already covering the full
-    // screen (no separate "expand" phase), the real theme swaps instantly
-    // underneath while hidden, then one shrinking circle wipes the overlay
-    // away from the click point outward - revealing the new theme in one
-    // continuous motion instead of expanding out and receding back.
-    const overlay = document.createElement('div');
-    overlay.style.position = 'fixed';
-    overlay.style.inset = '0';
-    overlay.style.zIndex = '9999';
-    overlay.style.pointerEvents = 'none';
-    overlay.style.background = goingDark
-      ? `radial-gradient(circle at ${x}px ${y}px, #4A2E7A 0%, #241645 35%, #130F1F 75%, #130F1F 100%)`
-      : `radial-gradient(circle at ${x}px ${y}px, #FFF6DD 0%, #FFD98A 30%, #FFB25E 60%, #F7F4FC 100%)`;
-    overlay.style.clipPath = `circle(${maxRadius}px at ${x}px ${y}px)`;
-    document.body.appendChild(overlay);
+    // No View Transition support (older browsers) - just swap instantly,
+    // no fancy animation, but nothing breaks.
+    if (!document.startViewTransition) {
+      setTheme(nextTheme);
+      return;
+    }
 
-    // Theme swaps now, fully hidden under the overlay - no visible pop.
-    setTheme(nextTheme);
+    const transition = document.startViewTransition(() => {
+      // React state updates are async, and ThemeContext applies the actual
+      // <html> class change in a useEffect - wait a couple of frames so the
+      // browser's "new" snapshot genuinely reflects the new theme before
+      // the transition captures it.
+      return new Promise((resolve) => {
+        setTheme(nextTheme);
+        requestAnimationFrame(() => requestAnimationFrame(resolve));
+      });
+    });
 
-    const wipe = overlay.animate(
-      [
-        { clipPath: `circle(${maxRadius}px at ${x}px ${y}px)` },
-        { clipPath: `circle(0px at ${x}px ${y}px)` },
-      ],
-      { duration: 480, easing: 'cubic-bezier(0.65, 0, 0.35, 1)', fill: 'forwards' }
-    );
-    wipe.onfinish = () => overlay.remove();
+    transition.ready.then(() => {
+      // The real new-theme page content grows outward from the button in a
+      // single motion - nothing is hidden behind a solid color, so every
+      // card/button/text is visible and interactive throughout.
+      document.documentElement.animate(
+        {
+          clipPath: [
+            `circle(0px at ${x}px ${y}px)`,
+            `circle(${maxRadius}px at ${x}px ${y}px)`,
+          ],
+        },
+        {
+          duration: 500,
+          easing: 'cubic-bezier(0.65, 0, 0.35, 1)',
+          pseudoElement: '::view-transition-new(root)',
+        }
+      );
+
+      // Purely decorative glow tracing the wave's leading edge - a thin
+      // blurred ring, never a solid fill, so it can't obscure content.
+      const glow = document.createElement('div');
+      glow.style.position = 'fixed';
+      glow.style.left = `${x}px`;
+      glow.style.top = `${y}px`;
+      glow.style.width = '0px';
+      glow.style.height = '0px';
+      glow.style.borderRadius = '50%';
+      glow.style.transform = 'translate(-50%, -50%)';
+      glow.style.boxShadow = goingDark
+        ? '0 0 70px 34px rgba(74,46,122,0.5)'
+        : '0 0 70px 34px rgba(255,178,94,0.5)';
+      glow.style.zIndex = '2147483647';
+      glow.style.pointerEvents = 'none';
+      document.body.appendChild(glow);
+
+      const glowAnim = glow.animate(
+        [
+          { width: '0px', height: '0px', opacity: 1 },
+          { width: `${maxRadius * 2}px`, height: `${maxRadius * 2}px`, opacity: 0 },
+        ],
+        { duration: 500, easing: 'cubic-bezier(0.65, 0, 0.35, 1)', fill: 'forwards' }
+      );
+      glowAnim.onfinish = () => glow.remove();
+    });
   };
 
   return (
