@@ -534,3 +534,72 @@ input[type="checkbox"]:checked::after {
   animation: shimmer 2s infinite;
   border-radius: 4px;
 }
+
+/* ============ Theme toggle icon cross-fade ============ */
+.theme-toggle-btn {
+  position: relative;
+}
+.theme-toggle-icon {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.35s ease, transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.theme-toggle-icon-in {
+  opacity: 1;
+  transform: rotate(0deg) scale(1);
+}
+.theme-toggle-icon-out {
+  opacity: 0;
+  transform: rotate(90deg) scale(0.4);
+  pointer-events: none;
+}
+
+/* ============ Dark theme ============ */
+/* Retrofit approach: the app uses a small, consistent set of hardcoded
+   hex utility classes (bg-[#FFFFFF], text-[#1E1533], etc.) everywhere.
+   Rather than editing every page, we override those exact compiled
+   Tailwind classes when the .dark-theme class is present on <html>. */
+
+html.dark-theme {
+  color-scheme: dark;
+}
+
+/* Page & card surfaces */
+.dark-theme .bg-\[\#FFFFFF\] { background-color: #1E1830 !important; }
+.dark-theme .bg-\[\#F7F4FC\] { background-color: #130F1F !important; }
+.dark-theme .bg-\[\#F1EBFA\] { background-color: #2A2140 !important; }
+.dark-theme .bg-\[\#EDE4F9\] { background-color: #2A2140 !important; }
+.dark-theme .bg-\[\#E4DCF0\] { background-color: #362B4D !important; }
+
+/* Borders */
+.dark-theme .border-\[\#E4DCF0\] { border-color: #362B4D !important; }
+.dark-theme .border-\[\#F1EBFA\] { border-color: #2A2140 !important; }
+.dark-theme .border-\[\#B9A0D9\] { border-color: #5B4B7A !important; }
+
+/* Text */
+.dark-theme .text-\[\#1E1533\] { color: #F3EEFF !important; }
+.dark-theme .text-\[\#7A6B9E\] { color: #A99BC7 !important; }
+.dark-theme .text-\[\#5B4B7A\] { color: #C7B8E8 !important; }
+.dark-theme .text-\[\#8577A3\] { color: #9C8DB8 !important; }
+.dark-theme .text-\[\#2D1F47\] { color: #E4DCF0 !important; }
+
+/* Status colors - brightened for legibility on dark backgrounds */
+.dark-theme .text-\[\#059669\] { color: #34D399 !important; }
+.dark-theme .text-\[\#065F46\] { color: #6EE7B7 !important; }
+.dark-theme .text-\[\#E11D48\] { color: #FB7185 !important; }
+.dark-theme .text-\[\#DC2626\] { color: #FB7185 !important; }
+.dark-theme .text-\[\#EF4444\] { color: #F87171 !important; }
+.dark-theme .text-\[\#D97706\] { color: #FBBF24 !important; }
+.dark-theme .text-\[\#10B981\] { color: #34D399 !important; }
+
+/* Pastel status badges - darken the wash, brighten the paired text above */
+.dark-theme .bg-\[\#D1FAE5\] { background-color: #0F3D2E !important; }
+.dark-theme .bg-\[\#FFE4E6\] { background-color: #3D1620 !important; }
+.dark-theme .bg-\[\#FEF3C7\] { background-color: #3D2F0F !important; }
+
+/* Scrollbar - subtle, matches dark surfaces */
+html.dark-theme ::-webkit-scrollbar-track { background: #130F1F; }
+html.dark-theme ::-webkit-scrollbar-thumb { background: #362B4D; border-radius: 8px; }
+html.dark-theme ::-webkit-scrollbar-thumb:hover { background: #4A3A66; }
