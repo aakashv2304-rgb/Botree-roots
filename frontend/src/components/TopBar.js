@@ -8,6 +8,7 @@ import {
 } from '@phosphor-icons/react';
 import { Button } from './ui/button';
 import AccountSettingsModal from './AccountSettingsModal';
+import ThemeToggle from './ThemeToggle';
 
 const BOTREE_LOGO = "https://customer-assets-7cd3h4nn.emergentagent.net/job_proposal-tracker-app/artifacts/12kvgckj_Botree%20Logo-white-bg.webp";
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -121,6 +122,8 @@ const TopBar = () => {
         </div>
 
         <div className="flex items-center gap-3 shrink-0 ml-auto">
+          <ThemeToggle />
+
           <div className="relative" ref={notificationsRef}>
             <button
               onClick={toggleNotifications}
