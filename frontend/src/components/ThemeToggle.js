@@ -20,39 +20,33 @@ const ThemeToggle = () => {
     const vh = window.innerHeight;
     const maxRadius = Math.hypot(Math.max(x, vw - x), Math.max(y, vh - y)) * 1.05;
 
+    // Single-swipe reveal: the overlay appears already covering the full
+    // screen (no separate "expand" phase), the real theme swaps instantly
+    // underneath while hidden, then one shrinking circle wipes the overlay
+    // away from the click point outward - revealing the new theme in one
+    // continuous motion instead of expanding out and receding back.
     const overlay = document.createElement('div');
     overlay.style.position = 'fixed';
     overlay.style.inset = '0';
     overlay.style.zIndex = '9999';
     overlay.style.pointerEvents = 'none';
     overlay.style.background = goingDark
-      ? `radial-gradient(circle at ${x}px ${y}px, #4A2E7A 0%, #241645 35%, #0A0614 75%, #050308 100%)`
-      : `radial-gradient(circle at ${x}px ${y}px, #FFF6DD 0%, #FFD98A 30%, #FFB25E 60%, #FF8C61 100%)`;
-    overlay.style.clipPath = `circle(0px at ${x}px ${y}px)`;
+      ? `radial-gradient(circle at ${x}px ${y}px, #4A2E7A 0%, #241645 35%, #130F1F 75%, #130F1F 100%)`
+      : `radial-gradient(circle at ${x}px ${y}px, #FFF6DD 0%, #FFD98A 30%, #FFB25E 60%, #F7F4FC 100%)`;
+    overlay.style.clipPath = `circle(${maxRadius}px at ${x}px ${y}px)`;
     document.body.appendChild(overlay);
 
-    const expand = overlay.animate(
+    // Theme swaps now, fully hidden under the overlay - no visible pop.
+    setTheme(nextTheme);
+
+    const wipe = overlay.animate(
       [
-        { clipPath: `circle(0px at ${x}px ${y}px)` },
         { clipPath: `circle(${maxRadius}px at ${x}px ${y}px)` },
+        { clipPath: `circle(0px at ${x}px ${y}px)` },
       ],
-      { duration: 650, easing: 'cubic-bezier(0.65, 0, 0.35, 1)', fill: 'forwards' }
+      { duration: 480, easing: 'cubic-bezier(0.65, 0, 0.35, 1)', fill: 'forwards' }
     );
-
-    expand.onfinish = () => {
-      // Swap the real theme once the wave has fully covered the screen,
-      // so the switch itself is hidden underneath it.
-      setTheme(nextTheme);
-
-      const recede = overlay.animate(
-        [
-          { clipPath: `circle(${maxRadius}px at ${x}px ${y}px)` },
-          { clipPath: `circle(0px at ${x}px ${y}px)` },
-        ],
-        { duration: 550, easing: 'cubic-bezier(0.65, 0, 0.35, 1)', delay: 80, fill: 'forwards' }
-      );
-      recede.onfinish = () => overlay.remove();
-    };
+    wipe.onfinish = () => overlay.remove();
   };
 
   return (
