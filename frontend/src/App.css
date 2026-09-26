@@ -603,3 +603,21 @@ html.dark-theme {
 html.dark-theme ::-webkit-scrollbar-track { background: #130F1F; }
 html.dark-theme ::-webkit-scrollbar-thumb { background: #362B4D; border-radius: 8px; }
 html.dark-theme ::-webkit-scrollbar-thumb:hover { background: #4A3A66; }
+
+/* Theme toggle transition: disable the browser's default cross-fade on the
+   root view-transition snapshots so only the custom growing-circle wipe
+   (driven from ThemeToggle.js) plays - avoids a competing double-animation.
+   The "old" snapshot stays fully visible underneath at all times, and the
+   "new" snapshot (real, live theme content) is revealed via clip-path,
+   so nothing ever goes blank/color-only during the switch. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-old(root) {
+  z-index: 0;
+}
+::view-transition-new(root) {
+  z-index: 1;
+}
