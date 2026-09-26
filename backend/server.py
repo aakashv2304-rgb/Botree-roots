@@ -188,10 +188,66 @@ def _build_commercial_data(proposal: "ProposalCreate") -> dict:
         "dms_distributor_charge": charge(proposal.dms_distributor_charge),
         "sfa_user_charge": charge(proposal.sfa_user_charge),
         "shared_l1_support_charge": charge(proposal.shared_l1_support_charge),
+        "extra_ongoing_charges": [c.dict() for c in proposal.extra_ongoing_charges] if proposal.extra_ongoing_charges else [],
         "additional_fees": [f.dict() for f in proposal.additional_fees] if proposal.additional_fees else [],
         "price_escalation_percent": proposal.price_escalation_percent,
         "contract_years": proposal.contract_years,
     }
+
+def _compute_deal_value(commercial_data: dict) -> Optional[float]:
+    """Server-side authoritative total deal value: sum of all one-time
+    charges, plus recurring revenue (whichever is higher of rate x quantity
+    vs monthly minimum billing, per line) projected across the full
+    contract tenure with the price escalation % compounding each year.
+    Takes the same plain dict shape as commercials_merge.fill_commercials."""
+    any_value_present = False
+
+    one_time_field_names = [
+        "one_time_setup_fee", "integration_fee", "dms_training_fee",
+        "sfa_training_fee", "flexidms_deployment_fee", "customization_fee", "workshop_fee",
+    ]
+    total_one_time = 0.0
+    for name in one_time_field_names:
+        v = commercial_data.get(name)
+        if v is not None:
+            total_one_time += v
+            any_value_present = True
+    for fee in (commercial_data.get("additional_fees") or []):
+        if fee.get("value") is not None:
+            total_one_time += fee["value"]
+            any_value_present = True
+
+    def _line_monthly(line: Optional[dict]) -> float:
+        nonlocal any_value_present
+        if not line:
+            return 0.0
+        rate_total = None
+        if line.get("rate_per_user_month") is not None and line.get("quantity") is not None:
+            rate_total = line["rate_per_user_month"] * line["quantity"]
+        min_billing = line.get("monthly_minimum_billing")
+        if rate_total is None and min_billing is None:
+            return 0.0
+        any_value_present = True
+        if rate_total is not None and min_billing is not None:
+            return max(rate_total, min_billing)
+        return rate_total if rate_total is not None else min_billing
+
+    monthly_recurring = sum(_line_monthly(commercial_data.get(k)) for k in [
+        "flexidms_distributor_charge", "dms_distributor_charge",
+        "sfa_user_charge", "shared_l1_support_charge",
+    ])
+    monthly_recurring += sum(_line_monthly(c) for c in (commercial_data.get("extra_ongoing_charges") or []))
+
+    if not any_value_present:
+        return None
+
+    tenure_years = commercial_data.get("contract_years") or 1
+    escalation = (commercial_data.get("price_escalation_percent") or 0) / 100
+    total_recurring = 0.0
+    for year in range(tenure_years):
+        total_recurring += monthly_recurring * 12 * ((1 + escalation) ** year)
+
+    return round(total_one_time + total_recurring, 2)
 
 async def get_base_template_file_doc() -> Optional[dict]:
     """Fetch the org-wide default base proposal document, if an Admin has
@@ -451,6 +507,7 @@ class Product(BaseModel):
 class OngoingChargeLine(BaseModel):
     """One row of Table B.2 (Ongoing Charges) in the base proposal document -
     quantity, per-user-per-month rate, and monthly minimum billing."""
+    name: Optional[str] = None  # only used for custom/freeform rows (extra_ongoing_charges)
     quantity: Optional[float] = None
     rate_per_user_month: Optional[float] = None
     monthly_minimum_billing: Optional[float] = None
@@ -492,6 +549,9 @@ class ProposalCreate(BaseModel):
     dms_distributor_charge: Optional[OngoingChargeLine] = None
     sfa_user_charge: Optional[OngoingChargeLine] = None
     shared_l1_support_charge: Optional[OngoingChargeLine] = None
+    # Custom/freeform recurring charges not covered by the 4 fixed rows above -
+    # each becomes its own new row appended to Table B.2 in the document.
+    extra_ongoing_charges: Optional[List[OngoingChargeLine]] = []
 
 class ProposalAction(BaseModel):
     comment: Optional[str] = None
@@ -1139,6 +1199,8 @@ async def create_proposal(proposal: ProposalCreate, request: Request):
     line_item_text_dict = {
         k: v.dict() for k, v in (proposal.one_time_line_item_text or {}).items()
     }
+    extra_ongoing_dict = [c.dict() for c in proposal.extra_ongoing_charges] if proposal.extra_ongoing_charges else []
+    computed_deal_value = _compute_deal_value(_build_commercial_data(proposal))
 
     # Create first version
     version_data = {
@@ -1151,7 +1213,7 @@ async def create_proposal(proposal: ProposalCreate, request: Request):
         "customer_name": proposal.customer_name,
         "industry": proposal.industry,
         "comments": proposal.comments,
-        "deal_value": proposal.deal_value,
+        "deal_value": computed_deal_value,
         "one_time_setup_fee": proposal.one_time_setup_fee,
         "integration_fee": proposal.integration_fee,
         "additional_fees": [f.dict() for f in proposal.additional_fees] if proposal.additional_fees else [],
@@ -1167,6 +1229,7 @@ async def create_proposal(proposal: ProposalCreate, request: Request):
         "dms_distributor_charge": _charge_dict(proposal.dms_distributor_charge),
         "sfa_user_charge": _charge_dict(proposal.sfa_user_charge),
         "shared_l1_support_charge": _charge_dict(proposal.shared_l1_support_charge),
+        "extra_ongoing_charges": extra_ongoing_dict,
         "created_by": current_user["id"],
         "created_at": now.isoformat(),
         "change_note": "Initial version"
@@ -1185,7 +1248,7 @@ async def create_proposal(proposal: ProposalCreate, request: Request):
         "customer_name": proposal.customer_name,
         "industry": proposal.industry,
         "comments": proposal.comments,
-        "deal_value": proposal.deal_value,
+        "deal_value": computed_deal_value,
         "one_time_setup_fee": proposal.one_time_setup_fee,
         "integration_fee": proposal.integration_fee,
         "additional_fees": [f.dict() for f in proposal.additional_fees] if proposal.additional_fees else [],
@@ -1201,6 +1264,7 @@ async def create_proposal(proposal: ProposalCreate, request: Request):
         "dms_distributor_charge": version_data["dms_distributor_charge"],
         "sfa_user_charge": version_data["sfa_user_charge"],
         "shared_l1_support_charge": version_data["shared_l1_support_charge"],
+        "extra_ongoing_charges": extra_ongoing_dict,
         "versions": [version_data],
         "history": [{
             "action": "created",
@@ -1354,6 +1418,7 @@ async def get_proposal(proposal_id: str, request: Request):
         "dms_distributor_charge": proposal.get("dms_distributor_charge"),
         "sfa_user_charge": proposal.get("sfa_user_charge"),
         "shared_l1_support_charge": proposal.get("shared_l1_support_charge"),
+        "extra_ongoing_charges": proposal.get("extra_ongoing_charges", []),
         "dms_training_fee": proposal.get("dms_training_fee"),
         "sfa_training_fee": proposal.get("sfa_training_fee"),
         "flexidms_deployment_fee": proposal.get("flexidms_deployment_fee"),
@@ -1745,6 +1810,7 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
     dms_distributor_charge = _charge_dict(proposal.dms_distributor_charge) or existing_proposal.get("dms_distributor_charge")
     sfa_user_charge = _charge_dict(proposal.sfa_user_charge) or existing_proposal.get("sfa_user_charge")
     shared_l1_support_charge = _charge_dict(proposal.shared_l1_support_charge) or existing_proposal.get("shared_l1_support_charge")
+    extra_ongoing_charges_data = [c.dict() for c in proposal.extra_ongoing_charges] if proposal.extra_ongoing_charges else existing_proposal.get("extra_ongoing_charges", [])
 
     dms_training_fee = proposal.dms_training_fee if proposal.dms_training_fee is not None else existing_proposal.get("dms_training_fee")
     sfa_training_fee = proposal.sfa_training_fee if proposal.sfa_training_fee is not None else existing_proposal.get("sfa_training_fee")
@@ -1774,10 +1840,12 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
         "dms_distributor_charge": dms_distributor_charge,
         "sfa_user_charge": sfa_user_charge,
         "shared_l1_support_charge": shared_l1_support_charge,
+        "extra_ongoing_charges": extra_ongoing_charges_data,
         "additional_fees": additional_fees_data,
         "price_escalation_percent": price_escalation_percent,
         "contract_years": contract_years,
     }
+    computed_deal_value = _compute_deal_value(resolved_commercial_data)
 
     if proposal.file_id:
         source_file_doc = await db.files.find_one({"id": proposal.file_id, "is_deleted": False})
@@ -1810,7 +1878,7 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
         "customer_name": proposal.customer_name,
         "industry": proposal.industry,
         "comments": proposal.comments,
-        "deal_value": proposal.deal_value,
+        "deal_value": computed_deal_value,
         "one_time_setup_fee": one_time_setup_fee,
         "integration_fee": integration_fee,
         "additional_fees": additional_fees_data,
@@ -1826,6 +1894,7 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
         "dms_distributor_charge": dms_distributor_charge,
         "sfa_user_charge": sfa_user_charge,
         "shared_l1_support_charge": shared_l1_support_charge,
+        "extra_ongoing_charges": extra_ongoing_charges_data,
         "created_by": current_user["id"],
         "created_at": now.isoformat(),
         "change_note": proposal.change_note or "Revised after review feedback"
@@ -1854,7 +1923,7 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
                 "customer_name": proposal.customer_name,
                 "industry": proposal.industry,
                 "comments": proposal.comments,
-                "deal_value": proposal.deal_value,
+                "deal_value": computed_deal_value,
                 "one_time_setup_fee": one_time_setup_fee,
                 "integration_fee": integration_fee,
                 "additional_fees": additional_fees_data,
@@ -1870,6 +1939,7 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
                 "dms_distributor_charge": dms_distributor_charge,
                 "sfa_user_charge": sfa_user_charge,
                 "shared_l1_support_charge": shared_l1_support_charge,
+                "extra_ongoing_charges": extra_ongoing_charges_data,
                 "updated_at": now.isoformat()
             },
             "$push": {
