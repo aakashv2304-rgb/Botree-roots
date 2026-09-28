@@ -512,6 +512,7 @@ class OngoingChargeLine(BaseModel):
     rate_per_user_month: Optional[float] = None
     monthly_minimum_billing: Optional[float] = None
     description: Optional[str] = None
+    invoicing: Optional[str] = None
 
 class LineItemText(BaseModel):
     """Editable Description/Invoicing text for one Table B.1 row, pre-filled
