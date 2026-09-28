@@ -566,6 +566,39 @@ html.dark-theme {
   color-scheme: dark;
 }
 
+/* Smooth, native, real-time color cross-fade for every themed element -
+   this (not any JS animation) is what actually makes the theme switch
+   look smooth. Matches every hardcoded hex utility class the dark-theme
+   overrides above target, so nothing needs listing individually. */
+body,
+[class*="bg-[#"],
+[class*="text-[#"],
+[class*="border-[#"] {
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* Decorative wave ring (see utils/themeWave.js) - a mostly-transparent
+   glow that sweeps outward from the toggle button. It rides on top of
+   the real cross-fade above; it never hides content underneath it. */
+.theme-wave-ring {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  pointer-events: none;
+  --x: 50%;
+  --y: 50%;
+  --r: 0px;
+  background: radial-gradient(circle var(--r) at var(--x) var(--y),
+    rgba(173,86,232,.12) 0,
+    rgba(173,86,232,.075) calc(100% - 18px),
+    rgba(255,255,255,.34) calc(100% - 9px),
+    rgba(255,255,255,0) 100%);
+}
+@media (prefers-reduced-motion: reduce) {
+  .theme-wave-ring { display: none; }
+  body, [class*="bg-[#"], [class*="text-[#"], [class*="border-[#"] { transition: none !important; }
+}
+
 /* Page & card surfaces */
 .dark-theme .bg-\[\#FFFFFF\] { background-color: #1E1830 !important; }
 .dark-theme .bg-\[\#F7F4FC\] { background-color: #130F1F !important; }
@@ -603,21 +636,3 @@ html.dark-theme {
 html.dark-theme ::-webkit-scrollbar-track { background: #130F1F; }
 html.dark-theme ::-webkit-scrollbar-thumb { background: #362B4D; border-radius: 8px; }
 html.dark-theme ::-webkit-scrollbar-thumb:hover { background: #4A3A66; }
-
-/* Theme toggle transition: disable the browser's default cross-fade on the
-   root view-transition snapshots so only the custom growing-circle wipe
-   (driven from ThemeToggle.js) plays - avoids a competing double-animation.
-   The "old" snapshot stays fully visible underneath at all times, and the
-   "new" snapshot (real, live theme content) is revealed via clip-path,
-   so nothing ever goes blank/color-only during the switch. */
-::view-transition-old(root),
-::view-transition-new(root) {
-  animation: none;
-  mix-blend-mode: normal;
-}
-::view-transition-old(root) {
-  z-index: 0;
-}
-::view-transition-new(root) {
-  z-index: 1;
-}
