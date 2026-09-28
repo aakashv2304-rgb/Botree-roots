@@ -47,7 +47,7 @@ const BotreeLogo = ({ size = 'md', variant = 'full' }) => {
       </svg>
       <div className="flex flex-col">
         <span className="font-black tracking-tight" style={{ fontFamily: 'Playfair Display, serif', fontSize: currentSize.text * 0.35, lineHeight: '1', fontWeight: 800 }}>BOTREE</span>
-        <span className="font-bold tracking-[0.3em]" style={{ fontFamily: 'Manrope, sans-serif', fontSize: currentSize.text * 0.15, lineHeight: '1.2', fontWeight: 700 }}>SOFTWARE</span>
+        <span className="font-bold tracking-[0.3em]" style={{ fontFamily: 'Poppins, sans-serif', fontSize: currentSize.text * 0.15, lineHeight: '1.2', fontWeight: 700 }}>SOFTWARE</span>
       </div>
     </div>
   );
