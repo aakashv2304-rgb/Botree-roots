@@ -514,34 +514,32 @@ const ProposalDetail = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 space-y-6">
           <div className="bg-[#FFFFFF] border border-[#E4DCF0] p-6 shadow-sm">
-            <div className="flex items-start justify-between mb-6">
-              <div className="flex-1">
-                <div className="flex items-center gap-3 mb-2">
-                  <h1 className="text-2xl font-bold tracking-tight" data-testid="proposal-title">
-                    {proposal.title}
-                  </h1>
-                  <Badge className="bg-indigo-100 text-indigo-700 border border-indigo-300 flex items-center gap-1">
-                    <GitBranch size={14} />
-                    {proposal.versions && proposal.versions.length > 0 
-                      ? proposal.versions[proposal.current_version - 1]?.version_label 
-                      : `v${proposal.current_version || 1}`}
-                  </Badge>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowVersionHistory(!showVersionHistory)}
-                    className="text-xs border-[#9B30FF] text-[#9B30FF] hover:bg-[#9B30FF]/5"
-                    data-testid="toggle-version-history-button"
-                  >
-                    <ListNumbers size={16} className="mr-1" />
-                    {versions.length} version{versions.length === 1 ? '' : 's'} · History &amp; Compare
-                  </Button>
-                </div>
-                {proposal.description && (
-                  <p className="text-[#7A6B9E]">{proposal.description}</p>
-                )}
+            <div className="mb-6">
+              <div className="flex flex-wrap items-center gap-3 mb-2">
+                <h1 className="text-2xl font-bold tracking-tight" data-testid="proposal-title">
+                  {proposal.title}
+                </h1>
+                <Badge className="bg-indigo-100 text-indigo-700 border border-indigo-300 flex items-center gap-1">
+                  <GitBranch size={14} />
+                  {proposal.versions && proposal.versions.length > 0 
+                    ? proposal.versions[proposal.current_version - 1]?.version_label 
+                    : `v${proposal.current_version || 1}`}
+                </Badge>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowVersionHistory(!showVersionHistory)}
+                  className="text-xs border-[#9B30FF] text-[#9B30FF] hover:bg-[#9B30FF]/5"
+                  data-testid="toggle-version-history-button"
+                >
+                  <ListNumbers size={16} className="mr-1" />
+                  {versions.length} version{versions.length === 1 ? '' : 's'} · History &amp; Compare
+                </Button>
               </div>
-              <div className="flex items-center gap-3">
+              {proposal.description && (
+                <p className="text-[#7A6B9E] mb-3">{proposal.description}</p>
+              )}
+              <div className="flex flex-wrap items-center gap-3">
                 <Badge
                   className={
                     proposal.status === 'approved' ? 'bg-green-500 text-white' : 
