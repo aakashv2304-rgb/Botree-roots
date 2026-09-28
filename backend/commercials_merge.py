@@ -21,7 +21,7 @@ import copy
 import io
 from typing import Optional
 from docx import Document
-from docx.table import _Row
+from docx.table import _Row, _Cell
 
 
 def _format_inr(value: Optional[float]) -> Optional[str]:
@@ -73,6 +73,19 @@ def _number_to_words(n: int) -> str:
     return _NUMBER_WORDS.get(int(n), str(int(n)))
 
 
+def _physical_cells(row):
+    """Return this row's actual <w:tc> cells, in true document order, each
+    wrapped as a proper python-docx _Cell.
+
+    Row.cells (the normal python-docx API) resolves cells against the
+    table's overall grid, and on at least one real Botree template this
+    misresolves certain data rows - reading/writing index 5 on some rows
+    silently landed on the wrong physical cell. Walking the row's direct
+    <w:tc> children instead (tc_lst) sidesteps that grid resolution
+    entirely and was verified correct against the real template."""
+    return [_Cell(tc, row.table) for tc in row._tr.tc_lst]
+
+
 def _set_cell_text(cell, new_text: str):
     """Overwrite a table cell's text, keeping the formatting of its first run."""
     paragraph = cell.paragraphs[0]
@@ -92,7 +105,7 @@ def _find_table(doc: Document, required_headers: list):
     for table in doc.tables:
         if not table.rows:
             continue
-        header_cells = [c.text.strip().lower() for c in table.rows[0].cells]
+        header_cells = [c.text.strip().lower() for c in _physical_cells(table.rows[0])]
         header_text = " | ".join(header_cells)
         if all(h.lower() in header_text for h in required_headers):
             return table
@@ -110,9 +123,10 @@ def _clone_row_after(table, anchor_row, cell_texts: list):
     new_tr = copy.deepcopy(anchor_row._tr)
     anchor_row._tr.addnext(new_tr)
     new_row = _Row(new_tr, table)
+    new_cells = _physical_cells(new_row)
     for i, text in enumerate(cell_texts):
-        if i < len(new_row.cells) and text is not None:
-            _set_cell_text(new_row.cells[i], text)
+        if i < len(new_cells) and text is not None:
+            _set_cell_text(new_cells[i], text)
     return new_row
 
 
@@ -220,7 +234,8 @@ def _merge_ongoing_table(doc: Document, commercial_data: dict):
     if table is None:
         return
 
-    header = [c.text.strip().lower() for c in table.rows[0].cells]
+    header_cells = _physical_cells(table.rows[0])
+    header = [c.text.strip().lower() for c in header_cells]
     col_idx = {}
     for i, h in enumerate(header):
         if h == "quantity":
@@ -238,14 +253,15 @@ def _merge_ongoing_table(doc: Document, commercial_data: dict):
     # for any custom/freeform recurring charges, before removing anything.
     extra_charge_template = None
     for row in table.rows[1:]:
-        if "sfa users" in row.cells[0].text.strip().lower():
+        if "sfa users" in _physical_cells(row)[0].text.strip().lower():
             extra_charge_template = copy.deepcopy(row._tr)
             break
 
     rows_to_remove = []
     last_kept_row = table.rows[0]
     for row in list(table.rows)[1:]:
-        label = row.cells[0].text.strip().lower()
+        cells = _physical_cells(row)
+        label = cells[0].text.strip().lower()
         matched = False
         for key, field in ONGOING_ROW_MAP.items():
             if key in label:
@@ -258,15 +274,15 @@ def _merge_ongoing_table(doc: Document, commercial_data: dict):
                     rows_to_remove.append(row)
                 else:
                     if charge.get("quantity") is not None and "quantity" in col_idx:
-                        _set_cell_text(row.cells[col_idx["quantity"]], _format_inr(charge["quantity"]))
+                        _set_cell_text(cells[col_idx["quantity"]], _format_inr(charge["quantity"]))
                     if charge.get("rate_per_user_month") is not None and "rate" in col_idx:
-                        _set_cell_text(row.cells[col_idx["rate"]], _format_inr(charge["rate_per_user_month"]))
+                        _set_cell_text(cells[col_idx["rate"]], _format_inr(charge["rate_per_user_month"]))
                     if charge.get("monthly_minimum_billing") is not None and "min_billing" in col_idx:
-                        _set_cell_text(row.cells[col_idx["min_billing"]], _format_inr(charge["monthly_minimum_billing"]))
+                        _set_cell_text(cells[col_idx["min_billing"]], _format_inr(charge["monthly_minimum_billing"]))
                     if charge.get("description") is not None and "description" in col_idx:
-                        _set_cell_text(row.cells[col_idx["description"]], charge["description"])
+                        _set_cell_text(cells[col_idx["description"]], charge["description"])
                     if charge.get("invoicing") is not None and "invoicing" in col_idx:
-                        _set_cell_text(row.cells[col_idx["invoicing"]], charge["invoicing"])
+                        _set_cell_text(cells[col_idx["invoicing"]], charge["invoicing"])
                 break
         if matched and row not in rows_to_remove:
             last_kept_row = row
@@ -278,7 +294,7 @@ def _merge_ongoing_table(doc: Document, commercial_data: dict):
     if extra_ongoing_charges and extra_charge_template is not None:
         anchor_tr = last_kept_row._tr if last_kept_row not in rows_to_remove else table.rows[0]._tr
         anchor_row = _Row(anchor_tr, table)
-        num_cols = len(table.rows[0].cells)
+        num_cols = len(header_cells)
         for charge in extra_ongoing_charges:
             if all(charge.get(k) is None for k in ("quantity", "rate_per_user_month", "monthly_minimum_billing")):
                 continue
