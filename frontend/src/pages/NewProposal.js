@@ -38,7 +38,7 @@ let rowIdCounter = 0;
 const nextRowId = () => ++rowIdCounter;
 
 const emptyOneTimeRow = () => ({ id: nextRowId(), presetKey: '', customName: '', amount: '', description: '', invoicing: '' });
-const emptyRecurringRow = () => ({ id: nextRowId(), presetKey: '', customName: '', quantity: '', rate: '', minBilling: '', description: '' });
+const emptyRecurringRow = () => ({ id: nextRowId(), presetKey: '', customName: '', quantity: '', rate: '', minBilling: '', description: '', invoicing: '' });
 
 const NewProposal = () => {
   const { user } = useAuth();
@@ -100,6 +100,7 @@ const NewProposal = () => {
         const defaults = rowDefaults[value];
         if (defaults) {
           updated.description = defaults.description || '';
+          updated.invoicing = defaults.invoicing || '';
         }
       }
       return updated;
@@ -172,6 +173,7 @@ const NewProposal = () => {
           rate_per_user_month: r.rate ? parseFloat(r.rate) : null,
           monthly_minimum_billing: r.minBilling ? parseFloat(r.minBilling) : null,
           description: r.description || null,
+          invoicing: r.invoicing || null,
         };
         if (r.presetKey && r.presetKey !== 'custom') {
           recurringFixed[r.presetKey] = chargeObj;
@@ -493,15 +495,27 @@ const NewProposal = () => {
 
                     {row.presetKey && (
                       <>
-                        <div className="space-y-1 mb-4">
-                          <Label className="text-[#5B4B7A] font-semibold text-xs">Description</Label>
-                          <Textarea
-                            value={row.description}
-                            onChange={(e) => updateRecurringRow(row.id, 'description', e.target.value)}
-                            placeholder="Pre-filled from the base template - edit as needed"
-                            rows={2}
-                            className="bg-[#FFFFFF] text-sm text-[#1E1533]"
-                          />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                          <div className="space-y-1">
+                            <Label className="text-[#5B4B7A] font-semibold text-xs">Description</Label>
+                            <Textarea
+                              value={row.description}
+                              onChange={(e) => updateRecurringRow(row.id, 'description', e.target.value)}
+                              placeholder="Pre-filled from the base template - edit as needed"
+                              rows={2}
+                              className="bg-[#FFFFFF] text-sm text-[#1E1533]"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[#5B4B7A] font-semibold text-xs">Invoicing</Label>
+                            <Textarea
+                              value={row.invoicing}
+                              onChange={(e) => updateRecurringRow(row.id, 'invoicing', e.target.value)}
+                              placeholder="Invoicing terms shown in the document"
+                              rows={2}
+                              className="bg-[#FFFFFF] text-sm text-[#1E1533]"
+                            />
+                          </div>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                           <div className="space-y-1">
