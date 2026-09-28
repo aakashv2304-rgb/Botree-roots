@@ -173,13 +173,22 @@ const Login = () => {
         .lg-meta { display:flex; justify-content:space-between; align-items:center; margin:0 0 14px; font-size:12px; }
         .lg-remember { display:flex; align-items:center; gap:8px; color:#756d7e; cursor:pointer; }
         .lg-remember input {
-          width: 13px;
-          height: 13px;
-          margin: 0;
+          appearance: auto !important;
+          -webkit-appearance: auto !important;
+          width: 14px !important;
+          height: 14px !important;
+          min-width: 14px !important;
+          border: none !important;
+          border-radius: 3px !important;
+          background: none !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          accent-color: var(--purple) !important;
+          cursor: pointer;
           flex-shrink: 0;
-          accent-color: var(--purple);
-          transform: scale(0.9);
         }
+        .lg-remember input:hover { transform: none !important; }
+        .lg-remember input::after { content: none !important; }
         .botree-login-shell a { color:#6520ae; text-decoration:none; font-weight:600; cursor:pointer; }
         .lg-primary {
           width:100%; height:49px; border:0; border-radius:13px; color:white; font:600 14px "Poppins";
