@@ -231,6 +231,8 @@ def _merge_ongoing_table(doc: Document, commercial_data: dict):
             col_idx["min_billing"] = i
         elif h == "description":
             col_idx["description"] = i
+        elif "invoicing" in h:
+            col_idx["invoicing"] = i
 
     # Clone the "SFA Users" row (a clean single-line row) as the template
     # for any custom/freeform recurring charges, before removing anything.
@@ -263,6 +265,8 @@ def _merge_ongoing_table(doc: Document, commercial_data: dict):
                         _set_cell_text(row.cells[col_idx["min_billing"]], _format_inr(charge["monthly_minimum_billing"]))
                     if charge.get("description") is not None and "description" in col_idx:
                         _set_cell_text(row.cells[col_idx["description"]], charge["description"])
+                    if charge.get("invoicing") is not None and "invoicing" in col_idx:
+                        _set_cell_text(row.cells[col_idx["invoicing"]], charge["invoicing"])
                 break
         if matched and row not in rows_to_remove:
             last_kept_row = row
@@ -291,6 +295,8 @@ def _merge_ongoing_table(doc: Document, commercial_data: dict):
                 cell_texts[col_idx["min_billing"]] = _format_inr(charge.get("monthly_minimum_billing")) if charge.get("monthly_minimum_billing") is not None else ""
             if "description" in col_idx:
                 cell_texts[col_idx["description"]] = charge.get("description") or ""
+            if "invoicing" in col_idx:
+                cell_texts[col_idx["invoicing"]] = charge.get("invoicing") or ""
             new_row = _clone_row_after(table, anchor_row, cell_texts)
             anchor_row = new_row
 
@@ -393,11 +399,13 @@ def fill_commercials(docx_bytes: bytes, commercial_data: dict) -> bytes:
         columns for that row (only applied when the row is kept).
       flexidms_distributor_charge / dms_distributor_charge /
       sfa_user_charge / shared_l1_support_charge: dict with
-        quantity, rate_per_user_month, monthly_minimum_billing, description
+        quantity, rate_per_user_month, monthly_minimum_billing, description, invoicing
+        (invoicing only fills if the document's Table B.2 has an "Invoicing"
+        column - it's never added structurally if the column doesn't exist)
       extra_ongoing_charges: list of {"name": str, "quantity": float,
         "rate_per_user_month": float, "monthly_minimum_billing": float,
-        "description": str} - each becomes a new row in Table B.2, cloned
-        from the "SFA Users" row's formatting.
+        "description": str, "invoicing": str} - each becomes a new row in
+        Table B.2, cloned from the "SFA Users" row's formatting.
       additional_fees: list of {"name": str, "value": float, "description": str, "invoicing": str}
       price_escalation_percent: float
       contract_years: int
