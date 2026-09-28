@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');
 
 * {
   margin: 0;
@@ -7,7 +7,7 @@
 }
 
 body {
-  font-family: 'Manrope', system-ui, sans-serif;
+  font-family: 'Poppins', system-ui, sans-serif;
   background: #FFFFFF;
   color: #111827;
   -webkit-font-smoothing: antialiased;
@@ -15,19 +15,19 @@ body {
 }
 
 h1 {
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: 'Poppins', sans-serif;
   font-weight: 700;
   letter-spacing: -0.02em;
 }
 
 h2, h3 {
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: 'Poppins', sans-serif;
   font-weight: 600;
   letter-spacing: -0.01em;
 }
 
 h4, h5, h6 {
-  font-family: 'Manrope', sans-serif;
+  font-family: 'Poppins', sans-serif;
   font-weight: 700;
 }
 
@@ -48,15 +48,15 @@ h4, h5, h6 {
 
 /* Font classes */
 .font-display {
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: 'Poppins', sans-serif;
 }
 
 .font-heading {
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: 'Poppins', sans-serif;
 }
 
 .font-body {
-  font-family: 'Manrope', sans-serif;
+  font-family: 'Poppins', sans-serif;
 }
 
 /* Smooth transitions */
