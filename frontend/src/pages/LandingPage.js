@@ -90,7 +90,7 @@ const LandingPage = () => {
               Internal Tool
             </span>
           </div>
-          <h1 className="text-5xl md:text-6xl font-bold mb-6 leading-tight" style={{fontFamily: 'Manrope, sans-serif'}}>
+          <h1 className="text-5xl md:text-6xl font-bold mb-6 leading-tight" style={{fontFamily: 'Poppins, sans-serif'}}>
             Proposal Approval
             <br />
             <span className="text-emerald-700">Tracking System</span>
