@@ -18,7 +18,9 @@ from bson import ObjectId
 import requests
 import asyncio
 import secrets
-import resend
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from reportlab.lib.pagesizes import letter, A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
@@ -75,8 +77,6 @@ DEFAULT_USER_PASSWORD = "Botree@123"  # standard password for all seed/new accou
 IS_PRODUCTION = os.environ.get("ENVIRONMENT", "development") == "production"
 COOKIE_SECURE = IS_PRODUCTION
 COOKIE_SAMESITE = "lax"
-RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
-SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "noreply@botree.ai")
 APP_URL = os.environ.get("APP_URL", "https://botree-roots.onrender.com").rstrip("/")
 
 # Zoho OAuth ("Sign in with Zoho") - optional, alongside email/password login
@@ -85,8 +85,15 @@ ZOHO_CLIENT_SECRET = os.environ.get("ZOHO_CLIENT_SECRET")
 ZOHO_REDIRECT_URI = f"{APP_URL}/api/auth/zoho/callback"
 ZOHO_ACCOUNTS_BASE = os.environ.get("ZOHO_ACCOUNTS_BASE", "https://accounts.zoho.com")  # use https://accounts.zoho.eu / .in / .com.au etc. for other data centers
 
-# Initialize Resend
-resend.api_key = RESEND_API_KEY
+# SMTP email (works with any standard provider - Zoho Mail, Office 365, Gmail,
+# or a company mail server). Port 465 uses implicit SSL; anything else (587 is
+# standard) uses STARTTLS.
+SMTP_HOST = os.environ.get("SMTP_HOST")
+SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
+SMTP_USERNAME = os.environ.get("SMTP_USERNAME")
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD")
+SMTP_FROM_EMAIL = os.environ.get("SMTP_FROM_EMAIL") or SMTP_USERNAME
+SMTP_FROM_NAME = os.environ.get("SMTP_FROM_NAME", "Botree Roots")
 
 # File storage: MongoDB GridFS - lives in the same free MongoDB Atlas cluster,
 # no external service or API key required.
@@ -304,6 +311,44 @@ async def apply_commercials_to_file(file_doc: dict, commercial_data: dict, uploa
     return merged_file_doc
 
 # Email notification functions
+def _send_email_smtp_sync(to_email: str, subject: str, html_content: str):
+    """Blocking SMTP send - always call via asyncio.to_thread, never directly
+    from async code."""
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"] = f"{SMTP_FROM_NAME} <{SMTP_FROM_EMAIL}>"
+    msg["To"] = to_email
+    msg.attach(MIMEText(html_content, "html"))
+
+    if SMTP_PORT == 465:
+        with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=15) as server:
+            server.login(SMTP_USERNAME, SMTP_PASSWORD)
+            server.sendmail(SMTP_FROM_EMAIL, [to_email], msg.as_string())
+    else:
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as server:
+            server.starttls()
+            server.login(SMTP_USERNAME, SMTP_PASSWORD)
+            server.sendmail(SMTP_FROM_EMAIL, [to_email], msg.as_string())
+
+
+async def send_email(to_email: str, subject: str, html_content: str) -> bool:
+    """Send an email via SMTP, off the event loop. Works with any standard
+    SMTP provider (Zoho Mail, Office 365, Gmail, a company mail server, etc.)
+    - just set SMTP_HOST/PORT/USERNAME/PASSWORD. Returns True/False rather
+    than raising, since an email failure should never block the workflow
+    action that triggered it."""
+    if not SMTP_HOST or not SMTP_USERNAME or not SMTP_PASSWORD:
+        logger.warning("SMTP not configured, skipping email notification")
+        return False
+    try:
+        await asyncio.to_thread(_send_email_smtp_sync, to_email, subject, html_content)
+        logger.info(f"Email sent to {to_email}: {subject}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to send email to {to_email}: {str(e)}")
+        return False
+
+
 async def send_workflow_notification(
     recipient_email: str, 
     recipient_name: str,
@@ -315,16 +360,6 @@ async def send_workflow_notification(
 ):
     """Send email notification for workflow stage transitions"""
     try:
-        if not RESEND_API_KEY:
-            logger.warning("RESEND_API_KEY not configured, skipping email notification")
-            return
-        
-        # TEMPORARY FOR TESTING: Route all emails to Resend account owner (sandbox mode restriction)
-        # TODO: Remove this override after domain verification
-        original_recipient = recipient_email
-        recipient_email = "aakashv2304@gmail.com"
-        logger.info(f"[TEST MODE] Routing email from {original_recipient} to {recipient_email}")
-        
         # Build subject based on action
         if action == "assigned":
             subject = f"New Proposal Assigned: {proposal_title}"
@@ -363,7 +398,6 @@ async def send_workflow_notification(
                     <p style="margin: 5px 0 0 0;">Proposal Workflow Notification</p>
                 </div>
                 <div class="content">
-                    <p style="background: #fff3cd; padding: 10px; border-left: 4px solid #ffc107; margin-bottom: 20px;"><strong>🧪 TEST MODE:</strong> This email was originally intended for <strong>{original_recipient}</strong></p>
                     <h2 style="color: #7209B7;">Hello {recipient_name},</h2>
                     <p><strong>{action_text}</strong></p>
                     <p><strong>Proposal:</strong> {proposal_title}</p>
@@ -381,17 +415,7 @@ async def send_workflow_notification(
         </html>
         """
         
-        params = {
-            "from": SENDER_EMAIL,
-            "to": [recipient_email],
-            "subject": subject,
-            "html": html_content
-        }
-        
-        # Send email asynchronously (non-blocking)
-        email_result = await asyncio.to_thread(resend.Emails.send, params)
-        logger.info(f"Email sent to {recipient_email} for proposal {proposal_id} - Email ID: {email_result.get('id')}")
-        return email_result
+        await send_email(recipient_email, subject, html_content)
         
     except Exception as e:
         logger.error(f"Failed to send email notification: {str(e)}")
@@ -401,10 +425,6 @@ async def send_workflow_notification(
 async def send_access_request_notification(requester_email: str, requester_name: str):
     """Emails every Admin when a new Zoho SSO user requests access."""
     try:
-        if not RESEND_API_KEY:
-            logger.warning("RESEND_API_KEY not configured, skipping access request email")
-            return
-
         admins = await db.users.find({"role": "Admin", "status": {"$ne": "pending"}}).to_list(100)
         if not admins:
             logger.warning("No Admin users found to notify about new access request")
@@ -444,19 +464,7 @@ async def send_access_request_notification(requester_email: str, requester_name:
         """
 
         for admin in admins:
-            recipient = admin["email"]
-            # TEMPORARY FOR TESTING: same sandbox-mode override as send_workflow_notification
-            # TODO: remove alongside the other override once the sending domain is verified
-            recipient = "aakashv2304@gmail.com"
-            try:
-                await asyncio.to_thread(resend.Emails.send, {
-                    "from": SENDER_EMAIL,
-                    "to": [recipient],
-                    "subject": f"New access request: {requester_name}",
-                    "html": html_content
-                })
-            except Exception as e:
-                logger.error(f"Failed to email admin {admin['email']} about access request: {str(e)}")
+            await send_email(admin["email"], f"New access request: {requester_name}", html_content)
     except Exception as e:
         logger.error(f"send_access_request_notification failed: {str(e)}")
 
