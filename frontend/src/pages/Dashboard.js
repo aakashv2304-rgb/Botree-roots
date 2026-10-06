@@ -10,7 +10,7 @@ import UserManagement from './UserManagement';
 import ProposalDetail from './ProposalDetail';
 import NewProposal from './NewProposal';
 import EditProposal from './EditProposal';
-import ProfitabilityAnalyzer from './ProfitabilityAnalyzer';
+import ProfitabilityHub from './ProfitabilityHub';
 
 const Dashboard = () => {
   const { user } = useAuth();
@@ -29,7 +29,7 @@ const Dashboard = () => {
           <Route path="/proposal/:id" element={<ProposalDetail />} />
           <Route path="/proposal/:id/edit" element={<EditProposal />} />
           <Route path="/new" element={<NewProposal />} />
-          <Route path="/profitability-analyzer" element={<ProfitabilityAnalyzer />} />
+          <Route path="/profitability-analyzer" element={<ProfitabilityHub />} />
         </Routes>
       </PageTransition>
     </div>
