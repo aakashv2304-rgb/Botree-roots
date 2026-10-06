@@ -31,6 +31,10 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from io import BytesIO
 from commercials_merge import fill_commercials, extract_one_time_row_defaults
+from tracker_calc import (
+    compute_tracker, validate_tracker_input, summary_fields, next_version_label,
+    tracker_inputs_from_proposal, INFRA_TARGET_PCT, GM_GREEN_PCT, GM_AMBER_PCT, MAX_TERM_YEARS,
+)
 
 # Register DejaVuSans font for Unicode support (₹ symbol)
 try:
@@ -2774,6 +2778,177 @@ async def delete_profitability_analysis(analysis_id: str, request: Request):
 
     await db.profitability_analyses.delete_one({"_id": ObjectId(analysis_id)})
     return {"message": "Analysis deleted"}
+
+
+# ============ Profitability Tracker (multi-year deal margin model) ============
+# Deal-level model: one-time + recurring revenue, delivery resources and
+# infrastructure cost, escalation, and a year-by-year term schedule. The maths
+# lives in tracker_calc.py (verified against the Excel "Deal Margin Calculator");
+# every save recomputes the headline numbers server-side.
+
+TRACKER_DEFAULTS = {"term_years": 3, "revenue_escalation_pct": 8, "cost_escalation_pct": 5}
+
+class TrackerPayload(BaseModel):
+    client_name: str
+    version: Optional[str] = "v1.0"
+    deal_date: Optional[str] = None  # YYYY-MM-DD
+    proposal_id: Optional[str] = None
+    parent_id: Optional[str] = None  # set when saved as a new version of another tracker (create only)
+    notes: Optional[str] = None
+    assumptions: Dict[str, Any] = {}
+    one_time_items: List[Dict[str, Any]] = []
+    recurring_items: List[Dict[str, Any]] = []
+    resources: List[Dict[str, Any]] = []
+    infra: Dict[str, Any] = {}
+
+def _tracker_oid(value: str, what: str = "Tracker") -> ObjectId:
+    try:
+        return ObjectId(value)
+    except Exception:
+        raise HTTPException(status_code=404, detail=f"{what} not found")
+
+def _tracker_out(doc: dict) -> dict:
+    doc["id"] = str(doc.pop("_id"))
+    return doc
+
+async def _build_tracker_doc(payload: TrackerPayload) -> dict:
+    client = (payload.client_name or "").strip()
+    if not client:
+        raise HTTPException(status_code=400, detail="Client name is required")
+    deal_date = (payload.deal_date or "").strip()[:10] or None
+    if deal_date:
+        try:
+            datetime.strptime(deal_date, "%Y-%m-%d")
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Deal date must be in YYYY-MM-DD format")
+    if payload.proposal_id:
+        proposal = await db.proposals.find_one({"_id": _tracker_oid(payload.proposal_id, "Linked proposal")})
+        if not proposal:
+            raise HTTPException(status_code=404, detail="Linked proposal not found")
+    try:
+        inputs = validate_tracker_input(payload.dict())
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {
+        "client_name": client[:150],
+        "version": (payload.version or "").strip()[:30] or "v1.0",
+        "deal_date": deal_date,
+        "proposal_id": payload.proposal_id or None,
+        "notes": (payload.notes or "").strip()[:2000] or None,
+        **inputs,
+        **summary_fields(compute_tracker(inputs)),
+    }
+
+def _tracker_creator(user: dict) -> dict:
+    return {"id": user["id"], "name": user["name"], "role": user["role"]}
+
+# NOTE: fixed paths (config, from-proposal) must be declared before /{tracker_id}.
+@api_router.get("/profitability-trackers/config")
+async def get_tracker_config(request: Request):
+    await get_current_user(request)
+    return {
+        "roles": {role: {"monthly": cost, "annual": cost * 12} for role, cost in ROLE_RATE_CARD.items()},
+        "benchmarks": {"infra_target_pct": INFRA_TARGET_PCT, "gm_green_pct": GM_GREEN_PCT, "gm_amber_pct": GM_AMBER_PCT},
+        "max_term_years": MAX_TERM_YEARS,
+        "defaults": TRACKER_DEFAULTS,
+    }
+
+@api_router.get("/profitability-trackers/from-proposal/{proposal_id}")
+async def tracker_inputs_for_proposal(proposal_id: str, request: Request):
+    """Revenue-side tracker inputs pulled from a proposal's commercials."""
+    await get_current_user(request)
+    proposal = await db.proposals.find_one({"_id": _tracker_oid(proposal_id, "Proposal")})
+    if not proposal:
+        raise HTTPException(status_code=404, detail="Proposal not found")
+    return tracker_inputs_from_proposal(proposal)
+
+@api_router.get("/profitability-trackers")
+async def list_profitability_trackers(request: Request, proposal_id: Optional[str] = None):
+    await get_current_user(request)  # any authenticated role can view
+    query = {"proposal_id": proposal_id} if proposal_id else {}
+    projection = {
+        "client_name": 1, "version": 1, "deal_date": 1, "proposal_id": 1, "parent_id": 1, "term_years": 1,
+        "tcv_revenue": 1, "tcv_cost": 1, "tcv_gm": 1, "tcv_gm_pct": 1, "gm_band": 1,
+        "infra_pct": 1, "infra_flag": 1, "created_by": 1, "created_at": 1, "updated_at": 1,
+    }
+    items = await db.profitability_trackers.find(query, projection).sort("updated_at", -1).to_list(1000)
+    return [_tracker_out(i) for i in items]
+
+@api_router.post("/profitability-trackers")
+async def create_profitability_tracker(payload: TrackerPayload, request: Request):
+    current_user = await get_current_user(request)
+    doc = await _build_tracker_doc(payload)
+    parent_id = None
+    if payload.parent_id:
+        parent = await db.profitability_trackers.find_one({"_id": _tracker_oid(payload.parent_id, "Parent tracker")})
+        if not parent:
+            raise HTTPException(status_code=404, detail="Parent tracker not found")
+        parent_id = str(parent["_id"])
+    now = datetime.now(timezone.utc).isoformat()
+    doc.update({"parent_id": parent_id, "created_by": _tracker_creator(current_user), "created_at": now, "updated_at": now})
+    result = await db.profitability_trackers.insert_one(doc)
+    doc["_id"] = result.inserted_id
+    return _tracker_out(doc)
+
+@api_router.get("/profitability-trackers/{tracker_id}")
+async def get_profitability_tracker(tracker_id: str, request: Request):
+    await get_current_user(request)
+    item = await db.profitability_trackers.find_one({"_id": _tracker_oid(tracker_id)})
+    if not item:
+        raise HTTPException(status_code=404, detail="Tracker not found")
+    return _tracker_out(item)
+
+@api_router.put("/profitability-trackers/{tracker_id}")
+async def update_profitability_tracker(tracker_id: str, payload: TrackerPayload, request: Request):
+    current_user = await get_current_user(request)
+    oid = _tracker_oid(tracker_id)
+    existing = await db.profitability_trackers.find_one({"_id": oid})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Tracker not found")
+    if existing["created_by"]["id"] != current_user["id"] and current_user["role"] != "Admin":
+        raise HTTPException(status_code=403, detail="Only the creator or an Admin can edit this tracker")
+    doc = await _build_tracker_doc(payload)
+    doc["updated_at"] = datetime.now(timezone.utc).isoformat()
+    await db.profitability_trackers.update_one({"_id": oid}, {"$set": doc})
+    saved = await db.profitability_trackers.find_one({"_id": oid})
+    return _tracker_out(saved)
+
+@api_router.post("/profitability-trackers/{tracker_id}/new-version")
+async def new_version_of_tracker(tracker_id: str, request: Request):
+    """Copy a tracker as the next version (v1.0 -> v2.0). Open to any signed-in
+    user - the copy belongs to whoever makes it."""
+    current_user = await get_current_user(request)
+    existing = await db.profitability_trackers.find_one({"_id": _tracker_oid(tracker_id)})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Tracker not found")
+    now = datetime.now(timezone.utc).isoformat()
+    siblings = await db.profitability_trackers.find({"client_name": existing["client_name"]}, {"version": 1}).to_list(1000)
+    taken = {d.get("version") for d in siblings}
+    label = next_version_label(existing.get("version"))
+    while label in taken:  # never hand out a version label this client already has
+        label = next_version_label(label)
+    copy_doc = {k: v for k, v in existing.items() if k != "_id"}
+    copy_doc.update({
+        "version": label,
+        "parent_id": str(existing["_id"]),
+        "created_by": _tracker_creator(current_user),
+        "created_at": now, "updated_at": now,
+    })
+    result = await db.profitability_trackers.insert_one(copy_doc)
+    copy_doc["_id"] = result.inserted_id
+    return _tracker_out(copy_doc)
+
+@api_router.delete("/profitability-trackers/{tracker_id}")
+async def delete_profitability_tracker(tracker_id: str, request: Request):
+    current_user = await get_current_user(request)
+    oid = _tracker_oid(tracker_id)
+    existing = await db.profitability_trackers.find_one({"_id": oid})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Tracker not found")
+    if existing["created_by"]["id"] != current_user["id"] and current_user["role"] != "Admin":
+        raise HTTPException(status_code=403, detail="Only the creator or an Admin can delete this tracker")
+    await db.profitability_trackers.delete_one({"_id": oid})
+    return {"message": "Tracker deleted"}
 
 app.include_router(api_router)
 
