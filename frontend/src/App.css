@@ -636,3 +636,9 @@ body,
 html.dark-theme ::-webkit-scrollbar-track { background: #130F1F; }
 html.dark-theme ::-webkit-scrollbar-thumb { background: #362B4D; border-radius: 8px; }
 html.dark-theme ::-webkit-scrollbar-thumb:hover { background: #4A3A66; }
+
+/* Dashboard bottleneck alerts: the row's pink is set inline, so in dark mode only the text flipped
+   to light and the deal names became unreadable. Give the row a dark red surface instead. */
+html.dark-theme .bottleneck-row {
+  background-color: #3A1E2C !important;
+}
