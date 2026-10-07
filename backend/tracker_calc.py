@@ -529,3 +529,34 @@ def validate_pipeline_dates(start: Any, end: Any):
     if s and e and e < s:
         raise ValueError("Approved date cannot be before the first proposal date")
     return (s.isoformat() if s else None, e.isoformat() if e else None)
+
+
+def dsp_summary(entries: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Headline Days-in-Sales-Pipeline numbers for the dashboard. `entries` is a
+    list of {"id", "title", "dsp"} where dsp comes from pipeline_from_proposal.
+    Approved deals give the cycle-time figures; deals still moving give the open
+    count, their average age, and the single oldest one (the one to chase)."""
+    approved = [e["dsp"]["days"] for e in entries if e["dsp"]["status"] == "approved" and e["dsp"]["days"] is not None]
+    open_items = [e for e in entries if e["dsp"]["status"] == "in_pipeline" and e["dsp"]["days"] is not None]
+
+    def avg(values: List[int]) -> Optional[float]:
+        return round(sum(values) / len(values), 1) if values else None
+
+    def median(values: List[int]) -> Optional[float]:
+        if not values:
+            return None
+        ordered = sorted(values)
+        mid = len(ordered) // 2
+        return float(ordered[mid]) if len(ordered) % 2 else (ordered[mid - 1] + ordered[mid]) / 2
+
+    oldest = max(open_items, key=lambda e: e["dsp"]["days"], default=None)
+    return {
+        "approved_count": len(approved),
+        "avg_days_approved": avg(approved),
+        "median_days_approved": median(approved),
+        "fastest_days": min(approved) if approved else None,
+        "slowest_days": max(approved) if approved else None,
+        "open_count": len(open_items),
+        "avg_days_open": avg([e["dsp"]["days"] for e in open_items]),
+        "oldest_open": {"id": oldest["id"], "title": oldest["title"], "days": oldest["dsp"]["days"]} if oldest else None,
+    }
