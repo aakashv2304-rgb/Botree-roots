@@ -35,6 +35,7 @@ data that the Excel handled correctly):
 """
 
 import re
+from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 MAX_TERM_YEARS = 10
@@ -425,3 +426,106 @@ def tracker_inputs_from_proposal(proposal: Dict[str, Any]) -> Dict[str, Any]:
         "one_time_items": one_time,
         "recurring_items": recurring,
     }
+
+
+# --------------------------------------------------------------------------
+# Days in Sales Pipeline (DSP)
+# --------------------------------------------------------------------------
+# DSP = calendar days from the FIRST proposal to approval. For a deal linked to
+# a proposal it is read from that proposal's own record, so it is always current:
+# an open deal keeps counting up and switches to "approved" the day the last
+# approver signs off. Deals without a linked proposal can carry two manual dates.
+#
+# Dates are counted in IST. Timestamps are stored in UTC, and a proposal approved
+# at 10:30 pm IST is already "tomorrow" in UTC - counting in UTC would be off by a
+# day for late-evening activity. India has no daylight saving, so a fixed offset
+# is exact.
+
+IST = timezone(timedelta(hours=5, minutes=30))
+
+
+def to_ist_date(value: Any) -> Optional[date]:
+    """A stored UTC timestamp (or a plain YYYY-MM-DD) as a calendar date in IST."""
+    if not value:
+        return None
+    text = str(value).strip()
+    try:
+        if len(text) == 10:
+            return date.fromisoformat(text)
+        dt = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(IST).date()
+
+
+def today_ist() -> date:
+    return datetime.now(IST).date()
+
+
+def _not_tracked() -> Dict[str, Any]:
+    return {"status": "not_tracked", "days": None, "start": None, "end": None, "source": None}
+
+
+def compute_dsp(start: Any, end: Any, outcome: str = "open", today: Optional[date] = None,
+                source: Optional[str] = None) -> Dict[str, Any]:
+    """Days in sales pipeline. `outcome` is 'approved' or 'rejected' (the clock stops
+    at `end`) or 'open' (still running, counted up to today). The same day counts
+    as 0 days. Status is one of approved / rejected / in_pipeline / not_tracked."""
+    start_d = to_ist_date(start)
+    if start_d is None:
+        return _not_tracked()
+    end_d = to_ist_date(end) if outcome in ("approved", "rejected") else None
+    if end_d is not None:
+        status, days = outcome, (end_d - start_d).days
+    else:
+        status, days = "in_pipeline", ((today or today_ist()) - start_d).days
+    return {
+        "status": status, "days": max(0, days), "start": start_d.isoformat(),
+        "end": end_d.isoformat() if end_d else None, "source": source,
+    }
+
+
+def pipeline_from_proposal(proposal: Dict[str, Any], today: Optional[date] = None) -> Dict[str, Any]:
+    """DSP for a proposal: first proposal = when it was created (revisions don't
+    restart it); approved = the last approval (or Admin override) that put it in
+    the approved state."""
+    history = proposal.get("history") or []
+    start = proposal.get("created_at") or next((h.get("timestamp") for h in history if h.get("timestamp")), None)
+    status = proposal.get("status")
+    if status == "approved":
+        stamps = [h["timestamp"] for h in history if h.get("action") in ("approved", "admin_override") and h.get("timestamp")]
+        return compute_dsp(start, stamps[-1] if stamps else proposal.get("updated_at"), "approved", today, "proposal")
+    if status == "rejected":
+        stamps = [h["timestamp"] for h in history if h.get("action") == "rejected_closed" and h.get("timestamp")]
+        return compute_dsp(start, stamps[-1] if stamps else proposal.get("updated_at"), "rejected", today, "proposal")
+    return compute_dsp(start, None, "open", today, "proposal")
+
+
+def pipeline_from_manual(start: Any, end: Any, today: Optional[date] = None) -> Dict[str, Any]:
+    """DSP from two dates typed on the tracker (for deals that never went through
+    the app): both dates = approved; only a start date = still open."""
+    if not start:
+        return _not_tracked()
+    return compute_dsp(start, end, "approved" if end else "open", today, "manual")
+
+
+def validate_pipeline_dates(start: Any, end: Any):
+    """Clean the two manual dates -> (start_iso or None, end_iso or None); ValueError
+    with a user-facing message if they are malformed or in the wrong order."""
+    def parse(value: Any, label: str) -> Optional[date]:
+        text = str(value or "").strip()[:10]
+        if not text:
+            return None
+        try:
+            return date.fromisoformat(text)
+        except ValueError:
+            raise ValueError(f"{label} must be in YYYY-MM-DD format")
+    s = parse(start, "First proposal date")
+    e = parse(end, "Approved date")
+    if e and not s:
+        raise ValueError("Enter the first proposal date as well as the approved date")
+    if s and e and e < s:
+        raise ValueError("Approved date cannot be before the first proposal date")
+    return (s.isoformat() if s else None, e.isoformat() if e else None)
