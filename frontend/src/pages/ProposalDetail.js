@@ -8,6 +8,7 @@ import { Textarea } from '../components/ui/textarea';
 import { Label } from '../components/ui/label';
 import { Badge } from '../components/ui/badge';
 import DspBadge, { dspDate } from '../components/DspBadge';
+import DealStatusSection, { DealStageChip } from '../components/DealStatus';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { toast } from 'sonner';
@@ -555,6 +556,7 @@ const ProposalDetail = () => {
                    proposal.status === 'needs_revision' ? 'Needs Revision' : 'Pending'}
                 </Badge>
                 <DspBadge dsp={proposal.dsp} testId="header-dsp" />
+                <DealStageChip deal={proposal.deal_status} variant="full" testId="header-stage" />
                 {canEdit() && !proposal.is_closed && (
                   <Button
                     onClick={() => navigate(`/dashboard/proposal/${id}/edit`)}
@@ -635,9 +637,10 @@ const ProposalDetail = () => {
                 <p className="text-xs text-[#7A6B9E] mt-1">
                   First proposal {dspDate(proposal.dsp.start)} →{' '}
                   {proposal.dsp.end
-                    ? `${proposal.dsp.status === 'rejected' ? 'rejected' : 'approved'} ${dspDate(proposal.dsp.end)}`
+                    ? `${proposal.dsp.status === 'rejected' ? 'rejected' : 'closed'} ${dspDate(proposal.dsp.end)}`
                     : 'still open, counting up to today'}
                 </p>
+                <p className="text-xs text-[#8577A3] mt-0.5">Stops when the deal is closed as won or lost (see Deal Status below), not when it is approved.</p>
               </div>
             )}
 
@@ -1299,6 +1302,9 @@ const ProposalDetail = () => {
           </div>
         )}
       </div>
+
+      {/* Deal status: S1-S6, closed as won or lost, with comments. Editable only by the uploader. */}
+      <DealStatusSection proposal={proposal} user={user} onUpdated={fetchProposal} />
 
       {/* Delete Proposal confirmation */}
       <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
