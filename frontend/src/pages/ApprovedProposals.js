@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import axios from 'axios';
 import { Badge } from '../components/ui/badge';
+import DspBadge from '../components/DspBadge';
 import { Button } from '../components/ui/button';
 import { Download } from '@phosphor-icons/react';
 import { toast } from 'sonner';
@@ -90,6 +91,7 @@ const ApprovedProposals = () => {
                 <Badge className="bg-[#D1FAE5] text-[#059669] flex-shrink-0" data-testid={`approved-status-${proposal.id}`}>
                   Approved
                 </Badge>
+                <DspBadge dsp={proposal.dsp} variant="inline" size="md" className="flex-shrink-0" testId={`approved-dsp-${proposal.id}`} />
                 <Button
                   onClick={() => handleDownload(proposal)}
                   disabled={downloadingId === proposal.id}
