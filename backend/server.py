@@ -35,6 +35,7 @@ from tracker_calc import (
     compute_tracker, validate_tracker_input, summary_fields, next_version_label,
     tracker_inputs_from_proposal, INFRA_TARGET_PCT, GM_GREEN_PCT, GM_AMBER_PCT, MAX_TERM_YEARS,
     pipeline_from_proposal, pipeline_from_manual, validate_pipeline_dates, dsp_summary,
+    DEAL_STAGES, deal_status_view, validate_deal_update,
 )
 
 # Register DejaVuSans font for Unicode support (₹ symbol)
@@ -385,12 +386,13 @@ async def send_workflow_notification(
         dsp_html = ""
         try:
             proposal_doc = await db.proposals.find_one(
-                {"_id": ObjectId(proposal_id)}, {"created_at": 1, "updated_at": 1, "status": 1, "history": 1}
+                {"_id": ObjectId(proposal_id)}, DSP_FIELDS
             )
             dsp = pipeline_from_proposal(proposal_doc) if proposal_doc else None
             if dsp and dsp["days"] is not None:
-                note = {"approved": "first proposal to final approval", "rejected": "until it was rejected",
-                        "in_pipeline": "so far, and still open"}.get(dsp["status"], "")
+                note = {"won": "first proposal until the deal was closed as won", "lost": "first proposal until the deal was closed as lost",
+                        "closed": "first proposal until the deal was closed", "rejected": "until it was rejected",
+                        "in_pipeline": "so far, and the deal is still open"}.get(dsp["status"], "")
                 dsp_html = f'<p><strong>Days in sales pipeline:</strong> {dsp["days"]} day{"" if dsp["days"] == 1 else "s"} ({note})</p>'
         except Exception as e:
             logger.warning(f"Could not add days-in-pipeline to email: {e}")
@@ -1389,7 +1391,8 @@ async def get_proposals(request: Request, status: Optional[str] = None, search: 
             "history": p["history"],
             "created_at": p["created_at"],
             "updated_at": p["updated_at"],
-            "dsp": pipeline_from_proposal(p),  # days in sales pipeline: first proposal -> approved
+            "dsp": pipeline_from_proposal(p),  # days in sales pipeline: first proposal -> deal closed
+            "deal_status": deal_status_view(p),
         })
     
     return result
@@ -1411,6 +1414,57 @@ async def delete_proposal(proposal_id: str, request: Request):
 
     await db.proposals.delete_one({"_id": ObjectId(proposal_id)})
     return {"message": "Proposal deleted"}
+
+# ---------------- Deal status (sales stage S1-S6, closed as won or lost) ----------------
+# Every query that computes DSP must fetch ALL of these. (An earlier version listed fields by hand
+# in three places and the deal-status fields were missing from each, so closed deals looked open.)
+DSP_FIELDS = {"created_at": 1, "updated_at": 1, "status": 1, "history": 1,
+              "deal_stage": 1, "closed_on": 1, "deal_status_updated_at": 1}
+
+class DealStatusUpdate(BaseModel):
+    stage: str
+    comment: Optional[str] = None
+    closed_on: Optional[str] = None  # YYYY-MM-DD; only used when closing, defaults to today
+
+@api_router.get("/proposals/deal-stages")
+async def get_deal_stages(request: Request):
+    await get_current_user(request)
+    return {"stages": DEAL_STAGES}
+
+@api_router.post("/proposals/{proposal_id}/deal-status")
+async def update_deal_status(proposal_id: str, payload: DealStatusUpdate, request: Request):
+    """Move a deal along S1-S6 / close it as won or lost, with an optional comment. Closing
+    stops the Days-in-Sales-Pipeline clock. Only the person who uploaded the proposal may do
+    this - not even an Admin - because the update is their statement about their own deal."""
+    current_user = await get_current_user(request)
+    oid = _tracker_oid(proposal_id, "Proposal")
+    proposal = await db.proposals.find_one({"_id": oid})
+    if not proposal:
+        raise HTTPException(status_code=404, detail="Proposal not found")
+    if str(proposal["created_by"]) != str(current_user["id"]):
+        raise HTTPException(status_code=403, detail="Only the person who uploaded this proposal can update its deal status")
+    try:
+        clean = validate_deal_update(proposal, payload.stage, payload.comment, payload.closed_on)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    stage = next(st for st in DEAL_STAGES if st["key"] == clean["stage"])
+    now = datetime.now(timezone.utc).isoformat()
+    by = {"id": current_user["id"], "name": current_user["name"], "role": current_user["role"]}
+    entry = {
+        "stage": stage["key"], "label": stage["label"], "short": stage["short"],
+        "previous_stage": deal_status_view(proposal)["stage"],
+        "comment": clean["comment"], "closed_on": clean["closed_on"], "by": by, "timestamp": now,
+    }
+    # updated_at is deliberately left alone: it measures how long the proposal has sat at its
+    # approval stage (bottleneck alerts), which a deal-status note must not reset.
+    await db.proposals.update_one({"_id": oid}, {
+        "$set": {"deal_stage": stage["key"], "closed_on": clean["closed_on"],
+                 "deal_status_updated_at": now, "deal_status_updated_by": by},
+        "$push": {"deal_updates": entry},
+    })
+    saved = await db.proposals.find_one({"_id": oid})
+    return {"deal_status": deal_status_view(saved), "deal_updates": saved.get("deal_updates", []), "dsp": pipeline_from_proposal(saved)}
 
 @api_router.get("/proposals/{proposal_id}")
 async def get_proposal(proposal_id: str, request: Request):
@@ -1459,7 +1513,9 @@ async def get_proposal(proposal_id: str, request: Request):
         "history": proposal["history"],
         "created_at": proposal["created_at"],
         "updated_at": proposal["updated_at"],
-        "dsp": pipeline_from_proposal(proposal),  # days in sales pipeline: first proposal -> approved
+        "dsp": pipeline_from_proposal(proposal),  # days in sales pipeline: first proposal -> deal closed
+        "deal_status": deal_status_view(proposal),
+        "deal_updates": proposal.get("deal_updates", []),
     }
 
     # About the Customer & Profitability: Finance-entered, visible only to
@@ -2456,7 +2512,7 @@ async def get_dsp_summary(request: Request):
     """Headline Days-in-Sales-Pipeline figures for the dashboard: cycle time of approved
     deals, and the age of those still open (including the single oldest)."""
     await get_current_user(request)
-    proposals = await db.proposals.find({}, {"title": 1, "status": 1, "created_at": 1, "updated_at": 1, "history": 1}).to_list(5000)
+    proposals = await db.proposals.find({}, {"title": 1, **DSP_FIELDS}).to_list(5000)
     return dsp_summary([
         {"id": str(p["_id"]), "title": p.get("title", ""), "dsp": pipeline_from_proposal(p)} for p in proposals
     ])
@@ -2854,7 +2910,7 @@ async def _attach_dsp(docs: List[dict]) -> None:
     proposals = {}
     if ids:
         found = await db.proposals.find(
-            {"_id": {"$in": list(ids.values())}}, {"created_at": 1, "updated_at": 1, "status": 1, "history": 1}
+            {"_id": {"$in": list(ids.values())}}, DSP_FIELDS
         ).to_list(len(ids))
         proposals = {str(p["_id"]): p for p in found}
     for d in docs:
