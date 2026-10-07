@@ -34,7 +34,7 @@ from commercials_merge import fill_commercials, extract_one_time_row_defaults
 from tracker_calc import (
     compute_tracker, validate_tracker_input, summary_fields, next_version_label,
     tracker_inputs_from_proposal, INFRA_TARGET_PCT, GM_GREEN_PCT, GM_AMBER_PCT, MAX_TERM_YEARS,
-    pipeline_from_proposal, pipeline_from_manual, validate_pipeline_dates,
+    pipeline_from_proposal, pipeline_from_manual, validate_pipeline_dates, dsp_summary,
 )
 
 # Register DejaVuSans font for Unicode support (₹ symbol)
@@ -381,6 +381,20 @@ async def send_workflow_notification(
         else:
             action_text = f"Update on proposal at {stage}"
         
+        # Days in sales pipeline, worked out fresh from the proposal so the email always agrees with the app
+        dsp_html = ""
+        try:
+            proposal_doc = await db.proposals.find_one(
+                {"_id": ObjectId(proposal_id)}, {"created_at": 1, "updated_at": 1, "status": 1, "history": 1}
+            )
+            dsp = pipeline_from_proposal(proposal_doc) if proposal_doc else None
+            if dsp and dsp["days"] is not None:
+                note = {"approved": "first proposal to final approval", "rejected": "until it was rejected",
+                        "in_pipeline": "so far, and still open"}.get(dsp["status"], "")
+                dsp_html = f'<p><strong>Days in sales pipeline:</strong> {dsp["days"]} day{"" if dsp["days"] == 1 else "s"} ({note})</p>'
+        except Exception as e:
+            logger.warning(f"Could not add days-in-pipeline to email: {e}")
+
         # Build HTML email
         html_content = f"""
         <!DOCTYPE html>
@@ -407,6 +421,7 @@ async def send_workflow_notification(
                     <p><strong>{action_text}</strong></p>
                     <p><strong>Proposal:</strong> {proposal_title}</p>
                     <p><strong>Stage:</strong> {stage}</p>
+                    {dsp_html}
                     {f'<div class="comment-box"><strong>Comment:</strong><br>{comment}</div>' if comment else ''}
                     <p>Click below to review and take action on this proposal.</p>
                     <a href="{APP_URL}/dashboard/proposal/{proposal_id}" class="btn" target="_blank" rel="noopener noreferrer" style="color: white;">View Proposal</a>
@@ -1373,7 +1388,8 @@ async def get_proposals(request: Request, status: Optional[str] = None, search: 
             "price_escalation_percent": p.get("price_escalation_percent"),
             "history": p["history"],
             "created_at": p["created_at"],
-            "updated_at": p["updated_at"]
+            "updated_at": p["updated_at"],
+            "dsp": pipeline_from_proposal(p),  # days in sales pipeline: first proposal -> approved
         })
     
     return result
@@ -1442,7 +1458,8 @@ async def get_proposal(proposal_id: str, request: Request):
         "versions": proposal.get("versions", []),
         "history": proposal["history"],
         "created_at": proposal["created_at"],
-        "updated_at": proposal["updated_at"]
+        "updated_at": proposal["updated_at"],
+        "dsp": pipeline_from_proposal(proposal),  # days in sales pipeline: first proposal -> approved
     }
 
     # About the Customer & Profitability: Finance-entered, visible only to
@@ -2340,7 +2357,8 @@ async def get_bottlenecks(request: Request):
             "status": p["status"],
             "current_stage": p["current_stage"],
             "created_by": creator["name"],
-            "days_stuck": days_stuck
+            "days_stuck": days_stuck,
+            "dsp": pipeline_from_proposal(p),
         })
     
     return {"bottlenecks": bottlenecks}
@@ -2363,7 +2381,8 @@ async def get_activity_feed(request: Request):
                 "action": latest_history["action"],
                 "by": latest_history["by"],
                 "comment": latest_history.get("comment", ""),
-                "timestamp": latest_history["timestamp"]
+                "timestamp": latest_history["timestamp"],
+                "dsp": pipeline_from_proposal(p),
             })
     
     return {"activities": activities[:15]}
@@ -2431,6 +2450,16 @@ async def get_sla_health(request: Request):
         "total_active": total_active,
         "health_percentage": round(health_percentage, 1)
     }
+
+@api_router.get("/analytics/dsp-summary")
+async def get_dsp_summary(request: Request):
+    """Headline Days-in-Sales-Pipeline figures for the dashboard: cycle time of approved
+    deals, and the age of those still open (including the single oldest)."""
+    await get_current_user(request)
+    proposals = await db.proposals.find({}, {"title": 1, "status": 1, "created_at": 1, "updated_at": 1, "history": 1}).to_list(5000)
+    return dsp_summary([
+        {"id": str(p["_id"]), "title": p.get("title", ""), "dsp": pipeline_from_proposal(p)} for p in proposals
+    ])
 
 @api_router.get("/analytics/deal-value-summary")
 async def get_deal_value_summary(request: Request):
