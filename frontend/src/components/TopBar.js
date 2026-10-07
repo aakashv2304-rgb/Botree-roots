@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
+import DspBadge from './DspBadge';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -169,6 +170,7 @@ const TopBar = () => {
                             <span className="font-semibold text-[#1E1533]">{activity.by?.name}</span>
                             {' '}{notificationVerb(activity.action)}{' '}
                             <span className="text-[#1E1533]">{activity.proposal_title}</span>
+                            <DspBadge dsp={activity.dsp} variant="inline" className="ml-1.5 align-middle" />
                           </p>
                           <p className="text-[10px] text-[#A99BC7] mt-0.5">{formatNotificationTime(activity.timestamp)}</p>
                         </div>
