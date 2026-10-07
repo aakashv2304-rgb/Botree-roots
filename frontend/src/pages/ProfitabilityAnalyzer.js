@@ -1,1011 +1,843 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import axios from 'axios';
-import { toast } from 'sonner';
-import { useAuth } from '../context/AuthContext';
+import React, { useState, useEffect } from 'react';
 import LoadingSpinner from '../components/LoadingSpinner';
+import axios from 'axios';
+import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
-import {
-  Plus, X, ArrowLeft, FloppyDisk, GitBranch, Trash, MagnifyingGlass, Warning,
-  CheckCircle, Lightbulb, ChartLineUp, LinkSimple, PencilSimple,
-} from '@phosphor-icons/react';
-import { computeTracker, MAX_TERM_YEARS } from '../utils/trackerCalc';
+import { toast } from 'sonner';
+import DspBadge from '../components/DspBadge';
+import { Calculator, Plus, X, Trash, PencilSimple, CaretDown, CaretUp } from '@phosphor-icons/react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+const ALLOCATION_OPTIONS = Array.from({ length: 10 }, (_, i) => (i + 1) * 10); // 10,20,...100
 
-/* ------------------------------------------------------------------ */
-/* formatting                                                          */
-/* ------------------------------------------------------------------ */
-const inr = (n) => {
-  const v = Math.round(Number(n) || 0);
-  return `${v < 0 ? '-' : ''}₹${Math.abs(v).toLocaleString('en-IN')}`;
-};
-const pct = (n) => `${(Number(n) || 0).toFixed(1)}%`;
-const compactInr = (n) => {
-  const v = Math.abs(n);
-  const sign = n < 0 ? '-' : '';
-  if (v >= 1e7) return `${sign}${(v / 1e7).toFixed(1)}Cr`;
-  if (v >= 1e5) return `${sign}${(v / 1e5).toFixed(1)}L`;
-  if (v >= 1e3) return `${sign}${(v / 1e3).toFixed(0)}K`;
-  return `${sign}${v}`;
-};
-const formatDate = (iso) => {
-  if (!iso) return '—';
-  const d = new Date(`${String(iso).slice(0, 10)}T00:00:00`);
-  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-};
-const today = () => new Date().toISOString().slice(0, 10);
-
-const nextVersionLabel = (label) => {
-  const m = /^[vV]?(\d+)(?:\.(\d+))?$/.exec((label || '').trim());
-  if (m) return `v${parseInt(m[1], 10) + 1}.0`;
-  return label ? `${label} (copy)` : 'v1.0';
-};
-
-// Next version label that this client does not already have (v5.0 -> v6.0, or v7.0 if v6.0 exists).
-const nextFreeVersion = (clientName, version, all) => {
-  const taken = new Set(all.filter((t) => t.client_name === clientName).map((t) => t.version));
-  let v = nextVersionLabel(version);
-  for (let guard = 0; taken.has(v) && guard < 100; guard += 1) v = nextVersionLabel(v);
-  return v;
-};
-
-/* ------------------------------------------------------------------ */
-/* form model                                                          */
-/* ------------------------------------------------------------------ */
-let keySeq = 0;
-const nk = () => `row${++keySeq}`;
-
-// The reusable lines of Botree's deal-margin template. Labels match the ones
-// used when pulling lines from a proposal, so a pull fills these rows in.
-const STANDARD_ONE_TIME = [
-  'One-time setup fee', 'Integration fee', 'DMS training', 'SFA training',
-  'Flexi DMS deployment', 'Customization', 'Workshop / data migration / audit',
-];
-const STANDARD_RECURRING = ['SFA users', 'DMS distributors', 'Flexi DMS users', 'Shared L1 support'];
-
-const blankOneTime = (label = '') => ({ _k: nk(), label, qty: '', rate: '', cost_per_unit: '' });
-const blankRecurring = (label = '') => ({
-  _k: nk(), label, qty: '', rate_per_month: '', min_bill_per_month: '', duration_months: '', infra_pupm: '',
-});
-const blankResource = () => ({ _k: nk(), role: '', role_source: 'rate_card', annual_ctc: '', alloc_pct: '', type: 'one_time', months: '' });
-
-const newForm = (cfg) => ({
-  id: null, client_name: '', version: 'v1.0', deal_date: today(), proposal_id: '', parent_id: null, notes: '', created_by: null,
-  assumptions: {
-    term_years: cfg.defaults.term_years,
-    revenue_escalation_pct: cfg.defaults.revenue_escalation_pct,
-    cost_escalation_pct: cfg.defaults.cost_escalation_pct,
-  },
-  one_time_items: STANDARD_ONE_TIME.map(blankOneTime),
-  recurring_items: STANDARD_RECURRING.map(blankRecurring),
-  resources: [],
-  infra: { base_per_month: '' },
+const emptyResourceLine = () => ({ role_name: '', allocation_percent: '100', quantity: '', unit: '' });
+const emptyRevenueLineItem = (label = '') => ({
+  label,
+  revenue: '',
+  is_subscription: false,
+  reference_note: '',
+  distributor_count: '',
+  selected_distributor_costs: [],
+  resource_lines: []
 });
 
-const blankIfZero = (v) => (v === 0 || v === null || v === undefined ? '' : v);
-
-const formFromDoc = (d) => ({
-  id: d.id, client_name: d.client_name || '', version: d.version || 'v1.0', deal_date: d.deal_date || '',
-  proposal_id: d.proposal_id || '', parent_id: d.parent_id || null, notes: d.notes || '', created_by: d.created_by || null,
-  assumptions: {
-    term_years: d.assumptions?.term_years ?? 3,
-    revenue_escalation_pct: d.assumptions?.revenue_escalation_pct ?? 0,
-    cost_escalation_pct: d.assumptions?.cost_escalation_pct ?? 0,
-  },
-  one_time_items: (d.one_time_items || []).map((r) => ({
-    _k: nk(), label: r.label || '', qty: blankIfZero(r.qty), rate: blankIfZero(r.rate), cost_per_unit: blankIfZero(r.cost_per_unit),
-  })),
-  recurring_items: (d.recurring_items || []).map((r) => ({
-    _k: nk(), label: r.label || '', qty: blankIfZero(r.qty), rate_per_month: blankIfZero(r.rate_per_month),
-    min_bill_per_month: blankIfZero(r.min_bill_per_month), duration_months: blankIfZero(r.duration_months), infra_pupm: blankIfZero(r.infra_pupm),
-  })),
-  resources: (d.resources || []).map((r) => ({
-    _k: nk(), role: r.role || '', role_source: r.role_source === 'rate_card' ? 'rate_card' : 'custom',
-    annual_ctc: blankIfZero(r.annual_ctc), alloc_pct: blankIfZero(r.alloc_pct), type: r.type || 'one_time', months: blankIfZero(r.months),
-  })),
-  infra: { base_per_month: blankIfZero(d.infra?.base_per_month) },
-});
-
-const stripKeys = (rows) => rows.map(({ _k, ...rest }) => rest);
-const payloadFromForm = (f) => ({
-  client_name: f.client_name, version: f.version, deal_date: f.deal_date || null,
-  proposal_id: f.proposal_id || null, notes: f.notes || null,
-  assumptions: f.assumptions,
-  one_time_items: stripKeys(f.one_time_items),
-  recurring_items: stripKeys(f.recurring_items),
-  resources: stripKeys(f.resources),
-  infra: f.infra,
-});
-const snapshotOf = (f) => JSON.stringify(payloadFromForm(f));
-
-/* ------------------------------------------------------------------ */
-/* small presentational helpers                                        */
-/* ------------------------------------------------------------------ */
-const BAND_STYLES = {
-  green: 'bg-green-100 text-green-800 border-green-300',
-  amber: 'bg-amber-100 text-amber-800 border-amber-300',
-  red: 'bg-red-100 text-red-800 border-red-300',
-  none: 'bg-gray-100 text-gray-600 border-gray-300',
-};
-const BAND_LABEL = { green: 'Healthy', amber: 'Watch', red: 'Low', none: 'No revenue' };
-
-const BandChip = ({ band, children }) => (
-  <span className={`inline-flex items-center whitespace-nowrap rounded-full border px-2 py-0.5 text-xs font-semibold ${BAND_STYLES[band] || BAND_STYLES.none}`}>
-    {children}
-  </span>
-);
-
-const NumInput = ({ value, onChange, disabled, placeholder = '0', testId, className = '' }) => (
-  <Input
-    type="number" inputMode="decimal" min="0" step="any" value={value ?? ''} disabled={disabled}
-    placeholder={placeholder} onChange={(e) => onChange(e.target.value)} data-testid={testId}
-    className={`h-9 px-2 text-right bg-[#FFFFFF] text-[#1E1533] ${className}`}
-  />
-);
-
-const TextInput = ({ value, onChange, disabled, placeholder, testId, className = '' }) => (
-  <Input
-    type="text" value={value ?? ''} disabled={disabled} placeholder={placeholder}
-    onChange={(e) => onChange(e.target.value)} data-testid={testId}
-    className={`h-9 px-2 bg-[#FFFFFF] text-[#1E1533] ${className}`}
-  />
-);
-
-const Section = ({ title, hint, action, testId, children }) => (
-  <div className="bg-[#FFFFFF] border border-[#E4DCF0] shadow-sm p-5" data-testid={testId}>
-    <div className="flex items-start justify-between gap-3 mb-3">
-      <div>
-        <h3 className="text-lg font-bold text-[#1E1533]">{title}</h3>
-        {hint && <p className="text-xs text-[#7A6B9E] mt-0.5">{hint}</p>}
-      </div>
-      {action}
-    </div>
-    {children}
-  </div>
-);
-
-const Th = ({ children, right = false, className = '' }) => (
-  <th className={`px-2 py-2 text-xs font-semibold text-[#5B4B7A] whitespace-nowrap ${right ? 'text-right' : 'text-left'} ${className}`}>{children}</th>
-);
-const Calc = ({ children, bold = false }) => (
-  <td className={`px-2 py-1 text-right text-sm whitespace-nowrap text-[#1E1533] ${bold ? 'font-bold' : ''}`}>{children}</td>
-);
-const RemoveBtn = ({ onClick, disabled, label }) => (
-  <td className="px-1 py-1 text-right">
-    <button
-      type="button" onClick={onClick} disabled={disabled} aria-label={label}
-      className="p-1 rounded text-red-700 hover:bg-red-50 disabled:opacity-30 disabled:cursor-not-allowed"
-    >
-      <X size={16} />
-    </button>
-  </td>
-);
-const AddRowBtn = ({ onClick, disabled, children, testId }) => (
-  <Button type="button" variant="ghost" size="sm" onClick={onClick} disabled={disabled} data-testid={testId}
-    className="text-purple-700 hover:text-purple-800 mt-2">
-    <Plus size={16} className="mr-1" />{children}
-  </Button>
-);
-
-/* ------------------------------------------------------------------ */
-/* warnings                                                            */
-/* ------------------------------------------------------------------ */
-const getWarnings = (form, result) => {
-  const out = [];
-  const termMonths = result.assumptions.term_months;
-  if (result.benchmarks.infra_flag === 'HIGH') {
-    out.push(`Hosting is ${pct(result.benchmarks.infra_pct)} of recurring revenue — the target is under ${result.benchmarks.infra_target_pct}%.`);
-  }
-  form.recurring_items.forEach((r, i) => {
-    const name = r.label || `Recurring line ${i + 1}`;
-    const calc = result.recurring_items[i];
-    if (Number(r.qty) > 0 && calc.monthly_revenue === 0) out.push(`"${name}" has users but no rate or minimum bill, so it earns nothing.`);
-    if (Number(r.duration_months) > termMonths) out.push(`"${name}" runs ${r.duration_months} months but the contract is ${termMonths} — only ${termMonths} months are counted.`);
-  });
-  form.resources.forEach((r, i) => {
-    const name = r.role || `Resource ${i + 1}`;
-    if (Number(r.alloc_pct) > 0 && !(Number(r.annual_ctc) > 0)) out.push(`"${name}" has an allocation but no annual CTC.`);
-    if (r.type === 'one_time' && Number(r.alloc_pct) > 0 && !(Number(r.months) > 0)) out.push(`"${name}" is one-time but has no months, so no cost is counted.`);
-    if (r.type === 'recurring' && Number(r.months) > termMonths) out.push(`"${name}" runs ${r.months} months but the contract is ${termMonths} — only ${termMonths} months are counted.`);
-  });
-  return out;
-};
-
-/* ------------------------------------------------------------------ */
-/* live summary: a bar pinned under the top bar + a detail section     */
-/* ------------------------------------------------------------------ */
-const Kpi = ({ label, value, testId }) => (
-  <div>
-    <p className="text-xs text-[#7A6B9E] whitespace-nowrap">{label}</p>
-    <p className="text-lg font-black text-[#1E1533] whitespace-nowrap" data-testid={testId}>{value}</p>
-  </div>
-);
-
-// The app's top bar is sticky and 111px tall at every width, so the bar pins just below it.
-// On phones it scrolls normally - pinned it would eat a quarter of the screen.
-const SummaryStrip = ({ result, actions }) => {
-  const tcv = result.summary.tcv;
-  const b = result.benchmarks;
-  const hostBand = b.infra_flag === 'HIGH' ? 'red' : b.infra_flag === 'OK' ? 'green' : 'none';
-  return (
-    <div
-      className="md:sticky md:top-[111px] z-30 bg-[#FFFFFF] border border-[#E4DCF0] shadow-md px-4 py-3 flex flex-wrap items-center gap-x-8 gap-y-3"
-      data-testid="tracker-strip"
-    >
-      <Kpi label="Total contract value" value={inr(tcv.revenue)} testId="tcv-revenue" />
-      <Kpi label="Total cost" value={inr(tcv.cost)} testId="tcv-cost" />
-      <Kpi label="Gross margin" value={inr(tcv.gm)} testId="tcv-gm" />
-      <div>
-        <p className="text-xs text-[#7A6B9E]">Gross margin %</p>
-        <BandChip band={tcv.band}>{tcv.band === 'none' ? BAND_LABEL.none : `${BAND_LABEL[tcv.band]} · ${pct(tcv.gm_pct)}`}</BandChip>
-      </div>
-      <div>
-        <p className="text-xs text-[#7A6B9E] whitespace-nowrap">Hosting vs recurring revenue</p>
-        <span className="flex items-center gap-2">
-          <span className="font-bold text-[#1E1533]" data-testid="infra-pct">{pct(b.infra_pct)}</span>
-          <BandChip band={hostBand}>{b.infra_flag}</BandChip>
-        </span>
-      </div>
-      <div className="flex flex-wrap gap-2 md:ml-auto">{actions}</div>
-    </div>
-  );
-};
-
-const SummaryDetails = ({ result, warnings }) => {
-  const s = result.summary;
-  const b = result.benchmarks;
-  const ins = result.insights;
-  const tcv = s.tcv;
-  const rows = [
-    ['One-time', s.one_time],
-    ['Recurring / month', s.recurring_month],
-    ['Recurring / Year 1', s.recurring_year1],
-    ['Recurring / full term', s.recurring_full_term],
-  ];
-
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start" data-testid="tracker-summary">
-      <div className="bg-[#FFFFFF] border border-[#E4DCF0] shadow-sm p-5">
-        <h3 className="text-lg font-bold text-[#1E1533] mb-2">Margin summary</h3>
-        <div className="overflow-x-auto" data-testid="margin-table-wrap">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-[#E4DCF0]">
-                <Th>View</Th><Th right>Revenue</Th><Th right>Cost</Th><Th right>Gross margin</Th><Th right>GM %</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map(([label, m]) => (
-                <tr key={label} className="border-b border-[#F1EBFA]">
-                  <td className="px-2 py-2 text-[#1E1533] whitespace-nowrap">{label}</td>
-                  <Calc>{inr(m.revenue)}</Calc><Calc>{inr(m.cost)}</Calc><Calc>{inr(m.gm)}</Calc>
-                  <td className="px-2 py-2 text-right"><BandChip band={m.band}>{pct(m.gm_pct)}</BandChip></td>
-                </tr>
-              ))}
-              <tr className="bg-[#F7F4FC]">
-                <td className="px-2 py-2 font-bold text-[#1E1533] whitespace-nowrap">Total contract (TCV)</td>
-                <Calc bold>{inr(tcv.revenue)}</Calc><Calc bold>{inr(tcv.cost)}</Calc><Calc bold>{inr(tcv.gm)}</Calc>
-                <td className="px-2 py-2 text-right"><BandChip band={tcv.band}>{pct(tcv.gm_pct)}</BandChip></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <p className="text-xs text-[#7A6B9E] mt-2">
-          GM bands: <span className="text-green-700 font-semibold">green over {b.gm_green_pct}%</span> ·{' '}
-          <span className="text-amber-700 font-semibold">amber {b.gm_amber_pct}–{b.gm_green_pct}%</span> ·{' '}
-          <span className="text-red-700 font-semibold">red under {b.gm_amber_pct}%</span>
-        </p>
-      </div>
-
-      <div className="space-y-4">
-        <div className="bg-[#FFFFFF] border border-[#E4DCF0] shadow-sm p-5 space-y-3">
-          <h3 className="text-lg font-bold text-[#1E1533]">Benchmarks &amp; insight</h3>
-          <div className="flex items-center justify-between text-sm gap-3">
-            <span className="text-[#5B4B7A]">Hosting vs recurring revenue (target under {b.infra_target_pct}%)</span>
-            <span className="flex items-center gap-2 whitespace-nowrap">
-              <span className="font-bold text-[#1E1533]">{pct(b.infra_pct)}</span>
-              <BandChip band={b.infra_flag === 'HIGH' ? 'red' : b.infra_flag === 'OK' ? 'green' : 'none'}>{b.infra_flag}</BandChip>
-            </span>
-          </div>
-
-          {tcv.revenue > 0 && tcv.band !== 'green' && (
-            <div className="flex gap-2 bg-[#F7F4FC] p-3 text-sm text-[#1E1533]" data-testid="tracker-insight">
-              <Lightbulb size={20} className="text-amber-600 shrink-0 mt-0.5" />
-              <div>
-                To reach {b.gm_green_pct}% GM at the current cost, total contract revenue needs to be{' '}
-                <strong>{inr(ins.revenue_needed_for_green)}</strong> — <strong>{inr(ins.gap_to_green)}</strong> more than modelled.
-                {tcv.band === 'red' && (
-                  <div className="mt-1 text-xs text-[#5B4B7A]">
-                    To get out of the red zone ({b.gm_amber_pct}%): {inr(ins.revenue_needed_for_amber)} ({inr(ins.gap_to_amber)} more).
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-          {tcv.revenue > 0 && tcv.band === 'green' && (
-            <div className="flex gap-2 bg-green-50 p-3 text-sm text-green-800" data-testid="tracker-insight">
-              <CheckCircle size={20} className="shrink-0 mt-0.5" /> This deal is above the {b.gm_green_pct}% target.
-            </div>
-          )}
-          {tcv.revenue <= 0 && (
-            <p className="text-sm text-[#7A6B9E]">Add revenue lines to see margins and insights.</p>
-          )}
-        </div>
-
-        {warnings.length > 0 && (
-          <div className="bg-amber-50 border border-amber-200 p-4" data-testid="tracker-warnings">
-            <p className="flex items-center gap-2 font-semibold text-amber-800 text-sm mb-1">
-              <Warning size={18} /> Check these inputs
-            </p>
-            <ul className="list-disc pl-5 text-xs text-amber-900 space-y-1">
-              {warnings.map((w, i) => <li key={i}>{w}</li>)}
-            </ul>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-/* ------------------------------------------------------------------ */
-/* term schedule + chart                                               */
-/* ------------------------------------------------------------------ */
-const ScheduleSection = ({ result }) => {
-  const sch = result.schedule;
-  const term = result.assumptions.term_years;
-  const yrs = sch.years.slice(0, term);
-  const idx = yrs.map((_, i) => i);
-  const sumTo = (arr) => arr.slice(0, term).reduce((a, b) => a + b, 0);
-  const fullRev = sumTo(sch.total_revenue);
-  const fullCost = sumTo(sch.total_cost);
-  const fullGm = fullRev - fullCost;
-
-  const bm = result.benchmarks;
-  const bandFor = (rev, g) => (rev > 0 ? (g > bm.gm_green_pct ? 'green' : g < bm.gm_amber_pct ? 'red' : 'amber') : 'none');
-
-  const chartData = yrs.map((y, i) => ({ name: `Year ${y}`, Revenue: Math.round(sch.total_revenue[i]), Cost: Math.round(sch.total_cost[i]) }));
-
-  const row = (key, label, values, full, opts = {}) => (
-    <tr key={key} className={`border-b border-[#F1EBFA] ${opts.shade ? 'bg-[#F7F4FC]' : ''}`}>
-      <td className={`px-2 py-1.5 text-sm text-[#1E1533] whitespace-nowrap ${opts.bold ? 'font-bold' : ''}`}>{label}</td>
-      {values.map((v, i) => <Calc key={i} bold={opts.bold}>{v}</Calc>)}
-      <Calc bold>{full}</Calc>
-    </tr>
-  );
-
-  return (
-    <Section
-      title="Term schedule"
-      hint="Recurring revenue and cost year by year, with revenue and cost escalation applied. Only months inside the contract term are counted."
-      testId="tracker-schedule"
-    >
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-[#E4DCF0]">
-              <Th>&nbsp;</Th>
-              {yrs.map((y) => <Th key={y} right>Year {y}</Th>)}
-              <Th right>Full term</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {row('rf', 'Revenue escalation factor', idx.map((i) => `×${sch.revenue_factor[i].toFixed(3)}`), '—')}
-            {row('cf', 'Cost escalation factor', idx.map((i) => `×${sch.cost_factor[i].toFixed(3)}`), '—')}
-            {sch.revenue_lines.map((l, n) => row(`rl${n}`, `Rev: ${l.label}`, idx.map((i) => inr(l.by_year[i])), inr(sumTo(l.by_year))))}
-            {row('tr', 'Total recurring revenue', idx.map((i) => inr(sch.total_revenue[i])), inr(fullRev), { bold: true, shade: true })}
-            {sch.cost_lines.map((l, n) => row(`cl${n}`, `Cost: ${l.label}`, idx.map((i) => inr(l.by_year[i])), inr(sumTo(l.by_year))))}
-            {row('tc', 'Total recurring cost', idx.map((i) => inr(sch.total_cost[i])), inr(fullCost), { bold: true, shade: true })}
-            {row('gm', 'Recurring gross margin', idx.map((i) => inr(sch.gm[i])), inr(fullGm), { bold: true })}
-            <tr>
-              <td className="px-2 py-1.5 text-sm text-[#1E1533]">Recurring GM %</td>
-              {idx.map((i) => (
-                <td key={i} className="px-2 py-1.5 text-right"><BandChip band={bandFor(sch.total_revenue[i], sch.gm_pct[i])}>{pct(sch.gm_pct[i])}</BandChip></td>
-              ))}
-              <td className="px-2 py-1.5 text-right">
-                <BandChip band={result.summary.recurring_full_term.band}>{pct(result.summary.recurring_full_term.gm_pct)}</BandChip>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div className="mt-5 h-64" data-testid="tracker-chart">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#E4DCF0" />
-            <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-            <YAxis tickFormatter={compactInr} tick={{ fontSize: 12 }} width={56} />
-            <Tooltip formatter={(v) => inr(v)} />
-            <Legend />
-            <Bar dataKey="Revenue" fill="#9B30FF" radius={[3, 3, 0, 0]} />
-            <Bar dataKey="Cost" fill="#E64AD1" radius={[3, 3, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-    </Section>
-  );
-};
-
-/* ------------------------------------------------------------------ */
-/* editor                                                              */
-/* ------------------------------------------------------------------ */
-const TrackerEditor = ({ form, setForm, config, proposals, canEdit, saving, dirty, nextVersion, onBack, onSave, onSaveAsVersion }) => {
-  const result = useMemo(() => computeTracker(form), [form]);
-  const warnings = useMemo(() => getWarnings(form, result), [form, result]);
-  const [pulling, setPulling] = useState(false);
-  const ro = !canEdit;
-
-  const setTop = (patch) => setForm((f) => ({ ...f, ...patch }));
-  const setAssump = (patch) => setForm((f) => ({ ...f, assumptions: { ...f.assumptions, ...patch } }));
-  const updateRow = (list, key, patch) =>
-    setForm((f) => ({ ...f, [list]: f[list].map((r) => (r._k === key ? { ...r, ...patch } : r)) }));
-  const addRow = (list, row) => setForm((f) => ({ ...f, [list]: [...f[list], row] }));
-  const removeRow = (list, key) => setForm((f) => ({ ...f, [list]: f[list].filter((r) => r._k !== key) }));
-
-  const pullFromProposal = async () => {
-    if (!form.proposal_id) return;
-    setPulling(true);
-    try {
-      const { data } = await axios.get(`${API}/profitability-trackers/from-proposal/${form.proposal_id}`, { withCredentials: true });
-      const upsert = (rows, incoming, factory, pick) => {
-        const next = rows.slice();
-        incoming.forEach((inc) => {
-          const i = next.findIndex((r) => (r.label || '').trim().toLowerCase() === (inc.label || '').trim().toLowerCase());
-          if (i >= 0) next[i] = { ...next[i], ...pick(inc) };
-          else next.push({ ...factory(inc.label), ...pick(inc) });
-        });
-        return next;
-      };
-      setForm((f) => ({
-        ...f,
-        client_name: f.client_name || data.client_name || '',
-        assumptions: {
-          ...f.assumptions,
-          term_years: data.term_years || f.assumptions.term_years,
-          revenue_escalation_pct: data.revenue_escalation_pct ?? f.assumptions.revenue_escalation_pct,
-        },
-        one_time_items: upsert(f.one_time_items, data.one_time_items, blankOneTime, (x) => ({ qty: x.qty, rate: x.rate })),
-        recurring_items: upsert(f.recurring_items, data.recurring_items, blankRecurring, (x) => ({
-          qty: x.qty, rate_per_month: x.rate_per_month, min_bill_per_month: x.min_bill_per_month,
-        })),
-      }));
-      toast.success(`Pulled ${data.one_time_items.length} one-time and ${data.recurring_items.length} recurring line(s) from the proposal. Add your costs next.`);
-    } catch (e) {
-      toast.error(e.response?.data?.detail || 'Could not pull from the proposal');
-    } finally {
-      setPulling(false);
-    }
-  };
-
-  const chooseRole = (key, value) => {
-    if (value === '__custom__') updateRow('resources', key, { role: '', role_source: 'custom', annual_ctc: '' });
-    else updateRow('resources', key, { role: value, role_source: 'rate_card', annual_ctc: config.roles[value].annual });
-  };
-
-  const a = form.assumptions;
-  const termMonths = result.assumptions.term_months;
-
-  const actions = (
-    <>
-      {canEdit && form.id && (
-        <Button variant="outline" onClick={onSaveAsVersion} disabled={saving} className="bg-[#FFFFFF] text-[#1E1533] border-[#E4DCF0]" data-testid="tracker-save-version">
-          <GitBranch size={18} className="mr-2" /> Save as {nextVersion}
-        </Button>
-      )}
-      {canEdit && (
-        <Button onClick={onSave} disabled={saving} className="text-white font-semibold shadow-md"
-          style={{ background: 'linear-gradient(135deg, #9B30FF 0%, #E64AD1 100%)' }} data-testid="tracker-save">
-          <FloppyDisk size={18} className="mr-2" /> {saving ? 'Saving…' : dirty || !form.id ? 'Save' : 'Saved'}
-        </Button>
-      )}
-    </>
-  );
-
-  return (
-    <div className="p-6 max-w-[1500px] mx-auto" data-testid="tracker-editor">
-      <div className="flex flex-wrap items-center gap-3 mb-4">
-        <Button variant="outline" onClick={onBack} className="bg-[#FFFFFF] text-[#1E1533] border-[#E4DCF0]" data-testid="tracker-back">
-          <ArrowLeft size={18} className="mr-2" /> Trackers
-        </Button>
-        <div>
-          <h2 className="text-2xl font-bold text-[#1E1533] flex items-center gap-2">
-            <ChartLineUp size={26} className="text-purple-700" />
-            {form.id ? `${form.client_name || 'Deal'} · ${form.version}` : 'New deal tracker'}
-          </h2>
-          {form.created_by && <p className="text-xs text-[#7A6B9E]">Created by {form.created_by.name}</p>}
-        </div>
-      </div>
-
-      <SummaryStrip result={result} actions={actions} />
-
-      {ro && (
-        <div className="bg-[#F7F4FC] border border-[#E4DCF0] p-3 mt-4 text-sm text-[#5B4B7A]" data-testid="tracker-readonly">
-          You can view this tracker but only its creator or an Admin can edit it. Use “New version” on the list to make your own copy.
-        </div>
-      )}
-
-      <div className="space-y-5 mt-5">
-
-          <Section title="Deal details" testId="tracker-details">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-1 md:col-span-2">
-                <Label>Client name *</Label>
-                <TextInput value={form.client_name} onChange={(v) => setTop({ client_name: v })} disabled={ro} placeholder="e.g. Michelin" testId="tracker-client" className="h-10" />
-              </div>
-              <div className="space-y-1">
-                <Label>Version</Label>
-                <TextInput value={form.version} onChange={(v) => setTop({ version: v })} disabled={ro} placeholder="v1.0" testId="tracker-version" className="h-10" />
-              </div>
-              <div className="space-y-1">
-                <Label>Deal date</Label>
-                <Input type="date" value={form.deal_date || ''} disabled={ro} onChange={(e) => setTop({ deal_date: e.target.value })}
-                  className="h-10 bg-[#FFFFFF] text-[#1E1533]" data-testid="tracker-date" />
-              </div>
-              <div className="space-y-1 md:col-span-2">
-                <Label>Linked proposal (optional)</Label>
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <div className="flex-1">
-                    <Select value={form.proposal_id || 'none'} disabled={ro} onValueChange={(v) => setTop({ proposal_id: v === 'none' ? '' : v })}>
-                      <SelectTrigger className="h-10 bg-[#FFFFFF] text-[#1E1533]" data-testid="tracker-proposal-select">
-                        <SelectValue placeholder="None - standalone deal" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">None - standalone deal</SelectItem>
-                        {proposals.map((p) => <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <Button type="button" variant="outline" disabled={ro || !form.proposal_id || pulling} onClick={pullFromProposal}
-                    className="h-10 bg-[#FFFFFF] text-[#1E1533] border-[#E4DCF0] whitespace-nowrap" data-testid="tracker-pull">
-                    <LinkSimple size={16} className="mr-1" /> {pulling ? 'Pulling…' : 'Pull revenue'}
-                  </Button>
-                </div>
-                <p className="text-xs text-[#7A6B9E]">Pulls term, escalation and every revenue line from the proposal; costs stay for you to fill in.</p>
-              </div>
-              <div className="space-y-1 md:col-span-3">
-                <Label>Notes</Label>
-                <Textarea value={form.notes} disabled={ro} onChange={(e) => setTop({ notes: e.target.value })} rows={2}
-                  placeholder="Assumptions, discounts, risks…" className="bg-[#FFFFFF] text-[#1E1533]" />
-              </div>
-            </div>
-          </Section>
-
-          <Section title="Contract assumptions" testId="tracker-assumptions">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="space-y-1">
-                <Label>Contract term (years)</Label>
-                <Select value={String(a.term_years)} disabled={ro} onValueChange={(v) => setAssump({ term_years: parseInt(v, 10) })}>
-                  <SelectTrigger className="h-10 bg-[#FFFFFF] text-[#1E1533]" data-testid="tracker-term"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {Array.from({ length: MAX_TERM_YEARS }, (_, i) => i + 1).map((y) => <SelectItem key={y} value={String(y)}>{y} year{y > 1 ? 's' : ''}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label>Revenue escalation / yr (%)</Label>
-                <NumInput value={a.revenue_escalation_pct} onChange={(v) => setAssump({ revenue_escalation_pct: v })} disabled={ro} testId="tracker-rev-esc" className="h-10" />
-              </div>
-              <div className="space-y-1">
-                <Label>Cost escalation / yr (%)</Label>
-                <NumInput value={a.cost_escalation_pct} onChange={(v) => setAssump({ cost_escalation_pct: v })} disabled={ro} testId="tracker-cost-esc" className="h-10" />
-              </div>
-              <div className="space-y-1">
-                <Label>Term in months</Label>
-                <div className="h-10 flex items-center px-3 bg-[#F7F4FC] text-[#1E1533] font-semibold">{termMonths}</div>
-              </div>
-            </div>
-          </Section>
-
-          <Section
-            title="One-time charges"
-            hint="Revenue = Qty × Rate. Cost = Qty × Cost/unit (delivery staff for one-time work go under Resources)."
-            testId="tracker-one-time"
-          >
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[760px]">
-                <thead>
-                  <tr className="border-b border-[#E4DCF0]">
-                    <Th>Line item</Th><Th right>Qty</Th><Th right>Rate ₹</Th><Th right>Revenue ₹</Th><Th right>Cost/unit ₹</Th><Th right>Cost ₹</Th><Th>&nbsp;</Th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {form.one_time_items.map((r, i) => (
-                    <tr key={r._k} className="border-b border-[#F1EBFA]" data-testid={`one-time-row-${i}`}>
-                      <td className="px-1 py-1 min-w-[190px]"><TextInput value={r.label} disabled={ro} onChange={(v) => updateRow('one_time_items', r._k, { label: v })} placeholder="Line item" /></td>
-                      <td className="px-1 py-1 w-24"><NumInput value={r.qty} disabled={ro} onChange={(v) => updateRow('one_time_items', r._k, { qty: v })} testId={`ot-qty-${i}`} /></td>
-                      <td className="px-1 py-1 w-32"><NumInput value={r.rate} disabled={ro} onChange={(v) => updateRow('one_time_items', r._k, { rate: v })} testId={`ot-rate-${i}`} /></td>
-                      <Calc>{inr(result.one_time_items[i]?.revenue)}</Calc>
-                      <td className="px-1 py-1 w-32"><NumInput value={r.cost_per_unit} disabled={ro} onChange={(v) => updateRow('one_time_items', r._k, { cost_per_unit: v })} testId={`ot-cpu-${i}`} /></td>
-                      <Calc>{inr(result.one_time_items[i]?.cost)}</Calc>
-                      <RemoveBtn disabled={ro} onClick={() => removeRow('one_time_items', r._k)} label="Remove line" />
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="bg-[#F7F4FC]">
-                    <td className="px-2 py-2 font-bold text-sm text-[#1E1533]" colSpan={3}>One-time subtotal (direct)</td>
-                    <Calc bold>{inr(result.one_time.revenue)}</Calc><td />
-                    <Calc bold>{inr(result.one_time.direct_cost)}</Calc><td />
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-            <AddRowBtn disabled={ro} onClick={() => addRow('one_time_items', blankOneTime())} testId="add-one-time">Add one-time line</AddRowBtn>
-          </Section>
-
-          <Section
-            title="Recurring (SaaS) charges — per month"
-            hint="Monthly revenue = the higher of Users × Rate or the Minimum bill. Hosting cost = Users × the per-user hosting cost. Leave Duration blank to run for the full term."
-            testId="tracker-recurring"
-          >
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[900px]">
-                <thead>
-                  <tr className="border-b border-[#E4DCF0]">
-                    <Th>Line item</Th><Th right>Users / Qty</Th><Th right>Rate ₹/mo</Th><Th right>Min bill ₹/mo</Th><Th right>Duration (mo)</Th>
-                    <Th right>Hosting ₹/user/mo</Th><Th right>Revenue ₹/mo</Th><Th right>Hosting ₹/mo</Th><Th>&nbsp;</Th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {form.recurring_items.map((r, i) => (
-                    <tr key={r._k} className="border-b border-[#F1EBFA]" data-testid={`recurring-row-${i}`}>
-                      <td className="px-1 py-1 min-w-[160px]"><TextInput value={r.label} disabled={ro} onChange={(v) => updateRow('recurring_items', r._k, { label: v })} placeholder="Line item" /></td>
-                      <td className="px-1 py-1 w-24"><NumInput value={r.qty} disabled={ro} onChange={(v) => updateRow('recurring_items', r._k, { qty: v })} testId={`rec-qty-${i}`} /></td>
-                      <td className="px-1 py-1 w-24"><NumInput value={r.rate_per_month} disabled={ro} onChange={(v) => updateRow('recurring_items', r._k, { rate_per_month: v })} testId={`rec-rate-${i}`} /></td>
-                      <td className="px-1 py-1 w-28"><NumInput value={r.min_bill_per_month} disabled={ro} onChange={(v) => updateRow('recurring_items', r._k, { min_bill_per_month: v })} testId={`rec-min-${i}`} /></td>
-                      <td className="px-1 py-1 w-24"><NumInput value={r.duration_months} placeholder={String(termMonths)} disabled={ro} onChange={(v) => updateRow('recurring_items', r._k, { duration_months: v })} /></td>
-                      <td className="px-1 py-1 w-28"><NumInput value={r.infra_pupm} disabled={ro} onChange={(v) => updateRow('recurring_items', r._k, { infra_pupm: v })} testId={`rec-pupm-${i}`} /></td>
-                      <Calc>{inr(result.recurring_items[i]?.monthly_revenue)}</Calc>
-                      <Calc>{inr(result.recurring_items[i]?.infra_monthly)}</Calc>
-                      <RemoveBtn disabled={ro} onClick={() => removeRow('recurring_items', r._k)} label="Remove line" />
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="bg-[#F7F4FC]">
-                    <td className="px-2 py-2 font-bold text-sm text-[#1E1533]" colSpan={6}>Recurring revenue subtotal / month</td>
-                    <Calc bold>{inr(result.recurring_monthly.revenue)}</Calc>
-                    <Calc bold>{inr(result.recurring_monthly.infra_cost - result.infra.base_per_month)}</Calc><td />
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-            <AddRowBtn disabled={ro} onClick={() => addRow('recurring_items', blankRecurring())} testId="add-recurring">Add recurring line</AddRowBtn>
-          </Section>
-
-          <Section
-            title="Delivery cost — resources deployed"
-            hint="Monthly cost = Annual CTC ÷ 12 × Allocation. One-time resources cost that × Months; recurring resources cost it every month of the term (with cost escalation)."
-            testId="tracker-resources"
-          >
-            {form.resources.length === 0 && (
-              <p className="text-sm text-[#7A6B9E] mb-2">No delivery resources yet — add the people who deliver and support this deal.</p>
-            )}
-            {form.resources.length > 0 && (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[900px]">
-                  <thead>
-                    <tr className="border-b border-[#E4DCF0]">
-                      <Th>Role</Th><Th right>Annual CTC ₹</Th><Th right>Alloc %</Th><Th>Type</Th><Th right>Months</Th>
-                      <Th right>One-time ₹</Th><Th right>Recurring ₹/mo</Th><Th>&nbsp;</Th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {form.resources.map((r, i) => {
-                      const isCustom = r.role_source === 'custom';
-                      const selectValue = isCustom ? '__custom__' : (r.role && config.roles[r.role] ? r.role : '');
-                      return (
-                        <tr key={r._k} className="border-b border-[#F1EBFA]" data-testid={`resource-row-${i}`}>
-                          <td className="px-1 py-1 min-w-[200px]">
-                            <Select value={selectValue} disabled={ro} onValueChange={(v) => chooseRole(r._k, v)}>
-                              <SelectTrigger className="h-9 bg-[#FFFFFF] text-[#1E1533]" data-testid={`res-role-${i}`}><SelectValue placeholder="Select role" /></SelectTrigger>
-                              <SelectContent>
-                                {Object.keys(config.roles).map((role) => <SelectItem key={role} value={role}>{role}</SelectItem>)}
-                                <SelectItem value="__custom__">Custom role…</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            {isCustom && (
-                              <div className="mt-1"><TextInput value={r.role} disabled={ro} onChange={(v) => updateRow('resources', r._k, { role: v })} placeholder="Role name" testId={`res-name-${i}`} /></div>
-                            )}
-                          </td>
-                          <td className="px-1 py-1 w-36">
-                            {isCustom ? (
-                              <NumInput value={r.annual_ctc} disabled={ro} onChange={(v) => updateRow('resources', r._k, { annual_ctc: v })} testId={`res-ctc-${i}`} />
-                            ) : (
-                              <div className="h-9 flex items-center justify-end px-2 text-sm text-[#5B4B7A]" title="From the company rate card">{r.annual_ctc ? inr(r.annual_ctc) : '—'}</div>
-                            )}
-                          </td>
-                          <td className="px-1 py-1 w-24"><NumInput value={r.alloc_pct} disabled={ro} onChange={(v) => updateRow('resources', r._k, { alloc_pct: v })} testId={`res-alloc-${i}`} /></td>
-                          <td className="px-1 py-1 w-36">
-                            <Select value={r.type} disabled={ro} onValueChange={(v) => updateRow('resources', r._k, { type: v })}>
-                              <SelectTrigger className="h-9 bg-[#FFFFFF] text-[#1E1533]" data-testid={`res-type-${i}`}><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="one_time">One-time</SelectItem>
-                                <SelectItem value="recurring">Recurring</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </td>
-                          <td className="px-1 py-1 w-24">
-                            <NumInput value={r.months} placeholder={r.type === 'recurring' ? String(termMonths) : '0'} disabled={ro} onChange={(v) => updateRow('resources', r._k, { months: v })} testId={`res-months-${i}`} />
-                          </td>
-                          <Calc>{inr(result.resources[i]?.one_time_cost)}</Calc>
-                          <Calc>{inr(result.resources[i]?.recurring_monthly)}</Calc>
-                          <RemoveBtn disabled={ro} onClick={() => removeRow('resources', r._k)} label="Remove resource" />
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                  <tfoot>
-                    <tr className="bg-[#F7F4FC]">
-                      <td className="px-2 py-2 font-bold text-sm text-[#1E1533]" colSpan={5}>Resource subtotal</td>
-                      <Calc bold>{inr(result.one_time.resource_cost)}</Calc>
-                      <Calc bold>{inr(result.recurring_monthly.resource_cost)}</Calc><td />
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            )}
-            <AddRowBtn disabled={ro} onClick={() => addRow('resources', blankResource())} testId="add-resource">Add resource</AddRowBtn>
-          </Section>
-
-          <Section
-            title="Infrastructure (hosting / cloud)"
-            hint="Monthly hosting = fixed base + each recurring line's Users × its per-user hosting cost (entered in the recurring table above). Runs for the whole term."
-            testId="tracker-infra"
-          >
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-              <div className="space-y-1">
-                <Label>Base cost ₹/month (database, environments, monitoring)</Label>
-                <NumInput value={form.infra.base_per_month} disabled={ro} onChange={(v) => setForm((f) => ({ ...f, infra: { ...f.infra, base_per_month: v } }))} testId="tracker-infra-base" className="h-10" />
-              </div>
-              <div className="space-y-1">
-                <Label>Hosting ₹/month</Label>
-                <div className="h-10 flex items-center px-3 bg-[#F7F4FC] text-[#1E1533] font-semibold" data-testid="infra-monthly">{inr(result.infra.monthly_total)}</div>
-              </div>
-              <div className="space-y-1">
-                <Label>Duration (months)</Label>
-                <div className="h-10 flex items-center px-3 bg-[#F7F4FC] text-[#1E1533] font-semibold">{termMonths}</div>
-              </div>
-            </div>
-          </Section>
-      </div>
-
-      <div className="mt-6">
-        <SummaryDetails result={result} warnings={warnings} />
-      </div>
-
-      <div className="mt-6">
-        <ScheduleSection result={result} />
-      </div>
-    </div>
-  );
-};
-
-/* ------------------------------------------------------------------ */
-/* list + page                                                         */
-/* ------------------------------------------------------------------ */
-const ProfitabilityTracker = () => {
+const ProfitabilityAnalyzer = () => {
   const { user } = useAuth();
-  const [config, setConfig] = useState(null);
-  const [trackers, setTrackers] = useState([]);
+  const [analyses, setAnalyses] = useState([]);
   const [proposals, setProposals] = useState([]);
+  const [rateCard, setRateCard] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState(null); // null = list view
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [search, setSearch] = useState('');
-  const baseline = useRef('');
+  const [expandedId, setExpandedId] = useState(null);
 
-  const fetchList = async () => {
-    try {
-      const { data } = await axios.get(`${API}/profitability-trackers`, { withCredentials: true });
-      setTrackers(data);
-    } catch (e) {
-      toast.error('Failed to load trackers');
-    }
-  };
+  const [title, setTitle] = useState('');
+  const [proposalId, setProposalId] = useState('');
+  const [notes, setNotes] = useState('');
+  const [lineItems, setLineItems] = useState([emptyRevenueLineItem()]);
 
   useEffect(() => {
-    (async () => {
-      try {
-        const [cfg] = await Promise.all([
-          axios.get(`${API}/profitability-trackers/config`, { withCredentials: true }),
-          fetchList(),
-        ]);
-        setConfig(cfg.data);
-        axios.get(`${API}/proposals`, { withCredentials: true }).then((r) => setProposals(r.data)).catch(() => {});
-      } catch (e) {
-        toast.error('Failed to load tracker settings');
-      } finally {
-        setLoading(false);
-      }
-    })();
+    fetchAnalyses();
+    fetchProposals();
+    fetchRateCard();
   }, []);
 
-  const isAdmin = user?.role === 'Admin';
-  const canEditForm = (f) => !f.id || f.created_by?.id === user?.id || isAdmin;
-  const dirty = form ? snapshotOf(form) !== baseline.current : false;
-
-  const open = (f) => { baseline.current = snapshotOf(f); setForm(f); };
-  const openNew = () => open(newForm(config));
-  const openExisting = async (id) => {
+  const fetchAnalyses = async () => {
     try {
-      const { data } = await axios.get(`${API}/profitability-trackers/${id}`, { withCredentials: true });
-      open(formFromDoc(data));
-    } catch (e) {
-      toast.error('Could not open tracker');
-    }
-  };
-  const backToList = () => {
-    if (dirty && !window.confirm('You have unsaved changes. Leave without saving?')) return;
-    setForm(null);
-    fetchList();
-  };
-
-  const save = async () => {
-    if (!form.client_name.trim()) { toast.error('Client name is required'); return; }
-    setSaving(true);
-    try {
-      const body = payloadFromForm(form);
-      const { data } = form.id
-        ? await axios.put(`${API}/profitability-trackers/${form.id}`, body, { withCredentials: true })
-        : await axios.post(`${API}/profitability-trackers`, { ...body, parent_id: form.parent_id || null }, { withCredentials: true });
-      const saved = formFromDoc(data);
-      baseline.current = snapshotOf(saved);
-      setForm(saved);
-      toast.success('Tracker saved');
-      fetchList();
-    } catch (e) {
-      toast.error(e.response?.data?.detail || 'Failed to save tracker');
+      const { data } = await axios.get(`${API}/profitability-analyses`, { withCredentials: true });
+      setAnalyses(data);
+    } catch (error) {
+      toast.error('Failed to load analyses');
     } finally {
-      setSaving(false);
+      setLoading(false);
     }
   };
 
-  const saveAsNewVersion = async () => {
-    if (!form.client_name.trim()) { toast.error('Client name is required'); return; }
-    setSaving(true);
+  const fetchProposals = async () => {
     try {
-      const label = nextFreeVersion(form.client_name, form.version, trackers);
-      const { data } = await axios.post(
-        `${API}/profitability-trackers`,
-        { ...payloadFromForm(form), version: label, parent_id: form.id },
-        { withCredentials: true },
-      );
-      const saved = formFromDoc(data);
-      baseline.current = snapshotOf(saved);
-      setForm(saved);
-      toast.success(`Saved as ${label}. The earlier version is unchanged.`);
-      fetchList();
-    } catch (e) {
-      toast.error(e.response?.data?.detail || 'Failed to save new version');
-    } finally {
-      setSaving(false);
+      const { data } = await axios.get(`${API}/proposals`, { withCredentials: true });
+      setProposals(data);
+    } catch (error) {
+      // non-fatal
     }
   };
 
-  const copyAsNextVersion = async (t) => {
+  const fetchRateCard = async () => {
     try {
-      const { data } = await axios.post(`${API}/profitability-trackers/${t.id}/new-version`, {}, { withCredentials: true });
-      toast.success(`Created ${data.version}`);
-      await fetchList();
-      open(formFromDoc(data));
-    } catch (e) {
-      toast.error(e.response?.data?.detail || 'Could not create a new version');
+      const { data } = await axios.get(`${API}/profitability-analyses/rate-card`, { withCredentials: true });
+      setRateCard(data);
+    } catch (error) {
+      toast.error('Failed to load rate card');
     }
   };
 
-  const remove = async (t) => {
-    if (!window.confirm(`Delete the tracker for ${t.client_name} (${t.version})? This cannot be undone.`)) return;
-    try {
-      await axios.delete(`${API}/profitability-trackers/${t.id}`, { withCredentials: true });
-      toast.success('Tracker deleted');
-      fetchList();
-    } catch (e) {
-      toast.error(e.response?.data?.detail || 'Could not delete tracker');
-    }
+  // Client-side mirror of the backend calculation, for live preview only.
+  // The backend recomputes authoritatively on save using the same fixed rates.
+  const quantityMultiplier = (quantity, unit) => {
+    const qty = parseFloat(quantity);
+    if (!qty || !unit || !rateCard) return 1;
+    if (unit === 'month') return qty;
+    if (unit === 'day') return qty / rateCard.working_days_per_month;
+    if (unit === 'hrs') return qty / rateCard.working_hours_per_month;
+    return 1;
   };
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return q ? trackers.filter((t) => `${t.client_name} ${t.version}`.toLowerCase().includes(q)) : trackers;
-  }, [trackers, search]);
+  const computeLineItem = (item) => {
+    if (!rateCard) return { manualCost: 0, autoCost: 0, totalCost: 0, autoBreakdown: null };
 
-  if (loading || !config) return <LoadingSpinner fullScreen label="Loading trackers..." />;
+    const manualCost = item.resource_lines.reduce((sum, rl) => {
+      const monthlyCost = rateCard.roles[rl.role_name] || 0;
+      const pct = parseFloat(rl.allocation_percent) || 0;
+      const multiplier = quantityMultiplier(rl.quantity, rl.unit);
+      return sum + (monthlyCost * pct) / 100 * multiplier;
+    }, 0);
 
-  if (form) {
-    return (
-      <TrackerEditor
-        form={form} setForm={setForm} config={config} proposals={proposals}
-        canEdit={canEditForm(form)} saving={saving} dirty={dirty}
-        nextVersion={nextFreeVersion(form.client_name, form.version, trackers)}
-        onBack={backToList} onSave={save} onSaveAsVersion={saveAsNewVersion}
-      />
+    const distributors = parseFloat(item.distributor_count) || 0;
+    let autoBreakdown = null;
+    let autoCost = 0;
+    if (distributors > 0) {
+      const l2Required = distributors * rateCard.staffing_ratios.L2;
+      const l3Required = distributors * rateCard.staffing_ratios.L3;
+      const l2Cost = l2Required * rateCard.auto_roles.L2;
+      const l3Cost = l3Required * rateCard.auto_roles.L3;
+
+      const licenseCosts = {};
+      let licenseTotal = 0;
+      (item.selected_distributor_costs || []).forEach((costName) => {
+        const rate = rateCard.per_distributor_costs[costName];
+        if (rate !== undefined) {
+          const value = distributors * rate;
+          licenseCosts[costName] = value;
+          licenseTotal += value;
+        }
+      });
+
+      autoCost = l2Cost + l3Cost + licenseTotal;
+      autoBreakdown = { l2Required, l2Cost, l3Required, l3Cost, licenseCosts };
+    }
+
+    return { manualCost, autoCost, totalCost: manualCost + autoCost, autoBreakdown };
+  };
+
+  const resetForm = () => {
+    setTitle('');
+    setProposalId('');
+    setNotes('');
+    setLineItems([emptyRevenueLineItem()]);
+    setEditingId(null);
+  };
+
+  const openNewForm = () => {
+    resetForm();
+    setShowForm(true);
+  };
+
+  const openEditForm = (analysis) => {
+    setEditingId(analysis.id);
+    setTitle(analysis.title);
+    setProposalId(analysis.proposal_id || '');
+    setNotes(analysis.notes || '');
+    setLineItems(
+      analysis.revenue_line_items.length > 0
+        ? analysis.revenue_line_items.map((li) => ({
+            label: li.label,
+            revenue: li.revenue ?? '',
+            is_subscription: li.is_subscription || false,
+            reference_note: li.reference_note || '',
+            distributor_count: li.distributor_count ?? '',
+            selected_distributor_costs: li.selected_distributor_costs || [],
+            resource_lines: (li.resource_lines || []).map((rl) => ({
+              role_name: rl.role_name,
+              allocation_percent: String(rl.allocation_percent),
+              quantity: rl.quantity ?? '',
+              unit: rl.unit || ''
+            }))
+          }))
+        : [emptyRevenueLineItem()]
     );
+    setShowForm(true);
+  };
+
+  // Extract a plain number out of a free-text "users" field like "50 users" or "50"
+  const parseUsersCount = (usersText) => {
+    if (!usersText) return null;
+    const match = String(usersText).match(/[\d,.]+/);
+    return match ? parseFloat(match[0].replace(/,/g, '')) : null;
+  };
+
+  const handleProposalSelect = (id) => {
+    setProposalId(id);
+    if (!id) {
+      setLineItems([emptyRevenueLineItem()]);
+      return;
+    }
+    const proposal = proposals.find((p) => p.id === id);
+    if (!proposal) return;
+
+    const items = [];
+    (proposal.products || []).forEach((p) => {
+      const item = emptyRevenueLineItem(`${p.product_name} - Subscription`);
+      item.is_subscription = true;
+
+      // Revenue = higher of (price/user x users) and minimum billing -
+      // standard SaaS minimum-commitment model
+      const usersCount = parseUsersCount(p.users);
+      const perUserRevenue = p.price_per_user && usersCount ? p.price_per_user * usersCount : null;
+      const minBilling = p.minimum_billing || null;
+      let suggestedRevenue = null;
+      if (perUserRevenue !== null && minBilling !== null) {
+        suggestedRevenue = Math.max(perUserRevenue, minBilling);
+      } else if (perUserRevenue !== null) {
+        suggestedRevenue = perUserRevenue;
+      } else if (minBilling !== null) {
+        suggestedRevenue = minBilling;
+      }
+      if (suggestedRevenue !== null) {
+        item.revenue = String(suggestedRevenue);
+      }
+
+      // L2/L3 requirement is auto-populated from this product's actual user
+      // count - shown as "Number of Users" on a subscription line, and still
+      // editable if the real distributor count should differ
+      if (usersCount) {
+        item.distributor_count = String(usersCount);
+      }
+      item.reference_note = p.users ? `${p.users}` : (usersCount ? `${usersCount} users` : '');
+
+      items.push(item);
+
+      // Training gets its own separate revenue line item - not a subscription line
+      if (p.training) {
+        const trainingItem = emptyRevenueLineItem(`${p.product_name} - Training`);
+        trainingItem.revenue = String(p.training);
+        items.push(trainingItem);
+      }
+    });
+    if (proposal.one_time_setup_fee) {
+      const item = emptyRevenueLineItem('One-Time Setup');
+      item.revenue = String(proposal.one_time_setup_fee);
+      items.push(item);
+    }
+    if (proposal.integration_fee) {
+      const item = emptyRevenueLineItem('Integration');
+      item.revenue = String(proposal.integration_fee);
+      items.push(item);
+    }
+    (proposal.additional_fees || []).forEach((f) => {
+      const item = emptyRevenueLineItem(f.name);
+      item.revenue = String(f.value);
+      items.push(item);
+    });
+
+    setLineItems(items.length > 0 ? items : [emptyRevenueLineItem()]);
+  };
+
+  const addLineItem = () => setLineItems([...lineItems, emptyRevenueLineItem()]);
+  const removeLineItem = (index) => setLineItems(lineItems.filter((_, i) => i !== index));
+  const updateLineItemField = (index, field, value) => {
+    const updated = [...lineItems];
+    updated[index][field] = value;
+    setLineItems(updated);
+  };
+
+  const toggleDistributorCost = (itemIndex, costName) => {
+    const updated = [...lineItems];
+    const current = updated[itemIndex].selected_distributor_costs || [];
+    updated[itemIndex].selected_distributor_costs = current.includes(costName)
+      ? current.filter((c) => c !== costName)
+      : [...current, costName];
+    setLineItems(updated);
+  };
+
+  const addResourceLine = (itemIndex) => {
+    const updated = [...lineItems];
+    updated[itemIndex].resource_lines.push(emptyResourceLine());
+    setLineItems(updated);
+  };
+  const removeResourceLine = (itemIndex, lineIndex) => {
+    const updated = [...lineItems];
+    updated[itemIndex].resource_lines = updated[itemIndex].resource_lines.filter((_, i) => i !== lineIndex);
+    setLineItems(updated);
+  };
+  const updateResourceLine = (itemIndex, lineIndex, field, value) => {
+    const updated = [...lineItems];
+    updated[itemIndex].resource_lines[lineIndex][field] = value;
+    setLineItems(updated);
+  };
+
+  const fmt = (n) => `₹${(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+
+  // Live preview totals
+  const totals = lineItems.reduce(
+    (acc, item) => {
+      const { totalCost } = computeLineItem(item);
+      acc.totalCost += totalCost;
+      if (item.revenue !== '') {
+        acc.totalRevenue += parseFloat(item.revenue) || 0;
+        acc.anyRevenue = true;
+      }
+      return acc;
+    },
+    { totalCost: 0, totalRevenue: 0, anyRevenue: false }
+  );
+  const totalProfit = totals.anyRevenue ? totals.totalRevenue - totals.totalCost : null;
+  const totalMargin = totals.anyRevenue && totals.totalRevenue > 0 ? (totalProfit / totals.totalRevenue) * 100 : null;
+
+  const handleSave = async () => {
+    if (!title.trim()) {
+      toast.error('Please enter a title for this analysis');
+      return;
+    }
+    for (const li of lineItems) {
+      for (const rl of li.resource_lines) {
+        if (rl.role_name && !rateCard.roles[rl.role_name]) {
+          toast.error(`Please select a valid role for "${li.label}"`);
+          return;
+        }
+      }
+    }
+    setSaving(true);
+    try {
+      const payload = {
+        title,
+        proposal_id: proposalId || null,
+        revenue_line_items: lineItems
+          .filter((li) => li.label)
+          .map((li) => ({
+            label: li.label,
+            revenue: li.revenue !== '' ? parseFloat(li.revenue) : null,
+            is_subscription: !!li.is_subscription,
+            reference_note: li.reference_note || null,
+            distributor_count: li.distributor_count !== '' ? parseFloat(li.distributor_count) : null,
+            selected_distributor_costs: li.selected_distributor_costs || [],
+            resource_lines: li.resource_lines
+              .filter((rl) => rl.role_name)
+              .map((rl) => ({
+                role_name: rl.role_name,
+                allocation_percent: parseFloat(rl.allocation_percent) || 0,
+                quantity: rl.quantity !== '' ? parseFloat(rl.quantity) : null,
+                unit: rl.unit || null
+              }))
+          })),
+        notes: notes || null
+      };
+
+      if (editingId) {
+        await axios.put(`${API}/profitability-analyses/${editingId}`, payload, { withCredentials: true });
+        toast.success('Analysis updated');
+      } else {
+        await axios.post(`${API}/profitability-analyses`, payload, { withCredentials: true });
+        toast.success('Analysis saved');
+      }
+      setShowForm(false);
+      resetForm();
+      fetchAnalyses();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to save analysis');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Delete this analysis?')) return;
+    try {
+      await axios.delete(`${API}/profitability-analyses/${id}`, { withCredentials: true });
+      toast.success('Analysis deleted');
+      fetchAnalyses();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to delete');
+    }
+  };
+
+  const canEdit = (analysis) => analysis.created_by?.id === user?.id || user?.role === 'Admin';
+
+  if (loading || !rateCard) {
+    return <LoadingSpinner fullScreen label="Crunching the numbers..." />
   }
 
   return (
-    <div className="p-6" data-testid="tracker-list-page">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+    <div className="p-6" data-testid="profitability-analyzer-page">
+      <div className="mb-6 flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-[#1E1533] flex items-center gap-2">
-            <ChartLineUp size={28} className="text-purple-700" /> Deal Profitability Tracker
-          </h2>
-          <p className="text-[#7A6B9E] text-sm">
-            Multi-year margin model per deal: one-time and recurring revenue, delivery and hosting cost, escalation, and total contract value.
+          <h1 className="text-3xl font-display font-black tracking-tight mb-2 flex items-center gap-3">
+            <Calculator size={36} className="text-purple-700" />
+            Deal Profitability Analyzer
+          </h1>
+          <p className="text-[#7A6B9E] font-body">
+            Model resource costs against each revenue line item to see real margin
           </p>
         </div>
-        <Button onClick={openNew} className="text-white font-semibold shadow-md"
-          style={{ background: 'linear-gradient(135deg, #9B30FF 0%, #E64AD1 100%)' }} data-testid="new-tracker-button">
-          <Plus size={18} className="mr-2" /> New tracker
-        </Button>
+        {!showForm && (
+          <Button
+            onClick={openNewForm}
+            className="text-white font-semibold shadow-md"
+            style={{ background: 'linear-gradient(135deg, #9B30FF 0%, #E64AD1 100%)' }}
+            data-testid="new-analysis-button"
+          >
+            <Plus size={18} className="mr-2" />
+            New Analysis
+          </Button>
+        )}
       </div>
 
-      {trackers.length > 0 && (
-        <div className="relative max-w-sm mb-4">
-          <MagnifyingGlass size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#7A6B9E]" />
-          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search client or version"
-            className="pl-9 h-10 bg-[#FFFFFF] text-[#1E1533]" data-testid="tracker-search" />
+      {showForm && (
+        <div className="bg-[#FFFFFF] border border-[#E4DCF0] shadow-sm p-6 mb-6 animate-scale-in" data-testid="analysis-form">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-bold">{editingId ? 'Edit Analysis' : 'New Analysis'}</h2>
+            <Button variant="ghost" size="sm" onClick={() => { setShowForm(false); resetForm(); }}>
+              <X size={18} />
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div className="space-y-2">
+              <Label>Analysis Title *</Label>
+              <Input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="e.g., Acme Corp - CRM Rollout"
+                className="h-10"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Link to a Proposal (optional)</Label>
+              <Select value={proposalId || 'none'} onValueChange={(v) => handleProposalSelect(v === 'none' ? '' : v)}>
+                <SelectTrigger data-testid="proposal-link-select">
+                  <SelectValue placeholder="None - standalone analysis" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None - standalone analysis</SelectItem>
+                  {proposals.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {proposalId && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-xs text-[#7A6B9E]">
+                    Revenue line items auto-filled below from this proposal's products and fees.
+                  </p>
+                  <DspBadge dsp={proposals.find((p) => p.id === proposalId)?.dsp} testId="analyzer-dsp" />
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Revenue Line Items */}
+          <div className="space-y-5">
+            {lineItems.map((item, itemIndex) => {
+              const { manualCost, totalCost, autoBreakdown } = computeLineItem(item);
+              const revenueNum = item.revenue !== '' ? parseFloat(item.revenue) || 0 : null;
+              const profit = revenueNum !== null ? revenueNum - totalCost : null;
+              const margin = revenueNum ? (profit / revenueNum) * 100 : null;
+
+              return (
+                <div key={itemIndex} className="border border-[#E4DCF0] rounded-lg p-5 bg-[#F7F4FC]">
+                  <div className="flex items-start justify-between gap-4 mb-4">
+                    <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs text-[#7A6B9E] flex items-center gap-2">
+                          Revenue Line Item
+                          {item.is_subscription && item.reference_note && (
+                            <span className="text-[10px] font-semibold text-purple-700 bg-purple-100 px-2 py-0.5 rounded">
+                              {item.reference_note}
+                            </span>
+                          )}
+                        </Label>
+                        <Input
+                          value={item.label}
+                          onChange={(e) => updateLineItemField(itemIndex, 'label', e.target.value)}
+                          placeholder="e.g., DMS Software - Subscription"
+                          className="h-10 bg-[#FFFFFF] font-semibold"
+                        />
+                        <label className="flex items-center gap-1.5 text-[11px] text-[#7A6B9E] cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={!!item.is_subscription}
+                            onChange={(e) => updateLineItemField(itemIndex, 'is_subscription', e.target.checked)}
+                            className="accent-purple-600"
+                          />
+                          Subscription line (enables auto L2/L3 by users)
+                        </label>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-[#7A6B9E]">Revenue (₹)</Label>
+                        <Input
+                          type="number"
+                          value={item.revenue}
+                          onChange={(e) => updateLineItemField(itemIndex, 'revenue', e.target.value)}
+                          placeholder="e.g., 600000"
+                          className="h-10 bg-[#FFFFFF] text-[#1E1533]"
+                        />
+                      </div>
+                      {item.is_subscription && (
+                        <div className="space-y-1">
+                          <Label className="text-xs text-[#7A6B9E]">Number of Users / Distributors</Label>
+                          <Input
+                            type="number"
+                            value={item.distributor_count}
+                            onChange={(e) => updateLineItemField(itemIndex, 'distributor_count', e.target.value)}
+                            placeholder="e.g., 1000"
+                            className="h-10 bg-[#FFFFFF] text-[#1E1533]"
+                          />
+                          <p className="text-[10px] text-[#7A6B9E]">Auto-adds L2/L3 + any licenses you select below</p>
+                        </div>
+                      )}
+                    </div>
+                    <Button
+                      type="button"
+                      onClick={() => removeLineItem(itemIndex)}
+                      variant="ghost"
+                      size="sm"
+                      className="text-red-700 hover:text-red-800 mt-5"
+                      disabled={lineItems.length === 1}
+                    >
+                      <Trash size={18} />
+                    </Button>
+                  </div>
+
+                  {/* Distributor-driven costs: subscription lines only */}
+                  {item.is_subscription && parseFloat(item.distributor_count) > 0 && rateCard && (
+                    <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                      <p className="text-xs font-semibold text-amber-700 mb-2">
+                        Which licenses does this line item include?
+                      </p>
+                      <div className="flex flex-wrap gap-3 mb-3">
+                        {Object.keys(rateCard.per_distributor_costs).map((costName) => {
+                          const rate = rateCard.per_distributor_costs[costName];
+                          const checked = (item.selected_distributor_costs || []).includes(costName);
+                          return (
+                            <label key={costName} className="flex items-center gap-1.5 text-xs bg-[#FFFFFF] px-2.5 py-1.5 rounded border border-[#E4DCF0] cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => toggleDistributorCost(itemIndex, costName)}
+                                className="accent-purple-600"
+                              />
+                              {costName} {rate === 0 && <span className="text-[#8577A3]">(rate pending)</span>}
+                            </label>
+                          );
+                        })}
+                      </div>
+
+                      {autoBreakdown && (
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
+                          <div className="bg-[#FFFFFF] rounded px-2 py-1.5">
+                            <p className="text-[#7A6B9E]">L2 ({autoBreakdown.l2Required.toFixed(3)})</p>
+                            <p className="font-semibold">{fmt(autoBreakdown.l2Cost)}</p>
+                          </div>
+                          <div className="bg-[#FFFFFF] rounded px-2 py-1.5">
+                            <p className="text-[#7A6B9E]">L3 ({autoBreakdown.l3Required.toFixed(3)})</p>
+                            <p className="font-semibold">{fmt(autoBreakdown.l3Cost)}</p>
+                          </div>
+                          {Object.entries(autoBreakdown.licenseCosts).map(([name, value]) => (
+                            <div key={name} className="bg-[#FFFFFF] rounded px-2 py-1.5">
+                              <p className="text-[#7A6B9E]">{name}</p>
+                              <p className="font-semibold">{fmt(value)}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Manual role allocations - fixed rate card, dropdown only */}
+                  <div className="pl-4 border-l-4 border-purple-300 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-semibold text-purple-700">Additional Role Allocations for this line</Label>
+                      <Button
+                        type="button"
+                        onClick={() => addResourceLine(itemIndex)}
+                        variant="ghost"
+                        size="sm"
+                        className="text-purple-700 hover:text-purple-800 h-7"
+                      >
+                        <Plus size={14} className="mr-1" />
+                        Add Role
+                      </Button>
+                    </div>
+
+                    {item.resource_lines.map((rl, lineIndex) => {
+                      const monthlyCost = rateCard.roles[rl.role_name] || 0;
+                      const multiplier = quantityMultiplier(rl.quantity, rl.unit);
+                      const rlCost = (monthlyCost * (parseFloat(rl.allocation_percent) || 0)) / 100 * multiplier;
+                      return (
+                        <div key={lineIndex} className="bg-[#FFFFFF] p-2.5 rounded-lg border border-[#E4DCF0] space-y-2">
+                          <div className="grid grid-cols-1 md:grid-cols-[2fr_1.2fr_1fr_auto] gap-2 items-end">
+                            <div className="space-y-1">
+                              <Label className="text-[11px] text-[#7A6B9E]">Role</Label>
+                              <Select value={rl.role_name} onValueChange={(v) => updateResourceLine(itemIndex, lineIndex, 'role_name', v)}>
+                                <SelectTrigger className="h-9 text-sm" data-testid={`role-select-${itemIndex}-${lineIndex}`}>
+                                  <SelectValue placeholder="Select role" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {Object.keys(rateCard.roles).map((role) => (
+                                    <SelectItem key={role} value={role}>{role}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-[11px] text-[#7A6B9E]">Monthly Cost (fixed)</Label>
+                              <div className="h-9 flex items-center px-2 bg-[#F7F4FC] border border-[#E4DCF0] rounded-md text-sm text-[#5B4B7A]">
+                                {rl.role_name ? fmt(monthlyCost) : '—'}
+                              </div>
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-[11px] text-[#7A6B9E]">Allocation</Label>
+                              <Select value={rl.allocation_percent} onValueChange={(v) => updateResourceLine(itemIndex, lineIndex, 'allocation_percent', v)}>
+                                <SelectTrigger className="h-9 text-sm" data-testid={`allocation-select-${itemIndex}-${lineIndex}`}>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {ALLOCATION_OPTIONS.map((pct) => (
+                                    <SelectItem key={pct} value={String(pct)}>{pct}%</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <Button
+                              type="button"
+                              onClick={() => removeResourceLine(itemIndex, lineIndex)}
+                              variant="ghost"
+                              size="sm"
+                              className="text-red-700 hover:text-red-800 h-9"
+                            >
+                              <X size={16} />
+                            </Button>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1fr] gap-2 items-end pl-1 border-l-2 border-[#E4DCF0]">
+                            <div className="space-y-1">
+                              <Label className="text-[11px] text-[#7A6B9E]">Quantity (optional)</Label>
+                              <Input
+                                type="number"
+                                value={rl.quantity}
+                                onChange={(e) => updateResourceLine(itemIndex, lineIndex, 'quantity', e.target.value)}
+                                placeholder="e.g., 2"
+                                className="h-9 text-sm"
+                                data-testid={`quantity-input-${itemIndex}-${lineIndex}`}
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-[11px] text-[#7A6B9E]">Unit</Label>
+                              <Select value={rl.unit || 'none'} onValueChange={(v) => updateResourceLine(itemIndex, lineIndex, 'unit', v === 'none' ? '' : v)}>
+                                <SelectTrigger className="h-9 text-sm" data-testid={`unit-select-${itemIndex}-${lineIndex}`}>
+                                  <SelectValue placeholder="—" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">None</SelectItem>
+                                  <SelectItem value="month">Month(s)</SelectItem>
+                                  <SelectItem value="day">Day(s)</SelectItem>
+                                  <SelectItem value="hrs">Hour(s)</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-[11px] text-[#7A6B9E]">Line Cost</Label>
+                              <div className="h-9 flex items-center px-2 bg-[#F7F4FC] border border-[#E4DCF0] rounded-md text-xs font-semibold text-[#2D1F47]">
+                                {fmt(rlCost)}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {item.resource_lines.length === 0 && (
+                      <p className="text-xs text-[#8577A3] italic">No additional roles added for this line.</p>
+                    )}
+                  </div>
+
+                  {/* Per-line-item summary */}
+                  <div className="grid grid-cols-3 gap-2 mt-4">
+                    <div className="bg-blue-50 border border-blue-200 rounded px-3 py-2 text-center">
+                      <p className="text-[10px] text-blue-700 font-medium">Line Cost</p>
+                      <p className="text-sm font-bold text-blue-700">{fmt(totalCost)}</p>
+                      {manualCost > 0 && autoBreakdown && (
+                        <p className="text-[9px] text-blue-700 mt-0.5">manual + auto</p>
+                      )}
+                    </div>
+                    <div className={`rounded px-3 py-2 text-center border ${profit !== null && profit < 0 ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-200'}`}>
+                      <p className={`text-[10px] font-medium ${profit !== null && profit < 0 ? 'text-red-700' : 'text-emerald-700'}`}>Line Profit</p>
+                      <p className={`text-sm font-bold ${profit !== null && profit < 0 ? 'text-red-700' : 'text-emerald-700'}`}>
+                        {profit !== null ? fmt(profit) : '—'}
+                      </p>
+                    </div>
+                    <div className="bg-purple-50 border border-purple-200 rounded px-3 py-2 text-center">
+                      <p className="text-[10px] text-purple-700 font-medium">Line Margin</p>
+                      <p className="text-sm font-bold text-purple-700">{margin !== null ? `${margin.toFixed(1)}%` : '—'}</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <Button
+            type="button"
+            onClick={addLineItem}
+            variant="outline"
+            className="mt-4 border-purple-500 text-purple-700 hover:bg-purple-50"
+          >
+            <Plus size={18} className="mr-2" />
+            Add Revenue Line Item
+          </Button>
+
+          {/* Overall Summary */}
+          <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-[#E4DCF0]">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
+              <p className="text-xs text-blue-700 font-medium mb-1">Total Cost</p>
+              <p className="text-xl font-bold text-blue-700">{fmt(totals.totalCost)}</p>
+            </div>
+            <div className={`rounded-lg p-4 text-center border ${totalProfit !== null && totalProfit < 0 ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-200'}`}>
+              <p className={`text-xs font-medium mb-1 ${totalProfit !== null && totalProfit < 0 ? 'text-red-700' : 'text-emerald-700'}`}>Total Profit</p>
+              <p className={`text-xl font-bold ${totalProfit !== null && totalProfit < 0 ? 'text-red-700' : 'text-emerald-700'}`}>
+                {totalProfit !== null ? fmt(totalProfit) : '—'}
+              </p>
+            </div>
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 text-center">
+              <p className="text-xs text-purple-700 font-medium mb-1">Overall Margin</p>
+              <p className="text-xl font-bold text-purple-700">
+                {totalMargin !== null ? `${totalMargin.toFixed(1)}%` : '—'}
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-2 mt-6">
+            <Label>Notes (optional)</Label>
+            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="Assumptions, context, etc." />
+          </div>
+
+          <div className="flex justify-end gap-3 mt-6">
+            <Button variant="outline" onClick={() => { setShowForm(false); resetForm(); }}>Cancel</Button>
+            <Button
+              onClick={handleSave}
+              disabled={saving}
+              className="text-white font-semibold"
+              style={{ background: 'linear-gradient(135deg, #9B30FF 0%, #E64AD1 100%)' }}
+              data-testid="save-analysis-button"
+            >
+              {saving ? 'Saving...' : editingId ? 'Update Analysis' : 'Save Analysis'}
+            </Button>
+          </div>
         </div>
       )}
 
-      {trackers.length === 0 ? (
-        <div className="bg-[#FFFFFF] border border-[#E4DCF0] shadow-sm p-10 text-center" data-testid="tracker-empty">
-          <ChartLineUp size={44} className="mx-auto text-purple-700 mb-3" />
-          <h3 className="text-lg font-bold text-[#1E1533] mb-1">No deal trackers yet</h3>
-          <p className="text-sm text-[#7A6B9E] mb-4">Create one to see a deal's margin over its full contract term, and keep versions as the commercials change.</p>
-          <Button onClick={openNew} variant="outline" className="bg-[#FFFFFF] text-[#1E1533] border-[#E4DCF0]">
-            <Plus size={16} className="mr-2" /> Create your first tracker
-          </Button>
+      <div className="bg-[#FFFFFF] border border-[#E4DCF0] shadow-sm">
+        <div className="divide-y divide-[#E4DCF0]">
+          {analyses.length === 0 ? (
+            <div className="p-12 text-center text-[#7A6B9E]" data-testid="no-analyses">
+              <p>No profitability analyses yet</p>
+            </div>
+          ) : (
+            analyses.map((analysis) => (
+              <div key={analysis.id} className="p-6" data-testid={`analysis-${analysis.id}`}>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 cursor-pointer" onClick={() => setExpandedId(expandedId === analysis.id ? null : analysis.id)}>
+                      <h3 className="text-lg font-semibold font-heading">
+                        {analysis.title}
+                      </h3>
+                      {expandedId === analysis.id ? <CaretUp size={16} /> : <CaretDown size={16} />}
+                    </div>
+                    <div className="flex items-center gap-4 text-xs text-[#7A6B9E] mb-3 mt-1">
+                      <span>By {analysis.created_by?.name}</span>
+                      <span>•</span>
+                      <span>{new Date(analysis.created_at).toLocaleDateString()}</span>
+                      {analysis.proposal_id && (
+                        <>
+                          <span>•</span>
+                          <span className="text-purple-700 font-medium">Linked to a proposal</span>
+                        </>
+                      )}
+                      <span>•</span>
+                      <span>{analysis.revenue_line_items.length} line item(s)</span>
+                    </div>
+                    <div className="flex items-center gap-4 text-sm">
+                      <span className="text-[#7A6B9E]">
+                        Revenue: <span className="font-semibold text-[#1E1533]">{analysis.total_revenue ? fmt(analysis.total_revenue) : '—'}</span>
+                      </span>
+                      <span className="text-[#7A6B9E]">
+                        Cost: <span className="font-semibold text-[#1E1533]">{fmt(analysis.total_cost)}</span>
+                      </span>
+                      <span className={analysis.profit !== null && analysis.profit < 0 ? 'text-red-700' : 'text-emerald-700'}>
+                        Profit: <span className="font-bold">{analysis.profit !== null ? fmt(analysis.profit) : '—'}</span>
+                      </span>
+                      <span className="text-purple-700">
+                        Margin: <span className="font-bold">{analysis.margin_percent !== null ? `${analysis.margin_percent.toFixed(1)}%` : '—'}</span>
+                      </span>
+                    </div>
+
+                    {expandedId === analysis.id && (
+                      <div className="mt-4 space-y-2 border-t border-[#E4DCF0] pt-4">
+                        {analysis.revenue_line_items.map((li, i) => (
+                          <div key={i} className="bg-[#F7F4FC] rounded p-3 text-xs">
+                            <div className="flex justify-between font-semibold mb-1">
+                              <span>
+                                {li.label}
+                                {li.reference_note && <span className="ml-2 text-[10px] font-normal text-purple-700">({li.reference_note})</span>}
+                              </span>
+                              <span>{li.revenue !== null ? fmt(li.revenue) : '—'} revenue</span>
+                            </div>
+                            <div className="text-[#7A6B9E]">
+                              Cost: {fmt(li.cost)} · Profit: {li.profit !== null ? fmt(li.profit) : '—'} · Margin: {li.margin_percent !== null ? `${li.margin_percent.toFixed(1)}%` : '—'}
+                            </div>
+                            {li.distributor_count && li.auto_costs && (
+                              <div className="mt-2 pl-3 border-l-2 border-amber-300 space-y-0.5 text-amber-700">
+                                <div>{li.distributor_count} distributors:</div>
+                                <div className="flex justify-between"><span>L2 ({li.auto_costs.l2_required.toFixed(3)})</span><span>{fmt(li.auto_costs.l2_cost)}</span></div>
+                                <div className="flex justify-between"><span>L3 ({li.auto_costs.l3_required.toFixed(3)})</span><span>{fmt(li.auto_costs.l3_cost)}</span></div>
+                                {Object.entries(li.auto_costs.license_costs || {}).map(([name, value]) => (
+                                  <div key={name} className="flex justify-between"><span>{name}</span><span>{fmt(value)}</span></div>
+                                ))}
+                              </div>
+                            )}
+                            {li.resource_lines.length > 0 && (
+                              <div className="mt-2 pl-3 border-l-2 border-purple-200 space-y-0.5">
+                                {li.resource_lines.map((rl, j) => (
+                                  <div key={j} className="flex justify-between text-[#7A6B9E]">
+                                    <span>
+                                      {rl.role_name} ({rl.allocation_percent}%)
+                                      {rl.quantity && rl.unit && <span> · {rl.quantity} {rl.unit}</span>}
+                                    </span>
+                                    <span>{fmt(rl.cost)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                        {analysis.notes && (
+                          <p className="text-xs text-[#7A6B9E] italic pt-2">Notes: {analysis.notes}</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  {canEdit(analysis) && (
+                    <div className="flex gap-2 flex-shrink-0">
+                      <Button variant="ghost" size="sm" onClick={() => openEditForm(analysis)} data-testid={`edit-analysis-${analysis.id}`}>
+                        <PencilSimple size={18} />
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => handleDelete(analysis.id)} className="text-red-700 hover:text-red-800" data-testid={`delete-analysis-${analysis.id}`}>
+                        <Trash size={18} />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
         </div>
-      ) : (
-        <div className="bg-[#FFFFFF] border border-[#E4DCF0] shadow-sm overflow-x-auto">
-          <table className="w-full min-w-[920px]" data-testid="tracker-table">
-            <thead>
-              <tr className="border-b border-[#E4DCF0] bg-[#F7F4FC]">
-                <Th>Client</Th><Th>Version</Th><Th>Deal date</Th><Th right>Term</Th><Th right>TCV</Th><Th right>Gross margin</Th>
-                <Th>GM %</Th><Th>Hosting</Th><Th>Owner</Th><Th>&nbsp;</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((t) => {
-                const mine = t.created_by?.id === user?.id || isAdmin;
-                return (
-                  <tr key={t.id} className="border-b border-[#F1EBFA] hover:bg-[#F7F4FC] cursor-pointer" onClick={() => openExisting(t.id)} data-testid={`tracker-row-${t.id}`}>
-                    <td className="px-2 py-3 text-sm font-semibold text-[#1E1533]">{t.client_name}</td>
-                    <td className="px-2 py-3 text-sm text-[#1E1533] whitespace-nowrap">{t.version}</td>
-                    <td className="px-2 py-3 text-sm text-[#5B4B7A] whitespace-nowrap">{formatDate(t.deal_date)}</td>
-                    <Calc>{t.term_years} yr</Calc>
-                    <Calc bold>{inr(t.tcv_revenue)}</Calc>
-                    <Calc>{inr(t.tcv_gm)}</Calc>
-                    <td className="px-2 py-3"><BandChip band={t.gm_band}>{pct(t.tcv_gm_pct)}</BandChip></td>
-                    <td className="px-2 py-3">
-                      <BandChip band={t.infra_flag === 'HIGH' ? 'red' : t.infra_flag === 'OK' ? 'green' : 'none'}>
-                        {t.infra_flag === 'n/a' ? 'n/a' : `${pct(t.infra_pct)} ${t.infra_flag}`}
-                      </BandChip>
-                    </td>
-                    <td className="px-2 py-3 text-xs text-[#5B4B7A] whitespace-nowrap">{t.created_by?.name}</td>
-                    <td className="px-2 py-3 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                      <button type="button" title="Open" onClick={() => openExisting(t.id)} className="p-1.5 rounded text-purple-700 hover:bg-purple-50"><PencilSimple size={17} /></button>
-                      <button type="button" title="New version" onClick={() => copyAsNextVersion(t)} className="p-1.5 rounded text-purple-700 hover:bg-purple-50" data-testid={`tracker-copy-${t.id}`}><GitBranch size={17} /></button>
-                      {mine && <button type="button" title="Delete" onClick={() => remove(t)} className="p-1.5 rounded text-red-700 hover:bg-red-50"><Trash size={17} /></button>}
-                    </td>
-                  </tr>
-                );
-              })}
-              {filtered.length === 0 && (
-                <tr><td colSpan={10} className="px-4 py-8 text-center text-sm text-[#7A6B9E]">No trackers match “{search}”.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
+      </div>
     </div>
   );
 };
 
-export default ProfitabilityTracker;
+export default ProfitabilityAnalyzer;
