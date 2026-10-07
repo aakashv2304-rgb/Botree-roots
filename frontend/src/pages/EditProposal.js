@@ -8,6 +8,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { toast } from 'sonner';
+import DspBadge from '../components/DspBadge';
 import { ArrowLeft } from '@phosphor-icons/react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -250,7 +251,10 @@ const EditProposal = () => {
       </Button>
 
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-[#1E1533] mb-2">Edit & Resubmit Proposal</h1>
+        <div className="flex flex-wrap items-center gap-3 mb-2">
+          <h1 className="text-3xl font-bold text-[#1E1533]">Edit & Resubmit Proposal</h1>
+          <DspBadge dsp={proposal?.dsp} testId="edit-dsp" />
+        </div>
         <p className="text-[#7A6B9E]">Update your rejected proposal and resubmit for approval</p>
       </div>
 
