@@ -3,7 +3,8 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { MagnifyingGlass, FileText, Clock, Warning, CheckCircle, Funnel, CurrencyInr, CalendarBlank, CaretLeft, CaretRight, Table, SquaresFour } from '@phosphor-icons/react';
+import { MagnifyingGlass, FileText, Clock, Warning, CheckCircle, Funnel, CurrencyInr, CalendarBlank, CaretLeft, CaretRight, Table, SquaresFour, Timer } from '@phosphor-icons/react';
+import DspBadge from '../components/DspBadge';
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
@@ -36,7 +37,7 @@ const Overview = () => {
 
   const fetchAll = async () => {
     try {
-      const [proposalsRes, stageRes, approvalRes, bottleneckRes, activityRes, slaRes, dealValueRes, monthlyRes] = await Promise.all([
+      const [proposalsRes, stageRes, approvalRes, bottleneckRes, activityRes, slaRes, dealValueRes, monthlyRes, dspRes] = await Promise.all([
         axios.get(`${API}/proposals`, { withCredentials: true }),
         axios.get(`${API}/analytics/stage-counts`, { withCredentials: true }),
         axios.get(`${API}/analytics/approval-rate`, { withCredentials: true }),
@@ -44,7 +45,8 @@ const Overview = () => {
         axios.get(`${API}/analytics/activity-feed`, { withCredentials: true }),
         axios.get(`${API}/analytics/sla-health`, { withCredentials: true }),
         axios.get(`${API}/analytics/deal-value-summary`, { withCredentials: true }),
-        axios.get(`${API}/analytics/monthly-proposals?year=${selectedYear}&month=${selectedMonth}`, { withCredentials: true })
+        axios.get(`${API}/analytics/monthly-proposals?year=${selectedYear}&month=${selectedMonth}`, { withCredentials: true }),
+        axios.get(`${API}/analytics/dsp-summary`, { withCredentials: true }).catch(() => ({ data: null })),
       ]);
 
       setProposals(proposalsRes.data);
@@ -55,7 +57,8 @@ const Overview = () => {
         activityFeed: activityRes.data,
         slaHealth: slaRes.data,
         dealValue: dealValueRes.data,
-        monthlyData: monthlyRes.data
+        monthlyData: monthlyRes.data,
+        dspSummary: dspRes.data,
       });
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -139,6 +142,7 @@ const Overview = () => {
     );
   }
 
+  const dsp = analytics.dspSummary;
   const kpiCards = [
     {
       label: 'Total Active Proposals',
@@ -160,6 +164,16 @@ const Overview = () => {
       sub: 'Active deals',
       icon: CurrencyInr,
       accent: '#E64AD1'
+    },
+    {
+      label: 'Avg. Days in Sales Pipeline',
+      value: dsp && dsp.avg_days_approved !== null ? `${dsp.avg_days_approved} days` : '—',
+      sub: dsp
+        ? `${dsp.approved_count} approved · ${dsp.open_count} open${dsp.oldest_open ? ` (oldest ${dsp.oldest_open.days}d)` : ''}`
+        : 'First proposal to approval',
+      icon: Timer,
+      accent: '#7C3AED',
+      testId: 'kpi-dsp',
     }
   ];
 
@@ -196,9 +210,9 @@ const Overview = () => {
         </div>
 
         {/* KPI Metric Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {kpiCards.map((card) => (
-            <div key={card.label} className="bg-[#FFFFFF] rounded-xl border border-[#E4DCF0] shadow-sm p-5 hover:shadow-md transition-shadow">
+            <div key={card.label} data-testid={card.testId} className="bg-[#FFFFFF] rounded-xl border border-[#E4DCF0] shadow-sm p-5 hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-xs font-semibold text-[#5B4B7A] uppercase tracking-wider">{card.label}</span>
                 <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${card.accent}1A` }}>
@@ -280,6 +294,7 @@ const Overview = () => {
                       <th className="text-left py-3 px-5 text-xs font-semibold text-[#5B4B7A] uppercase tracking-wider">Client Name</th>
                       <th className="text-left py-3 px-5 text-xs font-semibold text-[#5B4B7A] uppercase tracking-wider">Deal Value</th>
                       <th className="text-left py-3 px-5 text-xs font-semibold text-[#5B4B7A] uppercase tracking-wider">Stage / Status</th>
+                      <th className="text-left py-3 px-5 text-xs font-semibold text-[#5B4B7A] uppercase tracking-wider">Days in Pipeline</th>
                       <th className="text-left py-3 px-5 text-xs font-semibold text-[#5B4B7A] uppercase tracking-wider">Commercial Lead</th>
                       <th className="text-left py-3 px-5 text-xs font-semibold text-[#5B4B7A] uppercase tracking-wider">Last Updated</th>
                     </tr>
@@ -287,7 +302,7 @@ const Overview = () => {
                   <tbody className="divide-y divide-[#E4DCF0]">
                     {filteredProposals.length === 0 ? (
                       <tr>
-                        <td colSpan="6" className="py-10 text-center text-[#8577A3] text-sm">
+                        <td colSpan="7" className="py-10 text-center text-[#8577A3] text-sm">
                           No proposals found
                         </td>
                       </tr>
@@ -322,6 +337,9 @@ const Overview = () => {
                                   {getStatusLabel(proposal.status)}
                                 </Badge>
                               </div>
+                            </td>
+                            <td className="py-3 px-5">
+                              <DspBadge dsp={proposal.dsp} testId={`dsp-${proposal.id}`} />
                             </td>
                             <td className="py-3 px-5">
                               <div className="flex items-center gap-2">
@@ -364,7 +382,10 @@ const Overview = () => {
                             className="bg-[#FFFFFF] border border-[#E4DCF0] rounded-lg p-2.5 cursor-pointer hover:shadow-sm transition-shadow"
                           >
                             <div className="text-xs font-semibold text-[#1E1533] truncate">{p.title}</div>
-                            <div className="text-xs text-[#059669] font-semibold mt-1">{formatCurrency(p.deal_value)}</div>
+                            <div className="flex items-center justify-between mt-1">
+                              <span className="text-xs text-[#059669] font-semibold">{formatCurrency(p.deal_value)}</span>
+                              <DspBadge dsp={p.dsp} variant="compact" testId={`board-dsp-${p.id}`} />
+                            </div>
                           </div>
                         ))}
                         {stageProposals.length === 0 && (
@@ -405,6 +426,7 @@ const Overview = () => {
                             {activity.action === 'approved' ? 'approved' : activity.action === 'rejected' ? 'rejected' : 'updated'}
                           </span>
                           <span className="text-[#5B4B7A] truncate inline-block max-w-[160px] align-bottom">{activity.proposal_title}</span>
+                          <DspBadge dsp={activity.dsp} variant="inline" className="ml-1.5 align-middle" />
                         </div>
                         <div className="text-[10px] text-[#CBD5E1]">{formatTimestamp(activity.timestamp)}</div>
                       </div>
@@ -431,14 +453,17 @@ const Overview = () => {
                     <div
                       key={bottleneck.id}
                       onClick={() => navigate(`/dashboard/proposal/${bottleneck.id}`)}
-                      className="flex items-center justify-between p-2 rounded-lg cursor-pointer hover:opacity-80 transition-opacity"
+                      className="bottleneck-row flex items-center justify-between p-2 rounded-lg cursor-pointer hover:opacity-80 transition-opacity"
                       style={{ backgroundColor: '#FFE4E6' }}
                     >
                       <div className="flex-1 min-w-0">
                         <div className="text-xs font-semibold text-[#1E1533] truncate">{bottleneck.title}</div>
-                        <div className="text-[10px] text-[#5B4B7A]">{getStatusLabel(bottleneck.status)}</div>
+                        <div className="text-[10px] text-[#5B4B7A] flex items-center gap-1.5 flex-wrap">
+                          {getStatusLabel(bottleneck.status)}
+                          <DspBadge dsp={bottleneck.dsp} variant="inline" testId={`bottleneck-dsp-${bottleneck.id}`} />
+                        </div>
                       </div>
-                      <div className="text-xs font-bold text-[#E11D48] shrink-0 ml-2">{bottleneck.days_stuck}d</div>
+                      <div className="text-xs font-bold text-[#E11D48] shrink-0 ml-2">{bottleneck.days_stuck}d stuck</div>
                     </div>
                   ))}
                 </div>
