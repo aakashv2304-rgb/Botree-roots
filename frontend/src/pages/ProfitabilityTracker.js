@@ -13,7 +13,7 @@ import {
   Plus, X, ArrowLeft, FloppyDisk, GitBranch, Trash, MagnifyingGlass, Warning,
   CheckCircle, Lightbulb, ChartLineUp, LinkSimple, PencilSimple,
 } from '@phosphor-icons/react';
-import { computeTracker, MAX_TERM_YEARS } from '../utils/trackerCalc';
+import { computeTracker, computeManualDsp, localToday, MAX_TERM_YEARS } from '../utils/trackerCalc';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -38,7 +38,7 @@ const formatDate = (iso) => {
   const d = new Date(`${String(iso).slice(0, 10)}T00:00:00`);
   return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 };
-const today = () => new Date().toISOString().slice(0, 10);
+const today = localToday;
 
 const nextVersionLabel = (label) => {
   const m = /^[vV]?(\d+)(?:\.(\d+))?$/.exec((label || '').trim());
@@ -76,6 +76,7 @@ const blankResource = () => ({ _k: nk(), role: '', role_source: 'rate_card', ann
 
 const newForm = (cfg) => ({
   id: null, client_name: '', version: 'v1.0', deal_date: today(), proposal_id: '', parent_id: null, notes: '', created_by: null,
+  pipeline_start: '', pipeline_end: '',
   assumptions: {
     term_years: cfg.defaults.term_years,
     revenue_escalation_pct: cfg.defaults.revenue_escalation_pct,
@@ -92,6 +93,7 @@ const blankIfZero = (v) => (v === 0 || v === null || v === undefined ? '' : v);
 const formFromDoc = (d) => ({
   id: d.id, client_name: d.client_name || '', version: d.version || 'v1.0', deal_date: d.deal_date || '',
   proposal_id: d.proposal_id || '', parent_id: d.parent_id || null, notes: d.notes || '', created_by: d.created_by || null,
+  pipeline_start: d.pipeline_start || '', pipeline_end: d.pipeline_end || '',
   assumptions: {
     term_years: d.assumptions?.term_years ?? 3,
     revenue_escalation_pct: d.assumptions?.revenue_escalation_pct ?? 0,
@@ -115,6 +117,7 @@ const stripKeys = (rows) => rows.map(({ _k, ...rest }) => rest);
 const payloadFromForm = (f) => ({
   client_name: f.client_name, version: f.version, deal_date: f.deal_date || null,
   proposal_id: f.proposal_id || null, notes: f.notes || null,
+  pipeline_start: f.pipeline_start || null, pipeline_end: f.pipeline_end || null,
   assumptions: f.assumptions,
   one_time_items: stripKeys(f.one_time_items),
   recurring_items: stripKeys(f.recurring_items),
@@ -139,6 +142,11 @@ const BandChip = ({ band, children }) => (
     {children}
   </span>
 );
+
+// Days in Sales Pipeline: first proposal -> approved.
+const DSP_BAND = { approved: 'green', in_pipeline: 'amber', rejected: 'red', not_tracked: 'none' };
+const DSP_LABEL = { approved: 'Approved', in_pipeline: 'In pipeline', rejected: 'Rejected', not_tracked: 'Not tracked' };
+const dspDays = (d) => (d && d.days !== null && d.days !== undefined ? `${d.days} day${d.days === 1 ? '' : 's'}` : '—');
 
 const NumInput = ({ value, onChange, disabled, placeholder = '0', testId, className = '' }) => (
   <Input
@@ -228,7 +236,7 @@ const Kpi = ({ label, value, testId }) => (
 
 // The app's top bar is sticky and 111px tall at every width, so the bar pins just below it.
 // On phones it scrolls normally - pinned it would eat a quarter of the screen.
-const SummaryStrip = ({ result, actions }) => {
+const SummaryStrip = ({ result, actions, dsp }) => {
   const tcv = result.summary.tcv;
   const b = result.benchmarks;
   const hostBand = b.infra_flag === 'HIGH' ? 'red' : b.infra_flag === 'OK' ? 'green' : 'none';
@@ -249,6 +257,13 @@ const SummaryStrip = ({ result, actions }) => {
         <span className="flex items-center gap-2">
           <span className="font-bold text-[#1E1533]" data-testid="infra-pct">{pct(b.infra_pct)}</span>
           <BandChip band={hostBand}>{b.infra_flag}</BandChip>
+        </span>
+      </div>
+      <div>
+        <p className="text-xs text-[#7A6B9E] whitespace-nowrap">Days in sales pipeline</p>
+        <span className="flex items-center gap-2">
+          <span className="font-bold text-[#1E1533] whitespace-nowrap" data-testid="dsp-days">{dspDays(dsp)}</span>
+          <BandChip band={DSP_BAND[dsp.status]}>{DSP_LABEL[dsp.status]}</BandChip>
         </span>
       </div>
       <div className="flex flex-wrap gap-2 md:ml-auto">{actions}</div>
@@ -438,7 +453,23 @@ const TrackerEditor = ({ form, setForm, config, proposals, canEdit, saving, dirt
   const result = useMemo(() => computeTracker(form), [form]);
   const warnings = useMemo(() => getWarnings(form, result), [form, result]);
   const [pulling, setPulling] = useState(false);
+  const [linkedPipeline, setLinkedPipeline] = useState(null);
   const ro = !canEdit;
+
+  // With a proposal linked, DSP comes from that proposal's own history (server-side, IST dates);
+  // without one it is worked out here from the two dates typed on the tracker.
+  useEffect(() => {
+    if (!form.proposal_id) { setLinkedPipeline(null); return undefined; }
+    let cancelled = false;
+    axios.get(`${API}/profitability-trackers/pipeline/${form.proposal_id}`, { withCredentials: true })
+      .then((r) => { if (!cancelled) setLinkedPipeline(r.data); })
+      .catch(() => { if (!cancelled) setLinkedPipeline(null); });
+    return () => { cancelled = true; };
+  }, [form.proposal_id]);
+  const dsp = form.proposal_id
+    ? (linkedPipeline || { status: 'not_tracked', days: null, start: null, end: null })
+    : computeManualDsp(form.pipeline_start, form.pipeline_end);
+  const datesBackwards = !form.proposal_id && form.pipeline_start && form.pipeline_end && form.pipeline_end < form.pipeline_start;
 
   const setTop = (patch) => setForm((f) => ({ ...f, ...patch }));
   const setAssump = (patch) => setForm((f) => ({ ...f, assumptions: { ...f.assumptions, ...patch } }));
@@ -521,7 +552,7 @@ const TrackerEditor = ({ form, setForm, config, proposals, canEdit, saving, dirt
         </div>
       </div>
 
-      <SummaryStrip result={result} actions={actions} />
+      <SummaryStrip result={result} actions={actions} dsp={dsp} />
 
       {ro && (
         <div className="bg-[#F7F4FC] border border-[#E4DCF0] p-3 mt-4 text-sm text-[#5B4B7A]" data-testid="tracker-readonly">
@@ -566,6 +597,51 @@ const TrackerEditor = ({ form, setForm, config, proposals, canEdit, saving, dirt
                   </Button>
                 </div>
                 <p className="text-xs text-[#7A6B9E]">Pulls term, escalation and every revenue line from the proposal; costs stay for you to fill in.</p>
+              </div>
+              <div className="md:col-span-3 border-t border-[#F1EBFA] pt-4" data-testid="tracker-pipeline">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {form.proposal_id ? (
+                    <>
+                      <div className="space-y-1">
+                        <Label>First proposal</Label>
+                        <div className="h-10 flex items-center px-3 bg-[#F7F4FC] text-[#1E1533]" data-testid="pipeline-start-linked">{dsp.start ? formatDate(dsp.start) : '—'}</div>
+                      </div>
+                      <div className="space-y-1">
+                        <Label>{dsp.status === 'rejected' ? 'Rejected' : 'Approved'}</Label>
+                        <div className="h-10 flex items-center px-3 bg-[#F7F4FC] text-[#1E1533]" data-testid="pipeline-end-linked">
+                          {dsp.end ? formatDate(dsp.end) : dsp.status === 'in_pipeline' ? 'Still open — counting to today' : '—'}
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="space-y-1">
+                        <Label>First proposal date</Label>
+                        <Input type="date" value={form.pipeline_start || ''} disabled={ro} onChange={(e) => setTop({ pipeline_start: e.target.value })}
+                          className="h-10 bg-[#FFFFFF] text-[#1E1533]" data-testid="tracker-pipeline-start" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Approved date (blank while open)</Label>
+                        <Input type="date" value={form.pipeline_end || ''} disabled={ro} onChange={(e) => setTop({ pipeline_end: e.target.value })}
+                          className="h-10 bg-[#FFFFFF] text-[#1E1533]" data-testid="tracker-pipeline-end" />
+                      </div>
+                    </>
+                  )}
+                  <div className="space-y-1">
+                    <Label>Days in sales pipeline</Label>
+                    <div className="h-10 flex items-center gap-2 px-3 bg-[#F7F4FC] text-[#1E1533] font-semibold">
+                      {dspDays(dsp)} <BandChip band={DSP_BAND[dsp.status]}>{DSP_LABEL[dsp.status]}</BandChip>
+                    </div>
+                  </div>
+                </div>
+                {datesBackwards && (
+                  <p className="text-xs text-red-700 mt-1" data-testid="pipeline-backwards">The approved date is before the first proposal date.</p>
+                )}
+                <p className="text-xs text-[#7A6B9E] mt-2">
+                  {form.proposal_id
+                    ? 'Taken from the linked proposal and kept up to date automatically: from when it was first created to its final approval.'
+                    : 'Calendar days from the first proposal to approval. Link a proposal above to track this automatically instead.'}
+                </p>
               </div>
               <div className="space-y-1 md:col-span-3">
                 <Label>Notes</Label>
@@ -964,11 +1040,11 @@ const ProfitabilityTracker = () => {
         </div>
       ) : (
         <div className="bg-[#FFFFFF] border border-[#E4DCF0] shadow-sm overflow-x-auto">
-          <table className="w-full min-w-[920px]" data-testid="tracker-table">
+          <table className="w-full min-w-[1040px]" data-testid="tracker-table">
             <thead>
               <tr className="border-b border-[#E4DCF0] bg-[#F7F4FC]">
                 <Th>Client</Th><Th>Version</Th><Th>Deal date</Th><Th right>Term</Th><Th right>TCV</Th><Th right>Gross margin</Th>
-                <Th>GM %</Th><Th>Hosting</Th><Th>Owner</Th><Th>&nbsp;</Th>
+                <Th>GM %</Th><Th>Hosting</Th><Th>Days in pipeline</Th><Th>Owner</Th><Th>&nbsp;</Th>
               </tr>
             </thead>
             <tbody>
@@ -988,6 +1064,10 @@ const ProfitabilityTracker = () => {
                         {t.infra_flag === 'n/a' ? 'n/a' : `${pct(t.infra_pct)} ${t.infra_flag}`}
                       </BandChip>
                     </td>
+                    <td className="px-2 py-3 whitespace-nowrap" data-testid={`tracker-dsp-${t.id}`}>
+                      <span className="text-sm font-semibold text-[#1E1533] mr-2">{dspDays(t.dsp)}</span>
+                      {t.dsp && t.dsp.status !== 'not_tracked' && <BandChip band={DSP_BAND[t.dsp.status]}>{DSP_LABEL[t.dsp.status]}</BandChip>}
+                    </td>
                     <td className="px-2 py-3 text-xs text-[#5B4B7A] whitespace-nowrap">{t.created_by?.name}</td>
                     <td className="px-2 py-3 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                       <button type="button" title="Open" onClick={() => openExisting(t.id)} className="p-1.5 rounded text-purple-700 hover:bg-purple-50"><PencilSimple size={17} /></button>
@@ -998,7 +1078,7 @@ const ProfitabilityTracker = () => {
                 );
               })}
               {filtered.length === 0 && (
-                <tr><td colSpan={10} className="px-4 py-8 text-center text-sm text-[#7A6B9E]">No trackers match “{search}”.</td></tr>
+                <tr><td colSpan={11} className="px-4 py-8 text-center text-sm text-[#7A6B9E]">No trackers match “{search}”.</td></tr>
               )}
             </tbody>
           </table>
