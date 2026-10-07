@@ -7,6 +7,7 @@ import { Button } from '../components/ui/button';
 import { Textarea } from '../components/ui/textarea';
 import { Label } from '../components/ui/label';
 import { Badge } from '../components/ui/badge';
+import DspBadge, { dspDate } from '../components/DspBadge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { toast } from 'sonner';
@@ -553,6 +554,7 @@ const ProposalDetail = () => {
                    proposal.status === 'rejected' ? 'Rejected (Closed)' :
                    proposal.status === 'needs_revision' ? 'Needs Revision' : 'Pending'}
                 </Badge>
+                <DspBadge dsp={proposal.dsp} testId="header-dsp" />
                 {canEdit() && !proposal.is_closed && (
                   <Button
                     onClick={() => navigate(`/dashboard/proposal/${id}/edit`)}
@@ -621,6 +623,24 @@ const ProposalDetail = () => {
             </div>
 
             {/* Extended Fields */}
+            {proposal.dsp && proposal.dsp.days !== null && (
+              <div className="border-t border-[#E4DCF0] pt-4 mt-4" data-testid="detail-dsp">
+                <h3 className="text-sm font-heading font-bold text-[#1E1533] mb-2">Days in Sales Pipeline</h3>
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="text-2xl font-black text-[#1E1533]" data-testid="detail-dsp-days">
+                    {proposal.dsp.days} day{proposal.dsp.days === 1 ? '' : 's'}
+                  </span>
+                  <DspBadge dsp={proposal.dsp} variant="status" />
+                </div>
+                <p className="text-xs text-[#7A6B9E] mt-1">
+                  First proposal {dspDate(proposal.dsp.start)} →{' '}
+                  {proposal.dsp.end
+                    ? `${proposal.dsp.status === 'rejected' ? 'rejected' : 'approved'} ${dspDate(proposal.dsp.end)}`
+                    : 'still open, counting up to today'}
+                </p>
+              </div>
+            )}
+
             {(proposal.customer_name || proposal.industry || proposal.deal_value || proposal.one_time_setup_fee || proposal.integration_fee || proposal.additional_fees?.length > 0 || proposal.contract_years || proposal.price_escalation_percent || proposal.comments || proposal.flexidms_distributor_charge || proposal.dms_distributor_charge || proposal.sfa_user_charge || proposal.shared_l1_support_charge || proposal.include_dms_training || proposal.include_sfa_training || proposal.include_flexidms_deployment || proposal.customization_fee || proposal.workshop_fee) && (
               <div className="border-t border-[#E4DCF0] pt-4 mt-4">
                 <h3 className="text-sm font-heading font-bold text-[#1E1533] mb-3">Proposal Details</h3>
