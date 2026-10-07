@@ -165,3 +165,33 @@ export function computeTracker(data) {
     },
   };
 }
+
+
+// ---------------------------------------------------------------------------
+// Days in Sales Pipeline (DSP) from two typed dates - mirrors
+// pipeline_from_manual in backend/tracker_calc.py. For a deal linked to a
+// proposal the server works it out from the proposal's own history instead.
+// Calendar days; the same day is 0 days.
+// ---------------------------------------------------------------------------
+const DAY_MS = 86400000;
+const parseDay = (s) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s || '');
+  return m ? Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
+};
+
+// Today's date in the browser's own time zone (not UTC, which is a day behind before 5:30 am IST).
+export const localToday = () => {
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
+
+export function computeManualDsp(start, end, today = localToday()) {
+  const s = parseDay(start);
+  if (s === null) return { status: 'not_tracked', days: null, start: null, end: null, source: null };
+  const e = parseDay(end);
+  if (e !== null) {
+    return { status: 'approved', days: Math.max(0, Math.round((e - s) / DAY_MS)), start, end, source: 'manual' };
+  }
+  return { status: 'in_pipeline', days: Math.max(0, Math.round((parseDay(today) - s) / DAY_MS)), start, end: null, source: 'manual' };
+}
