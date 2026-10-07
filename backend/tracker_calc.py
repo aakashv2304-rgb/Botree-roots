@@ -429,17 +429,35 @@ def tracker_inputs_from_proposal(proposal: Dict[str, Any]) -> Dict[str, Any]:
 
 
 # --------------------------------------------------------------------------
-# Days in Sales Pipeline (DSP)
+# Deal status (sales stage) and Days in Sales Pipeline (DSP)
 # --------------------------------------------------------------------------
-# DSP = calendar days from the FIRST proposal to approval. For a deal linked to
-# a proposal it is read from that proposal's own record, so it is always current:
-# an open deal keeps counting up and switches to "approved" the day the last
-# approver signs off. Deals without a linked proposal can carry two manual dates.
+# A deal moves through sales stages S1..S6. The final step is closing it, which
+# ends in one of two ways: Won & Closed or Lost & Closed. Only the person who
+# uploaded the proposal can move it (enforced by the route, not here).
 #
-# Dates are counted in IST. Timestamps are stored in UTC, and a proposal approved
-# at 10:30 pm IST is already "tomorrow" in UTC - counting in UTC would be off by a
-# day for late-evening activity. India has no daylight saving, so a fixed offset
-# is exact.
+# DSP = calendar days from the FIRST proposal to the day the deal is CLOSED.
+# Approval inside Botree does not stop the clock - the deal is still being
+# worked until its owner closes it. A proposal that the approvers reject and
+# close stops at that rejection. Everything else is "in pipeline", counting up
+# to today, so an open deal's number keeps growing without anyone touching it.
+#
+# Dates are counted in IST. Timestamps are stored in UTC, and an action at
+# 10:30 pm IST is already "tomorrow" in UTC - counting in UTC would be off by a
+# day for late-evening activity. India has no daylight saving, so a fixed
+# offset is exact.
+
+DEAL_STAGES = [
+    {"key": "S1", "label": "S1", "short": "S1", "closed": False, "outcome": None},
+    {"key": "S2", "label": "S2", "short": "S2", "closed": False, "outcome": None},
+    {"key": "S3", "label": "S3", "short": "S3", "closed": False, "outcome": None},
+    {"key": "S4", "label": "S4", "short": "S4", "closed": False, "outcome": None},
+    {"key": "S5", "label": "S5", "short": "S5", "closed": False, "outcome": None},
+    {"key": "S6_WON", "label": "S6 · Won & Closed", "short": "Won", "closed": True, "outcome": "won"},
+    {"key": "S6_LOST", "label": "S6 · Lost & Closed", "short": "Lost", "closed": True, "outcome": "lost"},
+]
+DEFAULT_DEAL_STAGE = "S1"
+_STAGE_BY_KEY = {st["key"]: st for st in DEAL_STAGES}
+MAX_COMMENT_LEN = 2000
 
 IST = timezone(timedelta(hours=5, minutes=30))
 
@@ -470,13 +488,14 @@ def _not_tracked() -> Dict[str, Any]:
 
 def compute_dsp(start: Any, end: Any, outcome: str = "open", today: Optional[date] = None,
                 source: Optional[str] = None) -> Dict[str, Any]:
-    """Days in sales pipeline. `outcome` is 'approved' or 'rejected' (the clock stops
-    at `end`) or 'open' (still running, counted up to today). The same day counts
-    as 0 days. Status is one of approved / rejected / in_pipeline / not_tracked."""
+    """Days in sales pipeline. `outcome` is 'won', 'lost', 'closed' (closed, outcome
+    unknown) or 'rejected' - the clock stops at `end` - or 'open', counted up to
+    today. The same day counts as 0 days. Status is one of won / lost / closed /
+    rejected / in_pipeline / not_tracked."""
     start_d = to_ist_date(start)
     if start_d is None:
         return _not_tracked()
-    end_d = to_ist_date(end) if outcome in ("approved", "rejected") else None
+    end_d = to_ist_date(end) if outcome in ("won", "lost", "closed", "rejected") else None
     if end_d is not None:
         status, days = outcome, (end_d - start_d).days
     else:
@@ -489,26 +508,27 @@ def compute_dsp(start: Any, end: Any, outcome: str = "open", today: Optional[dat
 
 def pipeline_from_proposal(proposal: Dict[str, Any], today: Optional[date] = None) -> Dict[str, Any]:
     """DSP for a proposal: first proposal = when it was created (revisions don't
-    restart it); approved = the last approval (or Admin override) that put it in
-    the approved state."""
+    restart it); end = the day its owner closed the deal as won or lost, or the day
+    the approvers rejected and closed it. Otherwise still open."""
     history = proposal.get("history") or []
     start = proposal.get("created_at") or next((h.get("timestamp") for h in history if h.get("timestamp")), None)
-    status = proposal.get("status")
-    if status == "approved":
-        stamps = [h["timestamp"] for h in history if h.get("action") in ("approved", "admin_override") and h.get("timestamp")]
-        return compute_dsp(start, stamps[-1] if stamps else proposal.get("updated_at"), "approved", today, "proposal")
-    if status == "rejected":
+    if proposal.get("status") == "rejected":
         stamps = [h["timestamp"] for h in history if h.get("action") == "rejected_closed" and h.get("timestamp")]
         return compute_dsp(start, stamps[-1] if stamps else proposal.get("updated_at"), "rejected", today, "proposal")
+    stage = _STAGE_BY_KEY.get(proposal.get("deal_stage") or DEFAULT_DEAL_STAGE)
+    if stage and stage["closed"]:
+        closed_on = proposal.get("closed_on") or proposal.get("deal_status_updated_at")
+        if closed_on:
+            return compute_dsp(start, closed_on, stage["outcome"], today, "proposal")
     return compute_dsp(start, None, "open", today, "proposal")
 
 
 def pipeline_from_manual(start: Any, end: Any, today: Optional[date] = None) -> Dict[str, Any]:
-    """DSP from two dates typed on the tracker (for deals that never went through
-    the app): both dates = approved; only a start date = still open."""
+    """DSP from two dates typed on a tracker (for deals that never went through the
+    app): both dates = closed (outcome unknown); only a start date = still open."""
     if not start:
         return _not_tracked()
-    return compute_dsp(start, end, "approved" if end else "open", today, "manual")
+    return compute_dsp(start, end, "closed" if end else "open", today, "manual")
 
 
 def validate_pipeline_dates(start: Any, end: Any):
@@ -523,20 +543,74 @@ def validate_pipeline_dates(start: Any, end: Any):
         except ValueError:
             raise ValueError(f"{label} must be in YYYY-MM-DD format")
     s = parse(start, "First proposal date")
-    e = parse(end, "Approved date")
+    e = parse(end, "Closed date")
     if e and not s:
-        raise ValueError("Enter the first proposal date as well as the approved date")
+        raise ValueError("Enter the first proposal date as well as the closed date")
     if s and e and e < s:
-        raise ValueError("Approved date cannot be before the first proposal date")
+        raise ValueError("Closed date cannot be before the first proposal date")
     return (s.isoformat() if s else None, e.isoformat() if e else None)
+
+
+def deal_status_view(proposal: Dict[str, Any]) -> Dict[str, Any]:
+    """The public face of a proposal's deal status (a proposal that was never given
+    one is at S1)."""
+    st = _STAGE_BY_KEY.get(proposal.get("deal_stage") or DEFAULT_DEAL_STAGE) or _STAGE_BY_KEY[DEFAULT_DEAL_STAGE]
+    return {
+        "stage": st["key"], "label": st["label"], "short": st["short"],
+        "closed": st["closed"], "outcome": st["outcome"],
+        "closed_on": (proposal.get("closed_on") or None) if st["closed"] else None,
+        "updated_at": proposal.get("deal_status_updated_at"),
+        "updated_by": proposal.get("deal_status_updated_by"),
+    }
+
+
+def validate_deal_update(proposal: Dict[str, Any], stage: Any, comment: Any, closed_on: Any,
+                         today: Optional[date] = None) -> Dict[str, Any]:
+    """Check the owner's update. Returns {"stage", "comment", "closed_on"} cleaned, or
+    raises ValueError with a message fit to show the user."""
+    if proposal.get("status") == "rejected" or proposal.get("is_closed"):
+        raise ValueError("This proposal was rejected and closed, so its deal status can no longer be changed")
+    st = _STAGE_BY_KEY.get(str(stage or ""))
+    if st is None:
+        raise ValueError("Choose a valid deal status")
+    text = str(comment or "").strip()
+    if len(text) > MAX_COMMENT_LEN:
+        raise ValueError(f"Comment is too long (maximum {MAX_COMMENT_LEN} characters)")
+
+    today = today or today_ist()
+    clean_closed_on = None
+    if st["closed"]:
+        raw = str(closed_on or "").strip()[:10]
+        if raw:
+            try:
+                clean_closed_on = date.fromisoformat(raw)
+            except ValueError:
+                raise ValueError("Closed date must be in YYYY-MM-DD format")
+        else:
+            clean_closed_on = today
+        start = to_ist_date(proposal.get("created_at"))
+        if clean_closed_on > today:
+            raise ValueError("Closed date cannot be in the future")
+        if start and clean_closed_on < start:
+            raise ValueError(f"Closed date cannot be before the first proposal date ({start.strftime('%d %b %Y')})")
+
+    current = deal_status_view(proposal)
+    same_stage = current["stage"] == st["key"]
+    same_date = (not st["closed"]) or (current["closed_on"] == (clean_closed_on.isoformat() if clean_closed_on else None))
+    if same_stage and same_date and not text:
+        raise ValueError("Nothing to update - change the status or add a comment")
+    return {"stage": st["key"], "comment": text, "closed_on": clean_closed_on.isoformat() if clean_closed_on else None}
 
 
 def dsp_summary(entries: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Headline Days-in-Sales-Pipeline numbers for the dashboard. `entries` is a
     list of {"id", "title", "dsp"} where dsp comes from pipeline_from_proposal.
-    Approved deals give the cycle-time figures; deals still moving give the open
-    count, their average age, and the single oldest one (the one to chase)."""
-    approved = [e["dsp"]["days"] for e in entries if e["dsp"]["status"] == "approved" and e["dsp"]["days"] is not None]
+    Closed deals (won or lost) give the cycle-time figures; deals still open give
+    the open count, their average age, and the single oldest one (the one to
+    chase). Internally rejected proposals count as neither."""
+    closed = [e for e in entries if e["dsp"]["status"] in ("won", "lost", "closed") and e["dsp"]["days"] is not None]
+    closed_days = [e["dsp"]["days"] for e in closed]
+    won_days = [e["dsp"]["days"] for e in closed if e["dsp"]["status"] == "won"]
     open_items = [e for e in entries if e["dsp"]["status"] == "in_pipeline" and e["dsp"]["days"] is not None]
 
     def avg(values: List[int]) -> Optional[float]:
@@ -551,11 +625,14 @@ def dsp_summary(entries: List[Dict[str, Any]]) -> Dict[str, Any]:
 
     oldest = max(open_items, key=lambda e: e["dsp"]["days"], default=None)
     return {
-        "approved_count": len(approved),
-        "avg_days_approved": avg(approved),
-        "median_days_approved": median(approved),
-        "fastest_days": min(approved) if approved else None,
-        "slowest_days": max(approved) if approved else None,
+        "closed_count": len(closed),
+        "won_count": len(won_days),
+        "lost_count": sum(1 for e in closed if e["dsp"]["status"] == "lost"),
+        "avg_days_closed": avg(closed_days),
+        "median_days_closed": median(closed_days),
+        "avg_days_won": avg(won_days),
+        "fastest_days": min(closed_days) if closed_days else None,
+        "slowest_days": max(closed_days) if closed_days else None,
         "open_count": len(open_items),
         "avg_days_open": avg([e["dsp"]["days"] for e in open_items]),
         "oldest_open": {"id": oldest["id"], "title": oldest["title"], "days": oldest["dsp"]["days"]} if oldest else None,
