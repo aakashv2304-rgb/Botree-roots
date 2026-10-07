@@ -168,7 +168,7 @@ export function computeTracker(data) {
 
 
 // ---------------------------------------------------------------------------
-// Days in Sales Pipeline (DSP) from two typed dates - mirrors
+// Days in Sales Pipeline (DSP) from two typed dates (first proposal -> closed) - mirrors
 // pipeline_from_manual in backend/tracker_calc.py. For a deal linked to a
 // proposal the server works it out from the proposal's own history instead.
 // Calendar days; the same day is 0 days.
@@ -191,7 +191,7 @@ export function computeManualDsp(start, end, today = localToday()) {
   if (s === null) return { status: 'not_tracked', days: null, start: null, end: null, source: null };
   const e = parseDay(end);
   if (e !== null) {
-    return { status: 'approved', days: Math.max(0, Math.round((e - s) / DAY_MS)), start, end, source: 'manual' };
+    return { status: 'closed', days: Math.max(0, Math.round((e - s) / DAY_MS)), start, end, source: 'manual' };
   }
   return { status: 'in_pipeline', days: Math.max(0, Math.round((parseDay(today) - s) / DAY_MS)), start, end: null, source: 'manual' };
 }
