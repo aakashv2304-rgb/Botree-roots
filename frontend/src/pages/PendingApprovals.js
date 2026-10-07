@@ -4,6 +4,7 @@ import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { Badge } from '../components/ui/badge';
+import DspBadge from '../components/DspBadge';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -96,9 +97,12 @@ const PendingApprovals = () => {
                       <span>{new Date(proposal.created_at).toLocaleDateString()}</span>
                     </div>
                   </div>
-                  <Badge className={getStatusColor(proposal.status)} data-testid={`pending-status-${proposal.id}`}>
-                    {getStatusLabel(proposal.status)}
-                  </Badge>
+                  <div className="flex flex-col items-end gap-2">
+                    <Badge className={getStatusColor(proposal.status)} data-testid={`pending-status-${proposal.id}`}>
+                      {getStatusLabel(proposal.status)}
+                    </Badge>
+                    <DspBadge dsp={proposal.dsp} testId={`pending-dsp-${proposal.id}`} />
+                  </div>
                 </div>
               </div>
             ))
