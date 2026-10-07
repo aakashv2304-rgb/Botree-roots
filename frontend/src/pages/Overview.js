@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { MagnifyingGlass, FileText, Clock, Warning, CheckCircle, Funnel, CurrencyInr, CalendarBlank, CaretLeft, CaretRight, Table, SquaresFour, Timer } from '@phosphor-icons/react';
 import DspBadge from '../components/DspBadge';
+import { DealStageChip } from '../components/DealStatus';
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
@@ -167,10 +168,10 @@ const Overview = () => {
     },
     {
       label: 'Avg. Days in Sales Pipeline',
-      value: dsp && dsp.avg_days_approved !== null ? `${dsp.avg_days_approved} days` : '—',
+      value: dsp && dsp.avg_days_closed !== null ? `${dsp.avg_days_closed} days` : '—',
       sub: dsp
-        ? `${dsp.approved_count} approved · ${dsp.open_count} open${dsp.oldest_open ? ` (oldest ${dsp.oldest_open.days}d)` : ''}`
-        : 'First proposal to approval',
+        ? `${dsp.closed_count} closed (${dsp.won_count} won) · ${dsp.open_count} open${dsp.oldest_open ? ` (oldest ${dsp.oldest_open.days}d)` : ''}`
+        : 'First proposal to deal closed',
       icon: Timer,
       accent: '#7C3AED',
       testId: 'kpi-dsp',
@@ -294,7 +295,7 @@ const Overview = () => {
                       <th className="text-left py-3 px-5 text-xs font-semibold text-[#5B4B7A] uppercase tracking-wider">Client Name</th>
                       <th className="text-left py-3 px-5 text-xs font-semibold text-[#5B4B7A] uppercase tracking-wider">Deal Value</th>
                       <th className="text-left py-3 px-5 text-xs font-semibold text-[#5B4B7A] uppercase tracking-wider">Stage / Status</th>
-                      <th className="text-left py-3 px-5 text-xs font-semibold text-[#5B4B7A] uppercase tracking-wider">Days in Pipeline</th>
+                      <th className="text-left py-3 px-5 text-xs font-semibold text-[#5B4B7A] uppercase tracking-wider">Days in Pipeline / Deal Stage</th>
                       <th className="text-left py-3 px-5 text-xs font-semibold text-[#5B4B7A] uppercase tracking-wider">Commercial Lead</th>
                       <th className="text-left py-3 px-5 text-xs font-semibold text-[#5B4B7A] uppercase tracking-wider">Last Updated</th>
                     </tr>
@@ -339,7 +340,10 @@ const Overview = () => {
                               </div>
                             </td>
                             <td className="py-3 px-5">
-                              <DspBadge dsp={proposal.dsp} testId={`dsp-${proposal.id}`} />
+                              <div className="flex flex-col items-start gap-1">
+                                <DspBadge dsp={proposal.dsp} testId={`dsp-${proposal.id}`} />
+                                <DealStageChip deal={proposal.deal_status} testId={`stage-${proposal.id}`} />
+                              </div>
                             </td>
                             <td className="py-3 px-5">
                               <div className="flex items-center gap-2">
