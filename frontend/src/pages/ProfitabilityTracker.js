@@ -143,9 +143,9 @@ const BandChip = ({ band, children }) => (
   </span>
 );
 
-// Days in Sales Pipeline: first proposal -> approved.
-const DSP_BAND = { approved: 'green', in_pipeline: 'amber', rejected: 'red', not_tracked: 'none' };
-const DSP_LABEL = { approved: 'Approved', in_pipeline: 'In pipeline', rejected: 'Rejected', not_tracked: 'Not tracked' };
+// Days in Sales Pipeline: first proposal -> the day the deal is closed (won or lost).
+const DSP_BAND = { won: 'green', lost: 'red', closed: 'none', in_pipeline: 'amber', rejected: 'red', not_tracked: 'none' };
+const DSP_LABEL = { won: 'Won & Closed', lost: 'Lost & Closed', closed: 'Closed', in_pipeline: 'In pipeline', rejected: 'Rejected', not_tracked: 'Not tracked' };
 const dspDays = (d) => (d && d.days !== null && d.days !== undefined ? `${d.days} day${d.days === 1 ? '' : 's'}` : '—');
 
 const NumInput = ({ value, onChange, disabled, placeholder = '0', testId, className = '' }) => (
@@ -607,7 +607,7 @@ const TrackerEditor = ({ form, setForm, config, proposals, canEdit, saving, dirt
                         <div className="h-10 flex items-center px-3 bg-[#F7F4FC] text-[#1E1533]" data-testid="pipeline-start-linked">{dsp.start ? formatDate(dsp.start) : '—'}</div>
                       </div>
                       <div className="space-y-1">
-                        <Label>{dsp.status === 'rejected' ? 'Rejected' : 'Approved'}</Label>
+                        <Label>{dsp.status === 'rejected' ? 'Rejected' : 'Closed'}</Label>
                         <div className="h-10 flex items-center px-3 bg-[#F7F4FC] text-[#1E1533]" data-testid="pipeline-end-linked">
                           {dsp.end ? formatDate(dsp.end) : dsp.status === 'in_pipeline' ? 'Still open — counting to today' : '—'}
                         </div>
@@ -621,7 +621,7 @@ const TrackerEditor = ({ form, setForm, config, proposals, canEdit, saving, dirt
                           className="h-10 bg-[#FFFFFF] text-[#1E1533]" data-testid="tracker-pipeline-start" />
                       </div>
                       <div className="space-y-1">
-                        <Label>Approved date (blank while open)</Label>
+                        <Label>Closed date (blank while open)</Label>
                         <Input type="date" value={form.pipeline_end || ''} disabled={ro} onChange={(e) => setTop({ pipeline_end: e.target.value })}
                           className="h-10 bg-[#FFFFFF] text-[#1E1533]" data-testid="tracker-pipeline-end" />
                       </div>
@@ -635,12 +635,12 @@ const TrackerEditor = ({ form, setForm, config, proposals, canEdit, saving, dirt
                   </div>
                 </div>
                 {datesBackwards && (
-                  <p className="text-xs text-red-700 mt-1" data-testid="pipeline-backwards">The approved date is before the first proposal date.</p>
+                  <p className="text-xs text-red-700 mt-1" data-testid="pipeline-backwards">The closed date is before the first proposal date.</p>
                 )}
                 <p className="text-xs text-[#7A6B9E] mt-2">
                   {form.proposal_id
-                    ? 'Taken from the linked proposal and kept up to date automatically: from when it was first created to its final approval.'
-                    : 'Calendar days from the first proposal to approval. Link a proposal above to track this automatically instead.'}
+                    ? 'Taken from the linked proposal and kept up to date automatically: from when it was first created to the day its owner closes the deal (won or lost). Approval alone does not stop it.'
+                    : 'Calendar days from the first proposal to the day the deal is closed. Link a proposal above to track this automatically instead.'}
                 </p>
               </div>
               <div className="space-y-1 md:col-span-3">
