@@ -1,22 +1,25 @@
 import React from 'react';
 
-// Days in Sales Pipeline: first proposal -> approved. The number always comes
+// Days in Sales Pipeline: first proposal -> the day the deal is CLOSED (won or lost) by its owner.
+// Approval inside Botree does not stop it. The number always comes
 // from the server (`dsp` on every proposal), so every screen agrees with the
 // dashboard, the tracker and the emails.
 //
-//   variant "full"    -> "21 days · Approved"      (headers, lists with room)
+//   variant "full"    -> "21 days · Won & Closed"  (headers, lists with room)
 //   variant "compact" -> "21d"                     (tight cards)
-//   variant "inline"  -> "21d to approve" /        (feeds, alerts, notifications:
-//                        "10d in pipeline" /         says what the number means)
-//                        "7d to reject"
-//   variant "status"  -> "Approved" (status only, next to a big number)
+//   variant "inline"  -> "Won in 21d" / "Lost after 7d" /   (feeds, alerts, notifications:
+//                        "10d in pipeline" / "7d to reject"   says what the number means)
+//   variant "status"  -> "Won & Closed" (status only, next to a big number)
 //   size "sm" | "md"  -> small by default for compact/inline, normal otherwise
 const STYLES = {
-  approved: 'bg-green-100 text-green-800 border-green-300',
+  won: 'bg-green-100 text-green-800 border-green-300',
+  lost: 'bg-red-100 text-red-800 border-red-300',
+  closed: 'bg-slate-100 text-slate-700 border-slate-300',   // closed, outcome not recorded (typed dates on a tracker)
   in_pipeline: 'bg-amber-100 text-amber-800 border-amber-300',
-  rejected: 'bg-red-100 text-red-800 border-red-300',
+  rejected: 'bg-red-100 text-red-800 border-red-300',       // rejected and closed by the approvers
 };
-const STATUS_LABEL = { approved: 'Approved', in_pipeline: 'In pipeline', rejected: 'Rejected' };
+const STATUS_LABEL = { won: 'Won & Closed', lost: 'Lost & Closed', closed: 'Closed', in_pipeline: 'In pipeline', rejected: 'Rejected' };
+const ENDED = { won: 'closed as won', lost: 'closed as lost', closed: 'closed', rejected: 'rejected' };
 
 export const dspDate = (iso) => {
   if (!iso) return '';
@@ -26,7 +29,7 @@ export const dspDate = (iso) => {
 
 export const dspTooltip = (dsp) => {
   const end = dsp.end ? dspDate(dsp.end) : 'today (still open)';
-  const verb = dsp.status === 'rejected' ? 'rejected' : dsp.status === 'approved' ? 'approved' : '';
+  const verb = ENDED[dsp.status] || '';
   return `Days in sales pipeline: first proposal ${dspDate(dsp.start)} → ${verb ? `${verb} ` : ''}${end}`;
 };
 
@@ -36,7 +39,10 @@ const DspBadge = ({ dsp, variant = 'full', size, className = '', testId }) => {
   const text = {
     full: `${dsp.days} day${plural} · ${STATUS_LABEL[dsp.status]}`,
     compact: `${dsp.days}d`,
-    inline: dsp.status === 'approved' ? `${dsp.days}d to approve` : dsp.status === 'rejected' ? `${dsp.days}d to reject` : `${dsp.days}d in pipeline`,
+    inline: {
+      won: `Won in ${dsp.days}d`, lost: `Lost after ${dsp.days}d`, closed: `Closed in ${dsp.days}d`,
+      rejected: `${dsp.days}d to reject`, in_pipeline: `${dsp.days}d in pipeline`,
+    }[dsp.status],
     status: STATUS_LABEL[dsp.status],
   }[variant];
   // small for tight spots (cards, feeds); normal size wherever there is room - pass size="md" to force it
