@@ -31,6 +31,10 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from io import BytesIO
 from commercials_merge import fill_commercials, extract_one_time_row_defaults
+from workflow_logic import (
+    IN_REVIEW, workflow_stages, stage_count, status_for_stage, initial_status, has_custom_workflow, is_current_approver,
+    stage_label, workflow_view, validate_workflow_input, validate_reassignment, resolve_override_target,
+)
 from tracker_calc import (
     compute_tracker, validate_tracker_input, summary_fields, next_version_label,
     tracker_inputs_from_proposal, INFRA_TARGET_PCT, GM_GREEN_PCT, GM_AMBER_PCT, MAX_TERM_YEARS,
@@ -106,15 +110,9 @@ SMTP_FROM_NAME = os.environ.get("SMTP_FROM_NAME", "Botree Roots")
 from motor.motor_asyncio import AsyncIOMotorGridFSBucket
 fs_bucket = AsyncIOMotorGridFSBucket(db)
 
-# Workflow stages
-WORKFLOW_STAGES = [
-    {"key": "sales_submitted", "role": "Sales", "label": "Sales Submitted"},
-    {"key": "cgo_review", "role": "CGO", "label": "CGO Review"},
-    {"key": "finance_review", "role": "Finance", "label": "Finance Review"},
-    {"key": "legal_review", "role": "Legal", "label": "Legal Review"},
-    {"key": "cfo_review", "role": "CFO", "label": "CFO Review"},
-    {"key": "approved", "role": None, "label": "Approved"}
-]
+# There is no default approval workflow: each proposal carries the chain its creator built
+# (see workflow_logic.py). Proposals created before that change keep their old role-based chain
+# until they finish.
 
 # Password hashing
 def hash_password(password: str) -> str:
@@ -583,6 +581,9 @@ class ProposalCreate(BaseModel):
     # Custom/freeform recurring charges not covered by the 4 fixed rows above -
     # each becomes its own new row appended to Table B.2 in the document.
     extra_ongoing_charges: Optional[List[OngoingChargeLine]] = []
+    # The approval chain, in order: the ids of the users who approve at stage 1, stage 2, ...
+    # Required when creating; when resubmitting it is optional (keeps the current chain).
+    approver_ids: Optional[List[str]] = None
 
 class ProposalAction(BaseModel):
     comment: Optional[str] = None
@@ -1191,12 +1192,74 @@ async def upload_base_template(file: UploadFile, request: Request):
     return {"message": "Base proposal template updated", "filename": file.filename, "updated_at": now, "row_defaults": row_defaults}
 
 # Proposal endpoints
+# ---------------- approval workflow helpers ----------------
+async def _active_users(ids: Optional[List[str]] = None) -> Dict[str, dict]:
+    """Users who can sign in (not access-pending or rejected), keyed by id; optionally only these ids."""
+    query: Dict[str, Any] = {"status": {"$nin": ["pending", "rejected"]}}
+    if ids is not None:
+        oids = []
+        for i in ids:
+            try:
+                oids.append(ObjectId(i))
+            except Exception:
+                pass
+        query["_id"] = {"$in": oids}
+    docs = await db.users.find(query, {"password_hash": 0}).to_list(2000)
+    return {
+        str(u["_id"]): {"id": str(u["_id"]), "name": u.get("name", ""), "email": u.get("email", ""),
+                        "role": u.get("role"), "department": u.get("department")}
+        for u in docs
+    }
+
+async def _build_workflow(approver_ids: Optional[List[str]], creator_id: str, also_not: tuple = ()) -> List[dict]:
+    ids = [str(x).strip() for x in (approver_ids or []) if str(x or "").strip()]
+    users = await _active_users(ids)
+    try:
+        return validate_workflow_input(ids, creator_id, users, also_not)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+async def _users_for_views(proposals: List[dict]) -> Dict[str, dict]:
+    """Current records of every approver named on these proposals (so renamed people show correctly)."""
+    ids = list({str(s["approver_id"]) for p in proposals for s in (p.get("workflow") or [])})
+    return await _active_users(ids)
+
+async def _notify_stage_approver(proposal: dict, proposal_id: str, stage: int, action: str, comment: Optional[str]) -> None:
+    """Email whoever must act at `stage`: the named approver, or - for proposals still on the old
+    chain - the first user in that stage's department, as before."""
+    stages = workflow_stages(proposal)
+    if not 1 <= stage <= len(stages):
+        return
+    entry = stages[stage - 1]
+    if has_custom_workflow(proposal):
+        try:
+            target = await db.users.find_one({"_id": ObjectId(entry["approver_id"])}, {"_id": 0, "email": 1, "name": 1})
+        except Exception:
+            target = None
+    else:
+        target = await db.users.find_one({"department": entry["role"]}, {"_id": 0, "email": 1, "name": 1})
+    if target:
+        await send_workflow_notification(
+            recipient_email=target["email"], recipient_name=target["name"], proposal_title=proposal["title"],
+            proposal_id=proposal_id, stage=stage_label(proposal, stage), action=action, comment=comment,
+        )
+
+@api_router.get("/users/directory")
+async def users_directory(request: Request):
+    """Everyone who can be chosen as an approver: all active users, by name. Open to any signed-in user."""
+    await get_current_user(request)
+    return sorted((await _active_users()).values(), key=lambda u: (u["name"] or "").lower())
+
 @api_router.post("/proposals")
 async def create_proposal(proposal: ProposalCreate, request: Request):
     current_user = await get_current_user(request)
     
     if current_user["role"] != "Sales":
         raise HTTPException(status_code=403, detail="Only Sales can create proposals")
+
+    # The creator builds the approval chain - there is no default. Check it first so a bad
+    # chain fails before any document work is done.
+    workflow = await _build_workflow(proposal.approver_ids, current_user["id"])
 
     file_info = None
     if proposal.file_id:
@@ -1269,8 +1332,9 @@ async def create_proposal(proposal: ProposalCreate, request: Request):
     new_proposal = {
         "title": proposal.title,
         "description": proposal.description,
-        "status": "sales_submitted",
+        "status": IN_REVIEW,
         "current_stage": 1,
+        "workflow": workflow,
         "current_version": 1,
         "is_closed": False,
         "created_by": current_user["id"],
@@ -1310,23 +1374,8 @@ async def create_proposal(proposal: ProposalCreate, request: Request):
     
     result = await db.proposals.insert_one(new_proposal)
     proposal_id = str(result.inserted_id)
-    logger.info(f"[EMAIL] New proposal '{proposal.title}' created by {current_user['name']} - CGO should be notified")
-    
-    # Notify CGO (next stage after Sales submission)
-    cgo_user = await db.users.find_one(
-        {"department": "CGO"},
-        {"_id": 0, "email": 1, "name": 1}
-    )
-    if cgo_user:
-        await send_workflow_notification(
-            recipient_email=cgo_user["email"],
-            recipient_name=cgo_user["name"],
-            proposal_title=proposal.title,
-            proposal_id=proposal_id,
-            stage="CGO Review",
-            action="assigned",
-            comment=None
-        )
+    logger.info(f"[EMAIL] New proposal '{proposal.title}' created by {current_user['name']} - stage 1 approver should be notified")
+    await _notify_stage_approver(new_proposal, proposal_id, 1, "assigned", None)
     
     response_proposal = {
         "id": proposal_id,
@@ -1361,6 +1410,7 @@ async def get_proposals(request: Request, status: Optional[str] = None, search: 
         ]
     
     proposals = await db.proposals.find(query).sort("created_at", -1).to_list(1000)
+    approver_names = await _users_for_views(proposals)
     
     result = []
     for p in proposals:
@@ -1393,6 +1443,7 @@ async def get_proposals(request: Request, status: Optional[str] = None, search: 
             "updated_at": p["updated_at"],
             "dsp": pipeline_from_proposal(p),  # days in sales pipeline: first proposal -> deal closed
             "deal_status": deal_status_view(p),
+            "workflow_view": workflow_view(p, current_user, approver_names),
         })
     
     return result
@@ -1478,6 +1529,7 @@ async def get_proposal(proposal_id: str, request: Request):
     if not creator:
         creator = {"_id": proposal["created_by"], "name": "Deleted User", "role": "Unknown", "email": ""}
     
+    approver_names = await _users_for_views([proposal])
     response = {
         "id": str(proposal["_id"]),
         "title": proposal["title"],
@@ -1516,6 +1568,7 @@ async def get_proposal(proposal_id: str, request: Request):
         "dsp": pipeline_from_proposal(proposal),  # days in sales pipeline: first proposal -> deal closed
         "deal_status": deal_status_view(proposal),
         "deal_updates": proposal.get("deal_updates", []),
+        "workflow_view": workflow_view(proposal, current_user, approver_names),
     }
 
     # About the Customer & Profitability: Finance-entered, visible only to
@@ -1622,7 +1675,7 @@ async def restore_version(proposal_id: str, version_number: int, request: Reques
             "$set": {
                 "title": new_version["title"],
                 "description": new_version["description"],
-                "status": "sales_submitted",
+                "status": initial_status(proposal),
                 "current_stage": 1,
                 "current_version": new_version_number,
                 "file_info": new_version["file_info"],
@@ -1644,6 +1697,7 @@ async def restore_version(proposal_id: str, version_number: int, request: Reques
     )
     
     logger.info(f"[EMAIL] Proposal '{new_version['title']}' restored to {version_label} by {current_user['name']}")
+    await _notify_stage_approver(proposal, proposal_id, 1, "assigned", None)
     
     return {"message": f"Version restored successfully as {version_label}", "version": version_label}
 
@@ -1876,6 +1930,15 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
     # Check if proposal is closed
     if existing_proposal.get("is_closed", False):
         raise HTTPException(status_code=400, detail="Cannot edit a closed/rejected proposal")
+
+    # Approval chain for the new round: a new one if the editor sent one, else keep the proposal's own.
+    # A proposal that began on the old fixed chain has nothing to keep - it must be given a real workflow now.
+    if proposal.approver_ids:
+        new_workflow = await _build_workflow(proposal.approver_ids, existing_proposal["created_by"], also_not=(current_user["id"],))
+    elif has_custom_workflow(existing_proposal):
+        new_workflow = existing_proposal["workflow"]
+    else:
+        raise HTTPException(status_code=400, detail="Set the approval workflow before resubmitting. This proposal was started on the old fixed approval chain, which no longer exists.")
     
     now = datetime.now(timezone.utc)
     new_version_number = existing_proposal.get("current_version", 1) + 1
@@ -2002,8 +2065,9 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
             "$set": {
                 "title": proposal.title,
                 "description": proposal.description,
-                "status": "sales_submitted",
+                "status": IN_REVIEW,
                 "current_stage": 1,
+                "workflow": new_workflow,
                 "current_version": new_version_number,
                 "file_info": file_info,
                 "products": products_data,
@@ -2036,15 +2100,16 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
         }
     )
     
-    logger.info(f"[EMAIL] Proposal '{proposal.title}' updated to {version_label} by {current_user['name']} - CGO should be notified")
+    logger.info(f"[EMAIL] Proposal '{proposal.title}' updated to {version_label} by {current_user['name']} - stage 1 approver should be notified")
+    await _notify_stage_approver({**existing_proposal, "workflow": new_workflow}, proposal_id, 1, "assigned", proposal.change_note)
     
     return {"message": f"Proposal updated to {version_label} and resubmitted successfully", "version": version_label}
 
 @api_router.patch("/proposals/{proposal_id}/finance-details")
 async def update_finance_details(proposal_id: str, details: FinanceDetailsUpdate, request: Request):
     """Finance-only fields: About the Customer & Profitability.
-    Only editable by Finance, and only while the proposal is sitting at the
-    Finance review stage. Visible later to Finance/CFO/Admin only (see get_proposal)."""
+    Only editable by a Finance-role user, and only while the proposal is waiting for THEIR
+    approval (their own stage in its workflow). Visible later to Finance/CFO/Admin only (see get_proposal)."""
     current_user = await get_current_user(request)
 
     if current_user["role"] != "Finance":
@@ -2054,9 +2119,8 @@ async def update_finance_details(proposal_id: str, details: FinanceDetailsUpdate
     if not proposal:
         raise HTTPException(status_code=404, detail="Proposal not found")
 
-    finance_stage_index = next(i for i, s in enumerate(WORKFLOW_STAGES) if s["key"] == "finance_review")
-    if proposal["current_stage"] != finance_stage_index:
-        raise HTTPException(status_code=403, detail="These fields can only be edited while the proposal is at the Finance stage")
+    if not is_current_approver(proposal, current_user):
+        raise HTTPException(status_code=403, detail="These fields can only be edited while the proposal is waiting for your approval")
 
     update_fields = {"updated_at": datetime.now(timezone.utc).isoformat()}
     if details.about_customer is not None:
@@ -2079,13 +2143,13 @@ async def override_proposal_stage(proposal_id: str, action: ProposalAction, requ
     if not proposal:
         raise HTTPException(status_code=404, detail="Proposal not found")
 
-    target_key = action.target_stage
-    target_index = next((i for i, s in enumerate(WORKFLOW_STAGES) if s["key"] == target_key), None)
-    if target_index is None:
-        raise HTTPException(status_code=400, detail="Invalid target stage")
+    try:
+        target_index, new_status = resolve_override_target(proposal, action.target_stage)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
-    old_label = WORKFLOW_STAGES[proposal["current_stage"]]["label"]
-    new_label = WORKFLOW_STAGES[target_index]["label"]
+    old_label = stage_label(proposal, proposal["current_stage"])
+    new_label = stage_label(proposal, target_index)
 
     history_entry = {
         "action": "admin_override",
@@ -2100,28 +2164,56 @@ async def override_proposal_stage(proposal_id: str, action: ProposalAction, requ
         {
             "$set": {
                 "current_stage": target_index,
-                "status": WORKFLOW_STAGES[target_index]["key"],
+                "status": new_status,
                 "updated_at": datetime.now(timezone.utc).isoformat()
             },
             "$push": {"history": history_entry}
         }
     )
 
-    next_role = WORKFLOW_STAGES[target_index]["role"]
-    if next_role:
-        next_approver = await db.users.find_one({"department": next_role}, {"_id": 0, "email": 1, "name": 1})
-        if next_approver:
-            await send_workflow_notification(
-                recipient_email=next_approver["email"],
-                recipient_name=next_approver["name"],
-                proposal_title=proposal["title"],
-                proposal_id=proposal_id,
-                stage=new_label,
-                action="assigned",
-                comment=action.comment
-            )
+    await _notify_stage_approver(proposal, proposal_id, target_index, "assigned", action.comment)
 
-    return {"message": f"Workflow moved to {new_label}", "new_status": WORKFLOW_STAGES[target_index]["key"]}
+    return {"message": f"Workflow moved to {new_label}", "new_status": new_status}
+
+class ReassignApprover(BaseModel):
+    stage: int
+    approver_id: str
+    comment: Optional[str] = None
+
+@api_router.post("/proposals/{proposal_id}/reassign-approver")
+async def reassign_approver(proposal_id: str, payload: ReassignApprover, request: Request):
+    """Admin-only: hand an approval stage that has not been approved yet to someone else - for when
+    the named approver is away or has left, so the proposal is not stuck behind one person."""
+    current_user = await get_current_user(request)
+    if current_user["role"] != "Admin":
+        raise HTTPException(status_code=403, detail="Only Admin can reassign an approver")
+    oid = _tracker_oid(proposal_id, "Proposal")
+    proposal = await db.proposals.find_one({"_id": oid})
+    if not proposal:
+        raise HTTPException(status_code=404, detail="Proposal not found")
+    new_user = (await _active_users([payload.approver_id])).get(str(payload.approver_id))
+    try:
+        new_workflow = validate_reassignment(proposal, payload.stage, new_user)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    previous = proposal["workflow"][payload.stage - 1].get("approver_name") or "previous approver"
+    note = f"Stage {payload.stage} reassigned from {previous} to {new_user['name']} by Admin"
+    if payload.comment and payload.comment.strip():
+        note += f": {payload.comment.strip()}"
+    history_entry = {
+        "action": "workflow_reassigned",
+        "by": {"id": current_user["id"], "name": current_user["name"], "role": current_user["role"]},
+        "comment": note, "stage": payload.stage, "version": proposal.get("current_version", 1),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    # updated_at is left alone on purpose: it measures how long the proposal has waited at its stage.
+    await db.proposals.update_one({"_id": oid}, {"$set": {"workflow": new_workflow}, "$push": {"history": history_entry}})
+
+    updated = {**proposal, "workflow": new_workflow}
+    if payload.stage == proposal.get("current_stage") and proposal.get("status") not in ("approved", "rejected", "needs_revision"):
+        await _notify_stage_approver(updated, proposal_id, payload.stage, "assigned", payload.comment)
+    return {"message": note, "workflow_view": workflow_view(updated, current_user, await _users_for_views([updated]))}
 
 @api_router.post("/proposals/{proposal_id}/approve")
 async def approve_proposal(proposal_id: str, action: ProposalAction, request: Request):
@@ -2132,9 +2224,9 @@ async def approve_proposal(proposal_id: str, action: ProposalAction, request: Re
         raise HTTPException(status_code=404, detail="Proposal not found")
     
     current_stage = proposal["current_stage"]
-    stage_info = WORKFLOW_STAGES[current_stage]
     
-    if stage_info["role"] != current_user["role"]:
+    # Only the person assigned to the current stage (old chain: anyone with that stage's role)
+    if not is_current_approver(proposal, current_user):
         raise HTTPException(status_code=403, detail="Not your turn to approve")
     
     current_version = proposal.get("current_version", 1)
@@ -2143,12 +2235,13 @@ async def approve_proposal(proposal_id: str, action: ProposalAction, request: Re
         "action": "approved",
         "by": {"id": current_user["id"], "name": current_user["name"], "role": current_user["role"]},
         "comment": action.comment or "Approved",
+        "stage": current_stage,
         "version": current_version,
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
     
     next_stage = current_stage + 1
-    new_status = WORKFLOW_STAGES[next_stage]["key"] if next_stage < len(WORKFLOW_STAGES) else "approved"
+    new_status = status_for_stage(proposal, next_stage)
     
     await db.proposals.update_one(
         {"_id": ObjectId(proposal_id)},
@@ -2178,24 +2271,8 @@ async def approve_proposal(proposal_id: str, action: ProposalAction, request: Re
                 comment=action.comment
             )
     else:
-        next_role = WORKFLOW_STAGES[next_stage]["role"]
-        logger.info(f"[EMAIL] Proposal '{proposal['title']}' approved by {current_user['name']} - moving to {next_role}")
-        
-        # Find next approver by department/role
-        next_approver = await db.users.find_one(
-            {"department": next_role},
-            {"_id": 0, "email": 1, "name": 1}
-        )
-        if next_approver:
-            await send_workflow_notification(
-                recipient_email=next_approver["email"],
-                recipient_name=next_approver["name"],
-                proposal_title=proposal["title"],
-                proposal_id=proposal_id,
-                stage=WORKFLOW_STAGES[next_stage]["label"],
-                action="assigned",
-                comment=action.comment
-            )
+        logger.info(f"[EMAIL] Proposal '{proposal['title']}' approved by {current_user['name']} - moving to stage {next_stage}")
+        await _notify_stage_approver(proposal, proposal_id, next_stage, "assigned", action.comment)
     
     return {"message": "Proposal approved", "new_status": new_status}
 
@@ -2212,9 +2289,8 @@ async def reject_proposal(proposal_id: str, action: ProposalAction, request: Req
         raise HTTPException(status_code=404, detail="Proposal not found")
     
     current_stage = proposal["current_stage"]
-    stage_info = WORKFLOW_STAGES[current_stage]
     
-    if stage_info["role"] != current_user["role"]:
+    if not is_current_approver(proposal, current_user):
         raise HTTPException(status_code=403, detail="Not your turn to reject")
     
     current_version = proposal.get("current_version", 1)
@@ -2223,6 +2299,7 @@ async def reject_proposal(proposal_id: str, action: ProposalAction, request: Req
         "action": "rejected_closed",
         "by": {"id": current_user["id"], "name": current_user["name"], "role": current_user["role"]},
         "comment": action.comment,
+        "stage": current_stage,
         "version": current_version,
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
@@ -2249,7 +2326,7 @@ async def reject_proposal(proposal_id: str, action: ProposalAction, request: Req
             recipient_name=creator["name"],
             proposal_title=proposal["title"],
             proposal_id=proposal_id,
-            stage=stage_info["label"],
+            stage=stage_label(proposal, current_stage),
             action="rejected",
             comment=action.comment
         )
@@ -2269,9 +2346,8 @@ async def return_for_revision(proposal_id: str, action: ProposalAction, request:
         raise HTTPException(status_code=404, detail="Proposal not found")
     
     current_stage = proposal["current_stage"]
-    stage_info = WORKFLOW_STAGES[current_stage]
     
-    if stage_info["role"] != current_user["role"]:
+    if not is_current_approver(proposal, current_user):
         raise HTTPException(status_code=403, detail="Not your turn to return for revision")
     
     current_version = proposal.get("current_version", 1)
@@ -2280,6 +2356,7 @@ async def return_for_revision(proposal_id: str, action: ProposalAction, request:
         "action": "returned_for_revision",
         "by": {"id": current_user["id"], "name": current_user["name"], "role": current_user["role"]},
         "comment": action.comment,
+        "stage": current_stage,
         "version": current_version,
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
@@ -2306,7 +2383,7 @@ async def return_for_revision(proposal_id: str, action: ProposalAction, request:
             recipient_name=creator["name"],
             proposal_title=proposal["title"],
             proposal_id=proposal_id,
-            stage=stage_info["label"],
+            stage=stage_label(proposal, current_stage),
             action="returned",
             comment=action.comment
         )
@@ -2347,6 +2424,7 @@ async def get_stage_counts(request: Request):
     counts = {
         "draft": 0,
         "sales_submitted": 0,
+        "in_review": 0,
         "cgo_review": 0,
         "finance_review": 0,
         "legal_review": 0,
@@ -2360,7 +2438,7 @@ async def get_stage_counts(request: Request):
             counts[r["_id"]] = r["count"]
     
     # Calculate active (non-approved, non-revision)
-    active_count = sum(counts[key] for key in ["sales_submitted", "cgo_review", "finance_review", "legal_review", "cfo_review"])
+    active_count = sum(counts[key] for key in ["sales_submitted", "in_review", "cgo_review", "finance_review", "legal_review", "cfo_review"])
     
     return {
         "draft": counts["draft"],
@@ -2397,6 +2475,7 @@ async def get_bottlenecks(request: Request):
         "updated_at": {"$lt": seven_days_ago}
     }).to_list(100)
     
+    approver_names = await _users_for_views(bottleneck_proposals)
     bottlenecks = []
     for p in bottleneck_proposals:
         creator = await db.users.find_one({"_id": ObjectId(p["created_by"])})
@@ -2415,6 +2494,7 @@ async def get_bottlenecks(request: Request):
             "created_by": creator["name"],
             "days_stuck": days_stuck,
             "dsp": pipeline_from_proposal(p),
+            "status_label": workflow_view(p, None, approver_names)["status_label"],
         })
     
     return {"bottlenecks": bottlenecks}
@@ -2598,6 +2678,7 @@ async def get_monthly_proposals(request: Request, year: int = None, month: int =
     
     status_counts = {
         "sales_submitted": 0,
+        "in_review": 0,
         "cgo_review": 0,
         "finance_review": 0,
         "legal_review": 0,
@@ -2612,7 +2693,7 @@ async def get_monthly_proposals(request: Request, year: int = None, month: int =
             status_counts[r["_id"]] = r["count"]
     
     # Calculate active proposals
-    active_count = sum(status_counts[key] for key in ["sales_submitted", "cgo_review", "finance_review", "legal_review", "cfo_review"])
+    active_count = sum(status_counts[key] for key in ["sales_submitted", "in_review", "cgo_review", "finance_review", "legal_review", "cfo_review"])
     
     return {
         "year": target_year,
