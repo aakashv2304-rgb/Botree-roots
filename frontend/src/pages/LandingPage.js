@@ -35,17 +35,8 @@ const LandingPage = () => {
         needsRevisionCount = proposals.filter(p => p.status === 'needs_revision' && p.created_by.id === userData.id).length;
         pendingCount = proposals.filter(p => p.status !== 'approved' && p.created_by.id === userData.id).length;
       } else {
-        // Other roles: count proposals waiting for their approval
-        const roleStageMap = {
-          'CGO': 'cgo_review',
-          'Finance': 'finance_review',
-          'Legal': 'legal_review',
-          'CFO': 'cfo_review'
-        };
-        const targetStatus = roleStageMap[userData.role];
-        if (targetStatus) {
-          pendingCount = proposals.filter(p => p.status === targetStatus).length;
-        }
+        // Everyone else: proposals waiting for MY approval (the server knows whose turn it is)
+        pendingCount = proposals.filter(p => p.workflow_view?.can_act).length;
       }
       
       setPendingStats({ pendingCount, needsRevisionCount, totalProposals: proposals.length });
@@ -96,7 +87,7 @@ const LandingPage = () => {
             <span className="text-emerald-700">Tracking System</span>
           </h1>
           <p className="text-xl text-[#7A6B9E] mb-6 max-w-2xl mx-auto">
-            Streamlined workflow management for proposal submissions, reviews, and approvals across Sales, CGO, Finance, Legal, and CFO.
+            Streamlined workflow management for proposal submissions, reviews, and approvals, with an approval chain you set up for every proposal.
           </p>
           <Button 
             onClick={() => navigate('/login')}
@@ -115,9 +106,9 @@ const LandingPage = () => {
             <div className="w-12 h-10 bg-emerald-600/20 rounded-lg flex items-center justify-center mb-4">
               <FileText size={24} className="text-emerald-700" />
             </div>
-            <h3 className="text-lg font-bold mb-2">Multi-Stage Workflow</h3>
+            <h3 className="text-lg font-bold mb-2">Your Own Approval Workflow</h3>
             <p className="text-[#7A6B9E] text-sm">
-              5-stage approval process from Sales submission through CGO, Finance, Legal, and final CFO approval.
+              Choose the approvers for each proposal and the order they sign off in. Add as many approval stages as the deal needs.
             </p>
           </div>
 
@@ -144,31 +135,22 @@ const LandingPage = () => {
 
         {/* Workflow Stages */}
         <div className="mt-20">
-          <h2 className="text-2xl font-bold text-center mb-10">Approval Workflow</h2>
+          <h2 className="text-2xl font-bold text-center mb-3">Approval Workflow</h2>
+          <p className="text-center text-[#7A6B9E] mb-10">For every proposal, you pick who approves it and in what order.</p>
           <div className="flex items-center justify-center gap-3 flex-wrap">
             <div className="px-5 py-3 bg-[#FFFFFF] border border-[#9B30FF] rounded-lg">
               <div className="text-xs text-[#7A6B9E] mb-1">Stage 1</div>
-              <div className="font-bold">Sales</div>
+              <div className="font-bold">Approver you choose</div>
             </div>
             <ArrowRight size={20} className="text-[#8577A3]" />
             <div className="px-5 py-3 bg-[#FFFFFF] border border-indigo-500 rounded-lg">
               <div className="text-xs text-[#7A6B9E] mb-1">Stage 2</div>
-              <div className="font-bold">CGO</div>
+              <div className="font-bold">Approver you choose</div>
             </div>
             <ArrowRight size={20} className="text-[#8577A3]" />
             <div className="px-5 py-3 bg-[#FFFFFF] border border-purple-500 rounded-lg">
-              <div className="text-xs text-[#7A6B9E] mb-1">Stage 3</div>
-              <div className="font-bold">Finance</div>
-            </div>
-            <ArrowRight size={20} className="text-[#8577A3]" />
-            <div className="px-5 py-3 bg-[#FFFFFF] border border-amber-500 rounded-lg">
-              <div className="text-xs text-[#7A6B9E] mb-1">Stage 4</div>
-              <div className="font-bold">Legal</div>
-            </div>
-            <ArrowRight size={20} className="text-[#8577A3]" />
-            <div className="px-5 py-3 bg-[#FFFFFF] border border-[#9B30FF] rounded-lg">
-              <div className="text-xs text-[#7A6B9E] mb-1">Stage 5</div>
-              <div className="font-bold">CFO</div>
+              <div className="text-xs text-[#7A6B9E] mb-1">Stage 3, 4, 5 ...</div>
+              <div className="font-bold">As many as the deal needs</div>
             </div>
             <CheckCircle size={28} className="text-emerald-700 ml-2" weight="fill" />
           </div>
