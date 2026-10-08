@@ -29,18 +29,11 @@ const PendingApprovals = () => {
     }
   };
 
-  const WORKFLOW_STAGES = [
-    { key: 'sales_submitted', role: 'Sales', label: 'Sales Submitted' },
-    { key: 'cgo_review', role: 'CGO', label: 'CGO Review' },
-    { key: 'finance_review', role: 'Finance', label: 'Finance Review' },
-    { key: 'legal_review', role: 'Legal', label: 'Legal Review' },
-    { key: 'cfo_review', role: 'CFO', label: 'CFO Review' },
-  ];
-
+  // Waiting for ME: it is my turn at the current approval stage (the server decides - the person named for
+  // that stage, or for an old role-based proposal anyone with that role), or it was returned to Sales to revise.
   const myProposals = proposals.filter(p => {
     if (p.status === 'needs_revision' && user.role === 'Sales') return true;
-    const stage = WORKFLOW_STAGES[p.current_stage];
-    return stage && stage.role === user.role;
+    return !!p.workflow_view?.can_act;
   });
 
   const getStatusColor = (status) => {
@@ -99,7 +92,7 @@ const PendingApprovals = () => {
                   </div>
                   <div className="flex flex-col items-end gap-2">
                     <Badge className={getStatusColor(proposal.status)} data-testid={`pending-status-${proposal.id}`}>
-                      {getStatusLabel(proposal.status)}
+                      {proposal.status === 'in_review' ? proposal.workflow_view.status_label : getStatusLabel(proposal.status)}
                     </Badge>
                     <DspBadge dsp={proposal.dsp} testId={`pending-dsp-${proposal.id}`} />
                   </div>
