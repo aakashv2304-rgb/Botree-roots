@@ -72,7 +72,8 @@ const Overview = () => {
     const matchesSearch = (p.title || '').toLowerCase().includes(search.toLowerCase()) ||
                           (p.description || '').toLowerCase().includes(search.toLowerCase()) ||
                           (p.customer_name && p.customer_name.toLowerCase().includes(search.toLowerCase()));
-    const matchesStatus = statusFilter === 'all' || p.status === statusFilter;
+    const matchesStatus = statusFilter === 'all'
+      || (statusFilter === 'in_approval' ? !!p.workflow_view?.awaiting : p.status === statusFilter);
     return matchesSearch && matchesStatus;
   });
 
@@ -92,10 +93,14 @@ const Overview = () => {
       legal_review: 'Under Review · Legal',
       cfo_review: 'Under Review · CFO',
       approved: 'Approved',
+      rejected: 'Rejected',
       needs_revision: 'Needs Revision'
     };
     return labels[status] || status;
   };
+
+  // A proposal waiting on a named approver says who ("Stage 2 of 3 · Priya Sharma"); old ones keep their old labels.
+  const getProposalLabel = (p) => (p.status === 'in_review' ? p.workflow_view.status_label : getStatusLabel(p.status));
 
   const formatCurrency = (value) => {
     if (!value) return '₹0';
@@ -248,13 +253,10 @@ const Overview = () => {
                 className="bg-[#F7F4FC] border border-[#E4DCF0] text-[#1E1533] text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#9B30FF]/30 focus:border-[#9B30FF]"
               >
                 <option value="all" className="bg-[#F7F4FC] text-[#1E1533]">All Status</option>
-                <option value="sales_submitted" className="bg-[#F7F4FC] text-[#1E1533]">Draft</option>
-                <option value="cgo_review" className="bg-[#F7F4FC] text-[#1E1533]">CGO Review</option>
-                <option value="finance_review" className="bg-[#F7F4FC] text-[#1E1533]">Finance Review</option>
-                <option value="legal_review" className="bg-[#F7F4FC] text-[#1E1533]">Legal Review</option>
-                <option value="cfo_review" className="bg-[#F7F4FC] text-[#1E1533]">CFO Review</option>
-                <option value="approved" className="bg-[#F7F4FC] text-[#1E1533]">Approved</option>
+                <option value="in_approval" className="bg-[#F7F4FC] text-[#1E1533]">In Approval</option>
                 <option value="needs_revision" className="bg-[#F7F4FC] text-[#1E1533]">Needs Revision</option>
+                <option value="approved" className="bg-[#F7F4FC] text-[#1E1533]">Approved</option>
+                <option value="rejected" className="bg-[#F7F4FC] text-[#1E1533]">Rejected</option>
               </select>
             </div>
             <div className="flex items-center bg-[#F7F4FC] border border-[#E4DCF0] rounded-lg p-1">
@@ -335,7 +337,7 @@ const Overview = () => {
                                   style={getStatusColor(proposal.status)}
                                   data-testid={`status-${proposal.id}`}
                                 >
-                                  {getStatusLabel(proposal.status)}
+                                  {getProposalLabel(proposal)}
                                 </Badge>
                               </div>
                             </td>
@@ -368,13 +370,19 @@ const Overview = () => {
               </div>
             ) : (
               <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {['sales_submitted', 'cgo_review', 'finance_review', 'legal_review', 'cfo_review', 'approved'].map((stage) => {
-                  const stageProposals = filteredProposals.filter(p => p.status === stage);
+                {[
+                  ...Array.from({ length: Math.max(1, ...filteredProposals.map((p) => p.workflow_view?.stage_count || 0)) }, (_, i) => ({
+                    key: `stage-${i + 1}`, title: `Approval stage ${i + 1}`, color: getStatusColor('in_review'),
+                    holds: (p) => p.workflow_view?.awaiting?.stage === i + 1,
+                  })),
+                  { key: 'approved', title: 'Approved', color: getStatusColor('approved'), holds: (p) => p.status === 'approved' },
+                ].map((column) => {
+                  const stageProposals = filteredProposals.filter(column.holds);
                   return (
-                    <div key={stage} className="bg-[#F7F4FC] border border-[#E4DCF0] rounded-lg p-3 min-h-[120px]">
+                    <div key={column.key} data-testid={`board-column-${column.key}`} className="bg-[#F7F4FC] border border-[#E4DCF0] rounded-lg p-3 min-h-[120px]">
                       <div className="flex items-center justify-between mb-3">
-                        <Badge className="text-xs font-semibold px-2 py-1 border-0" style={getStatusColor(stage)}>
-                          {getStatusLabel(stage)}
+                        <Badge className="text-xs font-semibold px-2 py-1 border-0" style={column.color}>
+                          {column.title}
                         </Badge>
                         <span className="text-xs text-[#8577A3] font-semibold">{stageProposals.length}</span>
                       </div>
@@ -386,6 +394,7 @@ const Overview = () => {
                             className="bg-[#FFFFFF] border border-[#E4DCF0] rounded-lg p-2.5 cursor-pointer hover:shadow-sm transition-shadow"
                           >
                             <div className="text-xs font-semibold text-[#1E1533] truncate">{p.title}</div>
+                            {p.workflow_view?.awaiting && <div className="text-[10px] text-[#8577A3] truncate">Waiting on {p.workflow_view.awaiting.label}</div>}
                             <div className="flex items-center justify-between mt-1">
                               <span className="text-xs text-[#059669] font-semibold">{formatCurrency(p.deal_value)}</span>
                               <DspBadge dsp={p.dsp} variant="compact" testId={`board-dsp-${p.id}`} />
@@ -463,7 +472,7 @@ const Overview = () => {
                       <div className="flex-1 min-w-0">
                         <div className="text-xs font-semibold text-[#1E1533] truncate">{bottleneck.title}</div>
                         <div className="text-[10px] text-[#5B4B7A] flex items-center gap-1.5 flex-wrap">
-                          {getStatusLabel(bottleneck.status)}
+                          {bottleneck.status === 'in_review' ? bottleneck.status_label : getStatusLabel(bottleneck.status)}
                           <DspBadge dsp={bottleneck.dsp} variant="inline" testId={`bottleneck-dsp-${bottleneck.id}`} />
                         </div>
                       </div>
