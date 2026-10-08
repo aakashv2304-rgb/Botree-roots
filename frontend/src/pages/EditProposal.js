@@ -8,6 +8,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { toast } from 'sonner';
+import WorkflowBuilder from '../components/WorkflowBuilder';
 import DspBadge from '../components/DspBadge';
 import { ArrowLeft } from '@phosphor-icons/react';
 
@@ -55,6 +56,16 @@ const EditProposal = () => {
     }));
   };
   const [additionalFees, setAdditionalFees] = useState([]);
+  // Approval chain for the resubmitted proposal: starts as its current chain (an old proposal that began on
+  // the fixed chain starts empty and must be given a real one).
+  const [approverIds, setApproverIds] = useState([]);
+  const [approverNames, setApproverNames] = useState({});
+  const [directory, setDirectory] = useState([]);
+  useEffect(() => {
+    axios.get(`${API}/users/directory`, { withCredentials: true })
+      .then((r) => setDirectory(r.data))
+      .catch(() => toast.error('Could not load the list of approvers'));
+  }, []);
 
   const addAdditionalFee = () => {
     setAdditionalFees([...additionalFees, { name: '', value: '', description: '' }]);
@@ -97,6 +108,10 @@ const EditProposal = () => {
     try {
       const { data } = await axios.get(`${API}/proposals/${id}`, { withCredentials: true });
       setProposal(data);
+      if (data.workflow_view?.custom) {
+        setApproverIds(data.workflow_view.stages.map((st) => st.approver_id));
+        setApproverNames(Object.fromEntries(data.workflow_view.stages.map((st) => [st.approver_id, st.approver_name])));
+      }
       setFormData({ 
         title: data.title, 
         description: data.description, 
@@ -171,6 +186,12 @@ const EditProposal = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (approverIds.length === 0) {
+      document.getElementById('approval-workflow')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      toast.error('Add at least one approval stage before resubmitting');
+      return;
+    }
     
     setLoading(true);
     try {
@@ -211,7 +232,8 @@ const EditProposal = () => {
         dms_distributor_charge: buildCharge('dms_distributor_charge'),
         sfa_user_charge: buildCharge('sfa_user_charge'),
         shared_l1_support_charge: buildCharge('shared_l1_support_charge'),
-        change_note: formData.change_note
+        change_note: formData.change_note,
+        approver_ids: approverIds,
       }, { withCredentials: true });
 
       toast.success('Proposal updated and resubmitted successfully');
@@ -524,6 +546,18 @@ const EditProposal = () => {
               <Label>Proposal Document</Label>
               <p className="text-sm text-[#7A6B9E]">{fileName || 'No document attached'}</p>
               <p className="text-xs text-[#7A6B9E]">The document is generated automatically from the company base template using the fee fields above - there's nothing to upload here.</p>
+            </div>
+
+            <div id="approval-workflow" data-testid="approval-workflow-card" className="space-y-2 border-t border-[#E4DCF0] pt-5">
+              <Label>Approval Workflow <span className="text-red-700">*</span></Label>
+              {proposal && !proposal.workflow_view?.custom && (
+                <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 p-3" data-testid="legacy-workflow-note">
+                  This proposal was started on the old fixed approval chain, which no longer exists. Build its approval workflow below to resubmit it.
+                </p>
+              )}
+              <p className="text-xs text-[#7A6B9E]">The resubmitted proposal goes to stage 1 again and moves through each stage in order. Change the people or the order if you need to.</p>
+              <WorkflowBuilder users={directory} value={approverIds} onChange={setApproverIds} names={approverNames}
+                excludeIds={[user?.id, proposal?.created_by?.id].filter(Boolean)} />
             </div>
 
             <div className="flex gap-4 pt-4">
