@@ -9,21 +9,13 @@ import { Label } from '../components/ui/label';
 import { Badge } from '../components/ui/badge';
 import DspBadge, { dspDate } from '../components/DspBadge';
 import DealStatusSection, { DealStageChip } from '../components/DealStatus';
+import ReassignApprovers from '../components/ReassignApprovers';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { toast } from 'sonner';
 import { ArrowLeft, Check, Clock, Download, ArrowBendUpLeft, X, GitBranch, ListNumbers, FilePdf, Eye } from '@phosphor-icons/react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
-
-const WORKFLOW_STAGES = [
-  { key: 'sales_submitted', role: 'Sales', label: 'Sales' },
-  { key: 'cgo_review', role: 'CGO', label: 'CGO' },
-  { key: 'finance_review', role: 'Finance', label: 'Finance' },
-  { key: 'legal_review', role: 'Legal', label: 'Legal' },
-  { key: 'cfo_review', role: 'CFO', label: 'CFO' },
-  { key: 'approved', role: null, label: 'Approved' }
-];
 
 const ProposalDetail = () => {
   const { id } = useParams();
@@ -397,20 +389,16 @@ const ProposalDetail = () => {
 
   const canTakeAction = () => {
     if (!proposal) return false;
-    if (proposal.status === 'approved') return false;
-    if (proposal.status === 'needs_revision') return false; // ball is with Sales to fix and resubmit, not an approver
-    
-    const currentStage = WORKFLOW_STAGES[proposal.current_stage];
-    return currentStage && currentStage.role === user.role;
+    // Only the person assigned to the current stage (an old role-based proposal: anyone with that role).
+    // The server works this out - not even an Admin can act on someone else's stage.
+    return !!proposal.workflow_view?.can_act;
   };
 
   const canViewFinanceFields = () => ['Finance', 'CFO', 'Admin'].includes(user.role);
 
   const canEditFinanceFields = () => {
-    if (!proposal) return false;
-    if (user.role !== 'Finance') return false;
-    const currentStage = WORKFLOW_STAGES[proposal.current_stage];
-    return currentStage && currentStage.key === 'finance_review';
+    // A Finance-role user, while the proposal is waiting for THEIR approval
+    return !!proposal?.workflow_view?.can_edit_finance;
   };
 
   const canEdit = () => {
@@ -431,6 +419,11 @@ const ProposalDetail = () => {
   };
 
   const [overrideTarget, setOverrideTarget] = useState('');
+  const [directory, setDirectory] = useState([]);
+  useEffect(() => {
+    if (user?.role !== 'Admin') return;
+    axios.get(`${API}/users/directory`, { withCredentials: true }).then((r) => setDirectory(r.data)).catch(() => {});
+  }, [user]);
   const [overrideLoading, setOverrideLoading] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -480,26 +473,28 @@ const ProposalDetail = () => {
     );
   }
 
-  const getStageStatus = (index) => {
-    if (proposal.status === 'approved') return index <= proposal.current_stage ? 'completed' : 'pending';
-    if (index < proposal.current_stage) return 'completed';
-    if (index === proposal.current_stage) return 'active';
-    return 'pending';
-  };
-
-  const getStageTimestamp = (index) => {
-    if (!proposal || !proposal.history) return null;
-
-    if (index === 0) {
-      const created = proposal.history.find((h) => h.action === 'created');
-      return created ? created.timestamp : proposal.created_at;
-    }
-
-    // The "Approved" terminal node shares the CFO approval moment
-    const roleToMatch = index === 5 ? WORKFLOW_STAGES[4].role : WORKFLOW_STAGES[index].role;
-    const matches = proposal.history.filter((h) => h.action === 'approved' && h.by?.role === roleToMatch);
-    return matches.length > 0 ? matches[matches.length - 1].timestamp : null;
-  };
+  // The stepper: who submitted it, each approval stage in order, then Approved. All of it comes from the
+  // server's workflow_view, so it is right for a proposal's own chain and for an old role-based one alike.
+  const stepperNodes = (() => {
+    const wf = proposal.workflow_view;
+    const created = proposal.history.find((h) => h.action === 'created');
+    const nodes = [{
+      key: 'submitted', title: proposal.created_by?.name || 'Sales', subtitle: 'Submitted',
+      state: proposal.status === 'needs_revision' ? 'active' : 'completed',
+      timestamp: created ? created.timestamp : proposal.created_at, warning: null,
+    }];
+    wf.stages.forEach((st) => nodes.push({
+      key: `stage-${st.stage}`, title: st.label,
+      subtitle: wf.custom ? `Approval stage ${st.stage}${st.approver_role ? ` · ${st.approver_role}` : ''}` : `${st.label} Review`,
+      state: st.state, timestamp: st.completed_at, warning: st.approver_missing ? 'No longer an active user' : null,
+    }));
+    const last = wf.stages[wf.stages.length - 1];
+    nodes.push({
+      key: 'approved', title: 'Approved', subtitle: null, state: proposal.status === 'approved' ? 'completed' : 'pending',
+      timestamp: proposal.status === 'approved' && last ? last.completed_at : null, warning: null,
+    });
+    return nodes;
+  })();
 
   return (
     <div className="p-6" data-testid="proposal-detail-page">
@@ -1131,14 +1126,16 @@ const ProposalDetail = () => {
             <h2 className="text-xl font-bold tracking-tight mb-6 font-heading">Workflow Progress</h2>
             
             <div className="space-y-6" data-testid="workflow-stepper">
-              {WORKFLOW_STAGES.map((stage, index) => {
-                const status = getStageStatus(index);
+              {stepperNodes.map((node, index) => {
+                const status = node.state;
                 return (
-                  <div key={stage.key} className="flex items-start gap-4" data-testid={`stage-${index}`}>
+                  <div key={node.key} className="flex items-start gap-4" data-testid={`stage-${index}`}>
                     <div className="flex flex-col items-center">
                       <div
                         className={`w-10 h-10 rounded-full border flex items-center justify-center transition-all ${
-                          status === 'completed'
+                          status === 'rejected'
+                            ? 'bg-[#DC2626] border-[#DC2626] text-white'
+                            : status === 'completed'
                             ? 'bg-[#10B981] border-[#10B981] text-[#1E1533]'
                             : status === 'active'
                             ? 'bg-[#3B82F6] border-[#3B82F6] text-[#1E1533] animate-pulse'
@@ -1146,18 +1143,20 @@ const ProposalDetail = () => {
                         }`}
                         data-testid={`stage-circle-${index}`}
                       >
-                        {status === 'completed' ? <Check size={20} weight="bold" /> : status === 'active' ? <Clock size={20} /> : index + 1}
+                        {status === 'completed' ? <Check size={20} weight="bold" /> : status === 'active' ? <Clock size={20} /> : node.key === 'approved' ? <Check size={20} /> : index}
                       </div>
-                      {index < WORKFLOW_STAGES.length - 1 && (
+                      {index < stepperNodes.length - 1 && (
                         <div className={`w-0.5 h-10 ${status === 'completed' ? 'bg-[#10B981]' : 'bg-[#F1EBFA]'}`}></div>
                       )}
                     </div>
                     <div className="flex-1 pb-4">
-                      <p className="font-semibold text-sm">{stage.label}</p>
-                      {stage.role && <p className="text-xs text-[#7A6B9E]">{stage.role} Review</p>}
-                      {status === 'completed' && getStageTimestamp(index) && (
+                      <p className="font-semibold text-sm" data-testid={`stage-title-${index}`}>{node.title}</p>
+                      {node.subtitle && <p className="text-xs text-[#7A6B9E]">{node.subtitle}</p>}
+                      {node.warning && <p className="text-xs text-red-700 mt-0.5">{node.warning}</p>}
+                      {status === 'rejected' && <p className="text-xs text-red-700 font-medium mt-0.5">Rejected here</p>}
+                      {status === 'completed' && node.timestamp && (
                         <p className="text-xs text-[#10B981] font-medium mt-0.5" data-testid={`stage-timestamp-${index}`}>
-                          {new Date(getStageTimestamp(index)).toLocaleString('en-IN', {
+                          {new Date(node.timestamp).toLocaleString('en-IN', {
                             day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
                           })}
                         </p>
@@ -1191,6 +1190,7 @@ const ProposalDetail = () => {
                         {entry.action === 'rejected_closed' ? 'Rejected (Closed)' :
                          entry.action === 'returned_for_revision' ? 'Returned for Revision' :
                          entry.action === 'restored_version' ? 'Restored Version' :
+                         entry.action === 'workflow_reassigned' ? 'Approver Reassigned' :
                          entry.action}
                       </Badge>
                       {entry.version && (
@@ -1268,11 +1268,11 @@ const ProposalDetail = () => {
         )}
 
         {canOverrideWorkflow() && (
-          <div className="lg:col-span-1">
+          <div className="lg:col-span-1 space-y-4">
             <div className="bg-[#FFFFFF] border border-[#E4DCF0] p-6 shadow-sm" data-testid="admin-override-panel">
               <h2 className="text-lg font-bold tracking-tight mb-2 font-heading">Admin: Override Workflow Stage</h2>
               <p className="text-xs text-[#7A6B9E] mb-4">
-                Move this proposal directly to any stage, bypassing the normal one-step-at-a-time approval flow (e.g. CGO straight to CFO).
+                Move this proposal directly to any stage, bypassing the normal one-step-at-a-time approval flow (e.g. stage 1 straight to the last stage).
               </p>
               <div className="space-y-3">
                 <select
@@ -1282,9 +1282,9 @@ const ProposalDetail = () => {
                   className="w-full h-9 px-3 rounded-lg bg-[#FFFFFF] border border-[#E4DCF0] text-sm text-[#1E1533] focus:outline-none focus:ring-2 focus:ring-[#9B30FF]/30 focus:border-[#9B30FF]"
                 >
                   <option value="">Select target stage...</option>
-                  {WORKFLOW_STAGES.map((stage, idx) => (
-                    <option key={stage.key} value={stage.key} disabled={idx === proposal.current_stage}>
-                      {stage.label}{idx === proposal.current_stage ? ' (current)' : ''}
+                  {proposal.workflow_view.override_options.map((opt) => (
+                    <option key={opt.value} value={opt.value} disabled={opt.current}>
+                      {opt.label}{opt.current ? ' (current)' : ''}
                     </option>
                   ))}
                 </select>
@@ -1299,6 +1299,10 @@ const ProposalDetail = () => {
                 </Button>
               </div>
             </div>
+
+            {proposal.workflow_view.custom && (
+              <ReassignApprovers proposal={proposal} users={directory} onDone={fetchProposal} />
+            )}
           </div>
         )}
       </div>
