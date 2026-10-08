@@ -72,7 +72,7 @@ const blankOneTime = (label = '') => ({ _k: nk(), label, qty: '', rate: '', cost
 const blankRecurring = (label = '') => ({
   _k: nk(), label, qty: '', rate_per_month: '', min_bill_per_month: '', duration_months: '', infra_pupm: '',
 });
-const blankResource = () => ({ _k: nk(), role: '', role_source: 'rate_card', annual_ctc: '', alloc_pct: '', type: 'one_time', months: '' });
+const blankResource = () => ({ _k: nk(), role: '', role_source: 'rate_card', annual_ctc: '', alloc_pct: '', type: 'one_time', months: '', revenue_target: '' });
 
 const newForm = (cfg) => ({
   id: null, client_name: '', version: 'v1.0', deal_date: today(), proposal_id: '', parent_id: null, notes: '', created_by: null,
@@ -108,7 +108,7 @@ const formFromDoc = (d) => ({
   })),
   resources: (d.resources || []).map((r) => ({
     _k: nk(), role: r.role || '', role_source: r.role_source === 'rate_card' ? 'rate_card' : 'custom',
-    annual_ctc: blankIfZero(r.annual_ctc), alloc_pct: blankIfZero(r.alloc_pct), type: r.type || 'one_time', months: blankIfZero(r.months),
+    annual_ctc: blankIfZero(r.annual_ctc), alloc_pct: blankIfZero(r.alloc_pct), type: r.type || 'one_time', months: blankIfZero(r.months), revenue_target: r.revenue_target || '',
   })),
   infra: { base_per_month: blankIfZero(d.infra?.base_per_month) },
 });
@@ -476,7 +476,20 @@ const TrackerEditor = ({ form, setForm, config, proposals, canEdit, saving, dirt
   const updateRow = (list, key, patch) =>
     setForm((f) => ({ ...f, [list]: f[list].map((r) => (r._k === key ? { ...r, ...patch } : r)) }));
   const addRow = (list, row) => setForm((f) => ({ ...f, [list]: [...f[list], row] }));
-  const removeRow = (list, key) => setForm((f) => ({ ...f, [list]: f[list].filter((r) => r._k !== key) }));
+  const removeRow = (list, key) => setForm((f) => {
+    const removedIndex = f[list].findIndex((r) => r._k === key);
+    const next = { ...f, [list]: f[list].filter((r) => r._k !== key) };
+    if (list === 'one_time_items' || list === 'recurring_items') {
+      const prefix = list === 'one_time_items' ? 'one_time' : 'recurring';
+      next.resources = f.resources.map((res) => {
+        const match = /^(one_time|recurring):(\\d+)$/.exec(res.revenue_target || '');
+        if (!match || match[1] !== prefix) return res;
+        const index = Number(match[2]);
+        return { ...res, revenue_target: index === removedIndex ? '' : index > removedIndex ? `${prefix}:${index - 1}` : res.revenue_target };
+      });
+    }
+    return next;
+  });
 
   const pullFromProposal = async () => {
     if (!form.proposal_id) return;
@@ -755,8 +768,8 @@ const TrackerEditor = ({ form, setForm, config, proposals, canEdit, saving, dirt
           </Section>
 
           <Section
-            title="Delivery cost — resources deployed"
-            hint="Monthly cost = Annual CTC ÷ 12 × Allocation. One-time resources cost that × Months; recurring resources cost it every month of the term (with cost escalation)."
+            title="Cost — Resource Allocation"
+            hint="Select a resource from the company rate card, specify its allocation %, number of months and the revenue line item receiving the cost. Monthly cost = Annual CTC ÷ 12 × Allocation."
             testId="tracker-resources"
           >
             {form.resources.length === 0 && (
@@ -764,10 +777,10 @@ const TrackerEditor = ({ form, setForm, config, proposals, canEdit, saving, dirt
             )}
             {form.resources.length > 0 && (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[900px]">
+                <table className="w-full min-w-[1130px]">
                   <thead>
                     <tr className="border-b border-[#E4DCF0]">
-                      <Th>Role</Th><Th right>Annual CTC ₹</Th><Th right>Alloc %</Th><Th>Type</Th><Th right>Months</Th>
+                      <Th>Role</Th><Th right>Annual CTC ₹</Th><Th right>Alloc %</Th><Th>Type</Th><Th>Allocate cost to revenue line</Th><Th right>Months</Th>
                       <Th right>One-time ₹</Th><Th right>Recurring ₹/mo</Th><Th>&nbsp;</Th>
                     </tr>
                   </thead>
@@ -806,6 +819,16 @@ const TrackerEditor = ({ form, setForm, config, proposals, canEdit, saving, dirt
                               </SelectContent>
                             </Select>
                           </td>
+                          <td className="px-1 py-1 min-w-[220px]">
+                            <Select value={r.revenue_target || 'unallocated'} disabled={ro} onValueChange={(v) => updateRow('resources', r._k, { revenue_target: v === 'unallocated' ? '' : v })}>
+                              <SelectTrigger className="h-9 bg-[#FFFFFF] text-[#1E1533]" data-testid={`res-revenue-target-${i}`}><SelectValue placeholder="Select revenue line" /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="unallocated">Unallocated / general</SelectItem>
+                                {form.one_time_items.map((line, index) => <SelectItem key={line._k} value={`one_time:${index}`}>One-time: {line.label || `Line ${index + 1}`}</SelectItem>)}
+                                {form.recurring_items.map((line, index) => <SelectItem key={line._k} value={`recurring:${index}`}>Recurring: {line.label || `Line ${index + 1}`}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </td>
                           <td className="px-1 py-1 w-24">
                             <NumInput value={r.months} placeholder={r.type === 'recurring' ? String(termMonths) : '0'} disabled={ro} onChange={(v) => updateRow('resources', r._k, { months: v })} testId={`res-months-${i}`} />
                           </td>
@@ -818,7 +841,7 @@ const TrackerEditor = ({ form, setForm, config, proposals, canEdit, saving, dirt
                   </tbody>
                   <tfoot>
                     <tr className="bg-[#F7F4FC]">
-                      <td className="px-2 py-2 font-bold text-sm text-[#1E1533]" colSpan={5}>Resource subtotal</td>
+                      <td className="px-2 py-2 font-bold text-sm text-[#1E1533]" colSpan={6}>Resource subtotal</td>
                       <Calc bold>{inr(result.one_time.resource_cost)}</Calc>
                       <Calc bold>{inr(result.recurring_monthly.resource_cost)}</Calc><td />
                     </tr>
