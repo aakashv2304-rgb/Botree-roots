@@ -633,6 +633,7 @@ class ResourceLine(BaseModel):
     allocation_percent: float  # e.g. 10, 20, ... 100
     quantity: Optional[float] = None  # e.g. 2 (months), 4 (days) - extra multiplier on top of allocation %
     unit: Optional[str] = None  # "month" | "day" | "hrs" - if unset, no extra multiplier is applied
+    allocation_target: Optional[int] = None  # zero-based revenue line index, legacy defaults to own line
 
 class RevenueLineItem(BaseModel):
     label: str  # e.g. product name, or "One-Time Setup", or a custom line
@@ -2742,6 +2743,7 @@ def _compute_line_item(line_item: dict) -> dict:
         manual_cost += line_cost
         resolved_lines.append({
             "role_name": role,
+            "allocation_target": rl.get("allocation_target"),
             "monthly_cost": monthly_cost,
             "allocation_percent": pct,
             "quantity": quantity,
@@ -2796,28 +2798,54 @@ def _compute_line_item(line_item: dict) -> dict:
     }
 
 def _compute_profitability(revenue_line_items: List[dict]) -> dict:
+    """Allocate role costs to selected revenue lines; automatic costs stay with their source."""
     items_out = []
-    total_revenue = 0.0
-    total_cost = 0.0
-    any_revenue_set = False
-
     for item in revenue_line_items:
         computed = _compute_line_item(item)
-        items_out.append({**item, **computed})
-        total_cost += computed["cost"]
-        if item.get("revenue") is not None:
-            total_revenue += item["revenue"]
-            any_revenue_set = True
+        auto_only = computed["cost"] - sum(rl["cost"] for rl in computed["resource_lines"])
+        items_out.append({**item, **computed, "cost": auto_only})
 
-    total_profit = (total_revenue - total_cost) if any_revenue_set else None
-    total_margin_percent = (total_profit / total_revenue * 100) if (any_revenue_set and total_revenue) else None
+    for source_index, item in enumerate(items_out):
+        for rl in item["resource_lines"]:
+            target = rl.get("allocation_target")
+            if target is None:
+                target = source_index  # preserve legacy allocations
+            if isinstance(target, bool) or not isinstance(target, int) or not 0 <= target < len(items_out):
+                raise ValueError("Invalid revenue allocation target")
+            rl["allocation_target"] = target
+            items_out[target]["cost"] += rl["cost"]
 
+    groups = {
+        "one_time": {"revenue": 0.0, "cost": 0.0, "has_revenue": False},
+        "recurring": {"revenue": 0.0, "cost": 0.0, "has_revenue": False},
+    }
+    for item in items_out:
+        g = groups["recurring" if item.get("is_subscription") else "one_time"]
+        g["cost"] += item["cost"]
+        revenue = item.get("revenue")
+        if revenue is not None:
+            g["revenue"] += revenue
+            g["has_revenue"] = True
+        item["profit"] = revenue - item["cost"] if revenue is not None else None
+        item["margin_percent"] = item["profit"] / revenue * 100 if revenue else None
+
+    any_revenue = any(g["has_revenue"] for g in groups.values())
+    total_revenue = sum(g["revenue"] for g in groups.values())
+    total_cost = sum(g["cost"] for g in groups.values())
+    for g in groups.values():
+        g["profit"] = g["revenue"] - g["cost"] if g["has_revenue"] else None
+        g["margin_percent"] = g["profit"] / g["revenue"] * 100 if g["revenue"] else None
+        g["revenue"] = g["revenue"] if g["has_revenue"] else None
+        del g["has_revenue"]
+    profit = total_revenue - total_cost if any_revenue else None
     return {
         "line_items": items_out,
-        "total_revenue": total_revenue if any_revenue_set else None,
+        "one_time_summary": groups["one_time"],
+        "recurring_summary": groups["recurring"],
+        "total_revenue": total_revenue if any_revenue else None,
         "total_cost": total_cost,
-        "total_profit": total_profit,
-        "total_margin_percent": total_margin_percent,
+        "total_profit": profit,
+        "total_margin_percent": profit / total_revenue * 100 if total_revenue else None,
     }
 
 @api_router.get("/profitability-analyses/rate-card")
@@ -2831,6 +2859,13 @@ async def get_rate_card(request: Request):
         "working_days_per_month": WORKING_DAYS_PER_MONTH,
         "working_hours_per_month": WORKING_HOURS_PER_MONTH,
     }
+
+def _validate_allocation_targets(items):
+    for item in items:
+        for rl in item.get("resource_lines", []):
+            target = rl.get("allocation_target")
+            if target is not None and (isinstance(target, bool) or not isinstance(target, int) or target < 0 or target >= len(items)):
+                raise HTTPException(status_code=400, detail="Cost allocation points to a revenue line that does not exist")
 
 def _validate_resource_roles(revenue_line_items):
     for item in revenue_line_items:
@@ -2852,6 +2887,7 @@ async def create_profitability_analysis(analysis: ProfitabilityAnalysisCreate, r
             raise HTTPException(status_code=404, detail="Linked proposal not found")
 
     line_items_data = [li.dict() for li in analysis.revenue_line_items]
+    _validate_allocation_targets(line_items_data)
     computed = _compute_profitability(line_items_data)
     now = datetime.now(timezone.utc).isoformat()
 
@@ -2864,6 +2900,8 @@ async def create_profitability_analysis(analysis: ProfitabilityAnalysisCreate, r
         "total_cost": computed["total_cost"],
         "profit": computed["total_profit"],
         "margin_percent": computed["total_margin_percent"],
+        "one_time_summary": computed["one_time_summary"],
+        "recurring_summary": computed["recurring_summary"],
         "created_by": {"id": current_user["id"], "name": current_user["name"], "role": current_user["role"]},
         "created_at": now,
         "updated_at": now,
@@ -2916,6 +2954,7 @@ async def update_profitability_analysis(analysis_id: str, analysis: Profitabilit
             raise HTTPException(status_code=404, detail="Linked proposal not found")
 
     line_items_data = [li.dict() for li in analysis.revenue_line_items]
+    _validate_allocation_targets(line_items_data)
     computed = _compute_profitability(line_items_data)
 
     update_fields = {
@@ -2927,6 +2966,8 @@ async def update_profitability_analysis(analysis_id: str, analysis: Profitabilit
         "total_cost": computed["total_cost"],
         "profit": computed["total_profit"],
         "margin_percent": computed["total_margin_percent"],
+        "one_time_summary": computed["one_time_summary"],
+        "recurring_summary": computed["recurring_summary"],
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.profitability_analyses.update_one({"_id": ObjectId(analysis_id)}, {"$set": update_fields})
