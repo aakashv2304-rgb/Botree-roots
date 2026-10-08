@@ -318,7 +318,16 @@ def validate_tracker_input(data: Dict[str, Any]) -> Dict[str, Any]:
         months = _num(i.get("months"), 0.0)
         if months < 0:
             raise ValueError("Resource months cannot be negative")
+        target = _clean_text(i.get("revenue_target"))
+        if target:
+            parts = target.split(":")
+            if len(parts) != 2 or parts[0] not in ("one_time", "recurring") or not parts[1].isdigit():
+                raise ValueError("Invalid revenue line selected for cost allocation")
+            target_rows = one_time if parts[0] == "one_time" else recurring
+            if int(parts[1]) >= len(target_rows):
+                raise ValueError("Cost allocation refers to a missing revenue line")
         resources.append({
+            "revenue_target": target or None,
             "role": _clean_text(i.get("role")),
             "role_source": "rate_card" if i.get("role_source") == "rate_card" else "custom",
             "annual_ctc": _nonneg(i.get("annual_ctc"), "Annual CTC"),
