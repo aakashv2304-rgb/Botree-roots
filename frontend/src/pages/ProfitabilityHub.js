@@ -4,8 +4,8 @@ import ProfitabilityAnalyzer from './ProfitabilityAnalyzer';
 import ProfitabilityTracker from './ProfitabilityTracker';
 
 const TABS = [
-  { id: 'analyzer', label: 'Analyzer', hint: 'Cost against each revenue line' },
-  { id: 'tracker', label: 'Deal Tracker', hint: 'Multi-year deal margin & TCV' },
+  { id: 'tracker', label: 'Deal Margin Calculator', hint: 'Excel-style one-time, recurring, resources, infrastructure and term schedule' },
+  { id: 'analyzer', label: 'Previous Analyzer', hint: 'Access existing single-period analyses' },
 ];
 
 // Profitability section: the original single-period Analyzer plus the new
@@ -13,7 +13,7 @@ const TABS = [
 // so it can be linked to and survives a refresh.
 const ProfitabilityHub = () => {
   const [params, setParams] = useSearchParams();
-  const active = params.get('tab') === 'tracker' ? 'tracker' : 'analyzer';
+  const active = params.get('tab') === 'analyzer' ? 'analyzer' : 'tracker';
 
   return (
     <div data-testid="profitability-hub">
@@ -24,7 +24,7 @@ const ProfitabilityHub = () => {
             return (
               <button
                 key={t.id} role="tab" aria-selected={selected} type="button"
-                onClick={() => setParams(t.id === 'analyzer' ? {} : { tab: t.id })}
+                onClick={() => setParams(t.id === 'tracker' ? {} : { tab: t.id })}
                 data-testid={`profitability-tab-${t.id}`}
                 title={t.hint}
                 className={`px-4 py-2 text-sm font-semibold transition-colors ${selected ? 'text-white shadow-sm' : 'text-[#5B4B7A] hover:bg-[#F1EBFA]'}`}
