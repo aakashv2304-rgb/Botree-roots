@@ -14,7 +14,7 @@ import { Calculator, Plus, X, Trash, PencilSimple, CaretDown, CaretUp } from '@p
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const ALLOCATION_OPTIONS = Array.from({ length: 10 }, (_, i) => (i + 1) * 10); // 10,20,...100
 
-const emptyResourceLine = () => ({ role_name: '', allocation_percent: '100', quantity: '', unit: '', allocation_target: null });
+const emptyResourceLine = () => ({ role_name: '', allocation_percent: '100', quantity: '', unit: '' });
 const emptyRevenueLineItem = (label = '') => ({
   label,
   revenue: '',
@@ -155,8 +155,7 @@ const ProfitabilityAnalyzer = () => {
               role_name: rl.role_name,
               allocation_percent: String(rl.allocation_percent),
               quantity: rl.quantity ?? '',
-              unit: rl.unit || '',
-              allocation_target: rl.allocation_target ?? null
+              unit: rl.unit || ''
             }))
           }))
         : [emptyRevenueLineItem()]
@@ -239,17 +238,7 @@ const ProfitabilityAnalyzer = () => {
   };
 
   const addLineItem = () => setLineItems([...lineItems, emptyRevenueLineItem()]);
-  const removeLineItem = (index) => setLineItems(lineItems
-    .filter((_, i) => i !== index)
-    .map((item, newIndex) => ({
-      ...item,
-      resource_lines: item.resource_lines.map((rl) => ({
-        ...rl,
-        allocation_target: rl.allocation_target === index ? newIndex
-          : rl.allocation_target != null && rl.allocation_target > index
-            ? rl.allocation_target - 1 : rl.allocation_target
-      }))
-    })));
+  const removeLineItem = (index) => setLineItems(lineItems.filter((_, i) => i !== index));
   const updateLineItemField = (index, field, value) => {
     const updated = [...lineItems];
     updated[index][field] = value;
@@ -283,33 +272,21 @@ const ProfitabilityAnalyzer = () => {
 
   const fmt = (n) => `₹${(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 
-  // Attribute manual role costs to the selected revenue line; automated costs stay local.
-  const lineCosts = lineItems.map((item) => computeLineItem(item).autoCost);
-  lineItems.forEach((item, sourceIndex) => {
-    item.resource_lines.forEach((rl) => {
-      const monthly = rateCard?.roles[rl.role_name] || 0;
-      const amount = monthly * (parseFloat(rl.allocation_percent) || 0) / 100 * quantityMultiplier(rl.quantity, rl.unit);
-      const target = rl.allocation_target == null ? sourceIndex : Number(rl.allocation_target);
-      if (target >= 0 && target < lineCosts.length) lineCosts[target] += amount;
-    });
-  });
-  const summaries = { one_time: { revenue: 0, cost: 0, hasRevenue: false }, recurring: { revenue: 0, cost: 0, hasRevenue: false } };
-  lineItems.forEach((item, index) => {
-    const group = summaries[item.is_subscription ? 'recurring' : 'one_time'];
-    group.cost += lineCosts[index];
-    if (item.revenue !== '') {
-      group.revenue += parseFloat(item.revenue) || 0;
-      group.hasRevenue = true;
-    }
-  });
-  const totals = Object.values(summaries).reduce((acc, group) => ({
-    totalCost: acc.totalCost + group.cost,
-    totalRevenue: acc.totalRevenue + group.revenue,
-    anyRevenue: acc.anyRevenue || group.hasRevenue
-  }), { totalCost: 0, totalRevenue: 0, anyRevenue: false });
+  // Live preview totals
+  const totals = lineItems.reduce(
+    (acc, item) => {
+      const { totalCost } = computeLineItem(item);
+      acc.totalCost += totalCost;
+      if (item.revenue !== '') {
+        acc.totalRevenue += parseFloat(item.revenue) || 0;
+        acc.anyRevenue = true;
+      }
+      return acc;
+    },
+    { totalCost: 0, totalRevenue: 0, anyRevenue: false }
+  );
   const totalProfit = totals.anyRevenue ? totals.totalRevenue - totals.totalCost : null;
-  const totalMargin = totals.totalRevenue > 0 ? totalProfit / totals.totalRevenue * 100 : null;
-  const marginOf = (group) => group.revenue > 0 ? (group.revenue - group.cost) / group.revenue * 100 : null;
+  const totalMargin = totals.anyRevenue && totals.totalRevenue > 0 ? (totalProfit / totals.totalRevenue) * 100 : null;
 
   const handleSave = async () => {
     if (!title.trim()) {
@@ -318,10 +295,6 @@ const ProfitabilityAnalyzer = () => {
     }
     for (const li of lineItems) {
       for (const rl of li.resource_lines) {
-        if (rl.allocation_target != null && (rl.allocation_target < 0 || rl.allocation_target >= lineItems.length)) {
-          toast.error('A cost has an invalid revenue allocation');
-          return;
-        }
         if (rl.role_name && !rateCard.roles[rl.role_name]) {
           toast.error(`Please select a valid role for "${li.label}"`);
           return;
@@ -348,8 +321,7 @@ const ProfitabilityAnalyzer = () => {
                 role_name: rl.role_name,
                 allocation_percent: parseFloat(rl.allocation_percent) || 0,
                 quantity: rl.quantity !== '' ? parseFloat(rl.quantity) : null,
-                unit: rl.unit || null,
-                allocation_target: rl.allocation_target == null ? null : Number(rl.allocation_target)
+                unit: rl.unit || null
               }))
           })),
         notes: notes || null
@@ -461,8 +433,7 @@ const ProfitabilityAnalyzer = () => {
           {/* Revenue Line Items */}
           <div className="space-y-5">
             {lineItems.map((item, itemIndex) => {
-              const { manualCost, autoBreakdown } = computeLineItem(item);
-              const totalCost = lineCosts[itemIndex];
+              const { manualCost, totalCost, autoBreakdown } = computeLineItem(item);
               const revenueNum = item.revenue !== '' ? parseFloat(item.revenue) || 0 : null;
               const profit = revenueNum !== null ? revenueNum - totalCost : null;
               const margin = revenueNum ? (profit / revenueNum) * 100 : null;
@@ -599,7 +570,7 @@ const ProfitabilityAnalyzer = () => {
                       const rlCost = (monthlyCost * (parseFloat(rl.allocation_percent) || 0)) / 100 * multiplier;
                       return (
                         <div key={lineIndex} className="bg-[#FFFFFF] p-2.5 rounded-lg border border-[#E4DCF0] space-y-2">
-                          <div className="grid grid-cols-1 md:grid-cols-[2fr_1.3fr_1.2fr_1fr_auto] gap-2 items-end">
+                          <div className="grid grid-cols-1 md:grid-cols-[2fr_1.2fr_1fr_auto] gap-2 items-end">
                             <div className="space-y-1">
                               <Label className="text-[11px] text-[#7A6B9E]">Role</Label>
                               <Select value={rl.role_name} onValueChange={(v) => updateResourceLine(itemIndex, lineIndex, 'role_name', v)}>
@@ -609,19 +580,6 @@ const ProfitabilityAnalyzer = () => {
                                 <SelectContent>
                                   {Object.keys(rateCard.roles).map((role) => (
                                     <SelectItem key={role} value={role}>{role}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-[11px] text-[#7A6B9E]">Allocate Cost To</Label>
-                              <Select value={String(rl.allocation_target == null ? itemIndex : rl.allocation_target)} onValueChange={(v) => updateResourceLine(itemIndex, lineIndex, 'allocation_target', Number(v))}>
-                                <SelectTrigger className="h-9 text-sm" data-testid={`cost-target-${itemIndex}-${lineIndex}`}>
-                                  <SelectValue placeholder="Select revenue line" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {lineItems.map((revenueLine, targetIndex) => (
-                                    <SelectItem key={targetIndex} value={String(targetIndex)}>{revenueLine.label || `Line ${targetIndex + 1}`}</SelectItem>
                                   ))}
                                 </SelectContent>
                               </Select>
@@ -732,16 +690,6 @@ const ProfitabilityAnalyzer = () => {
             Add Revenue Line Item
           </Button>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-6">
-            {Object.entries(summaries).map(([key, group]) => (
-              <div key={key} className="bg-[#F7F4FC] border border-[#E4DCF0] rounded-lg p-4">
-                <p className="font-bold text-sm mb-2">{key === 'one_time' ? 'One-Time Profitability' : 'Recurring Profitability'}</p>
-                <p className="text-xs text-[#7A6B9E]">Revenue: {group.hasRevenue ? fmt(group.revenue) : '—'} · Cost: {fmt(group.cost)}</p>
-                <p className="text-sm font-semibold mt-1">Profit: {group.hasRevenue ? fmt(group.revenue - group.cost) : '—'} · Margin: {marginOf(group) !== null ? `${marginOf(group).toFixed(1)}%` : '—'}</p>
-              </div>
-            ))}
-          </div>
-
           {/* Overall Summary */}
           <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-[#E4DCF0]">
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
@@ -827,10 +775,6 @@ const ProfitabilityAnalyzer = () => {
                       </span>
                     </div>
 
-                    <div className="flex gap-4 mt-2 text-xs text-[#7A6B9E] flex-wrap">
-                      <span>One-Time Margin: <strong>{analysis.one_time_summary?.margin_percent != null ? `${analysis.one_time_summary.margin_percent.toFixed(1)}%` : '—'}</strong></span>
-                      <span>Recurring Margin: <strong>{analysis.recurring_summary?.margin_percent != null ? `${analysis.recurring_summary.margin_percent.toFixed(1)}%` : '—'}</strong></span>
-                    </div>
                     {expandedId === analysis.id && (
                       <div className="mt-4 space-y-2 border-t border-[#E4DCF0] pt-4">
                         {analysis.revenue_line_items.map((li, i) => (
@@ -860,7 +804,7 @@ const ProfitabilityAnalyzer = () => {
                                 {li.resource_lines.map((rl, j) => (
                                   <div key={j} className="flex justify-between text-[#7A6B9E]">
                                     <span>
-                                      {rl.role_name} ({rl.allocation_percent}%) → {analysis.revenue_line_items[rl.allocation_target ?? i]?.label || li.label}
+                                      {rl.role_name} ({rl.allocation_percent}%)
                                       {rl.quantity && rl.unit && <span> · {rl.quantity} {rl.unit}</span>}
                                     </span>
                                     <span>{fmt(rl.cost)}</span>
