@@ -9,7 +9,8 @@ import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { toast } from 'sonner';
 import ValidationModal from '../components/ValidationModal';
-import { ArrowLeft, Plus, X, CurrencyInr, Package } from '@phosphor-icons/react';
+import { ArrowLeft, Plus, X, CurrencyInr, Package, UsersThree } from '@phosphor-icons/react';
+import WorkflowBuilder from '../components/WorkflowBuilder';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -57,6 +58,14 @@ const NewProposal = () => {
 
   const [oneTimeRows, setOneTimeRows] = useState([emptyOneTimeRow()]);
   const [recurringRows, setRecurringRows] = useState([emptyRecurringRow()]);
+  // The approval chain: ordered ids of the people who approve at stage 1, 2, ... (there is no default).
+  const [approverIds, setApproverIds] = useState([]);
+  const [directory, setDirectory] = useState([]);
+  useEffect(() => {
+    axios.get(`${API}/users/directory`, { withCredentials: true })
+      .then((r) => setDirectory(r.data))
+      .catch(() => toast.error('Could not load the list of approvers'));
+  }, []);
 
   useEffect(() => {
     axios.get(`${API}/base-template`, { withCredentials: true })
@@ -143,6 +152,12 @@ const NewProposal = () => {
       return;
     }
 
+    if (approverIds.length === 0) {
+      document.getElementById('approval-workflow')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setValidationError('Add at least one approval stage. Choose an approver in the Approval Workflow section and click “Add approval stage 1”.');
+      return;
+    }
+
     setLoading(true);
     try {
       // Map dynamic rows back into fixed fields (presets) / freeform lists (custom)
@@ -205,6 +220,7 @@ const NewProposal = () => {
         sfa_user_charge: recurringFixed.sfa_user_charge ?? null,
         shared_l1_support_charge: recurringFixed.shared_l1_support_charge ?? null,
         extra_ongoing_charges: extraOngoingChargesData,
+        approver_ids: approverIds,
       }, { withCredentials: true });
 
       toast.success('Proposal created successfully!');
@@ -623,6 +639,17 @@ const NewProposal = () => {
                 className="bg-[#FFFFFF] text-[#1E1533]"
               />
             </div>
+          </div>
+
+          {/* Approval workflow - set up by the creator; there is no default chain */}
+          <div id="approval-workflow" data-testid="approval-workflow-card" className="bg-[#FFFFFF] p-6 shadow-sm border border-[#E4DCF0] card-enter" style={{ animationDelay: '0.25s' }}>
+            <h2 className="text-xl font-bold text-[#1E1533] mb-1 flex items-center gap-2">
+              <UsersThree size={22} className="text-purple-700" /> Approval Workflow <span className="text-red-700">*</span>
+            </h2>
+            <p className="text-sm text-[#7A6B9E] mb-4">
+              Set who must approve this proposal and in what order. Pick a person, then click “Add approval stage”. Each stage is approved by one person, and the proposal moves to the next stage only after they approve.
+            </p>
+            <WorkflowBuilder users={directory} value={approverIds} onChange={setApproverIds} excludeIds={[user?.id]} />
           </div>
 
           {/* Submit */}
