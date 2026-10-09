@@ -335,7 +335,7 @@ const Login = () => {
             </div>
           </div>
           <div className="lg-copy">
-            <div className="lg-eyebrow"><i></i> Enterprise Proposal Tracker</div>
+            <div className="lg-eyebrow"><i></i> Draft it. Track it. Close it.</div>
             <h1>Proposals, moving <span>forward.</span></h1>
             <p className="lg-sub">Draft it. Track it. Close it.</p>
             <div className="lg-flow" aria-label="Proposal workflow">
@@ -345,7 +345,7 @@ const Login = () => {
               <div className="lg-step"><span className="lg-dot"></span>Submit</div>
             </div>
           </div>
-          <div className="lg-foot">BOTREE ROOTS &middot; PROPOSAL WORKSPACE</div>
+          <div className="lg-foot">BOTREE DEALPATH &middot; Draft it. Track it. Close it.</div>
         </section>
 
         <section className="lg-auth">
