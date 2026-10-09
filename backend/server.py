@@ -103,7 +103,7 @@ SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
 SMTP_USERNAME = os.environ.get("SMTP_USERNAME")
 SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD")
 SMTP_FROM_EMAIL = os.environ.get("SMTP_FROM_EMAIL") or SMTP_USERNAME
-SMTP_FROM_NAME = os.environ.get("SMTP_FROM_NAME", "Botree Roots")
+SMTP_FROM_NAME = os.environ.get("SMTP_FROM_NAME", "Botree DealPath")
 
 # File storage: MongoDB GridFS - lives in the same free MongoDB Atlas cluster,
 # no external service or API key required.
@@ -413,7 +413,7 @@ async def send_workflow_notification(
         <body>
             <div class="container">
                 <div class="header">
-                    <h1 style="margin: 0;">Botree Roots</h1>
+                    <h1 style="margin: 0;">Botree DealPath</h1>
                     <p style="margin: 5px 0 0 0;">Proposal Workflow Notification</p>
                 </div>
                 <div class="content">
@@ -466,11 +466,11 @@ async def send_access_request_notification(requester_email: str, requester_name:
         <body>
             <div class="container">
                 <div class="header">
-                    <h1 style="margin: 0;">Botree Roots</h1>
+                    <h1 style="margin: 0;">Botree DealPath</h1>
                     <p style="margin: 5px 0 0 0;">New Access Request</p>
                 </div>
                 <div class="content">
-                    <p><strong>{requester_name}</strong> ({requester_email}) signed in with Zoho and is requesting access to Botree Roots.</p>
+                    <p><strong>{requester_name}</strong> ({requester_email}) signed in with Zoho and is requesting access to Botree DealPath.</p>
                     <p>Review and assign them a role to approve access.</p>
                     <a href="{APP_URL}/dashboard/users" class="btn" target="_blank" rel="noopener noreferrer" style="color: white;">Review Access Requests</a>
                     <p style="font-size: 12px; color: #666;">If the button doesn't work, copy and paste this link into your browser:<br>{APP_URL}/dashboard/users</p>
