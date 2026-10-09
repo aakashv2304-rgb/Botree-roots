@@ -171,7 +171,8 @@ const Login = () => {
           display:flex; align-items:center;
         }
         .lg-meta { display:flex; justify-content:space-between; align-items:center; margin:0 0 14px; font-size:12px; }
-        .lg-remember { display:inline-flex; align-items:center; gap:8px; color:#756d7e; cursor:pointer; line-height:1.4; white-space:nowrap; }
+        .botree-login-shell label.lg-remember { display:inline-flex; flex-direction:row; align-items:center; justify-content:flex-start; gap:10px; margin:0; padding:0; color:#756d7e; cursor:pointer; line-height:20px; white-space:nowrap; }
+        .lg-remember-text { display:inline-block; line-height:20px; }
         .botree-login-shell .lg-remember input[type="checkbox"] {
           appearance: auto !important;
           -webkit-appearance: auto !important;
@@ -193,6 +194,8 @@ const Login = () => {
           position: static;
           transform: none !important;
         }
+        .botree-login-shell .lg-remember input[type="checkbox"]:focus { box-shadow:none !important; outline:2px solid transparent; }
+        .botree-login-shell .lg-remember input[type="checkbox"]:focus-visible { outline:2px solid #8d4bd4; outline-offset:3px; }
         .lg-remember input:hover { transform: none !important; }
         .lg-remember input::after { content: none !important; }
         .botree-login-shell a { color:#6520ae; text-decoration:none; font-weight:600; cursor:pointer; }
