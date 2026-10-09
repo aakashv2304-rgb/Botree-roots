@@ -171,33 +171,43 @@ const Login = () => {
           display:flex; align-items:center;
         }
         .lg-meta { display:flex; justify-content:space-between; align-items:center; margin:0 0 14px; font-size:12px; }
-        .botree-login-shell label.lg-remember { display:inline-flex; flex-direction:row; align-items:center; justify-content:flex-start; gap:10px; margin:0; padding:0; color:#756d7e; cursor:pointer; line-height:20px; white-space:nowrap; }
-        .lg-remember-text { display:inline-block; line-height:20px; }
-        .botree-login-shell .lg-remember input[type="checkbox"] {
-          appearance: auto !important;
-          -webkit-appearance: auto !important;
-          width: 14px !important;
-          height: 14px !important;
-          min-height: 14px !important;
-          max-height: 14px !important;
-          min-width: 14px !important;
-          border: none !important;
-          border-radius: 3px !important;
-          background: none !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          accent-color: var(--purple) !important;
-          cursor: pointer;
-          flex: 0 0 14px;
-          display: inline-block;
-          vertical-align: middle;
-          position: static;
-          transform: none !important;
+        /* Custom remember-me checkbox based on the supplied HTML component. */
+        .botree-login-shell label.lg-remember {
+          display:inline-flex; flex-direction:row; align-items:center; width:fit-content;
+          max-width:100%; gap:12px; margin:0; padding:0; cursor:pointer;
+          user-select:none; -webkit-tap-highlight-color:transparent;
+          text-transform:none; letter-spacing:normal;
         }
-        .botree-login-shell .lg-remember input[type="checkbox"]:focus { box-shadow:none !important; outline:2px solid transparent; }
-        .botree-login-shell .lg-remember input[type="checkbox"]:focus-visible { outline:2px solid #8d4bd4; outline-offset:3px; }
-        .lg-remember input:hover { transform: none !important; }
-        .lg-remember input::after { content: none !important; }
+        .botree-login-shell .lg-remember input[type="checkbox"] {
+          position:absolute !important; width:1px !important; height:1px !important;
+          min-width:1px !important; min-height:1px !important; max-height:1px !important;
+          margin:0 !important; padding:0 !important; opacity:0 !important;
+          overflow:hidden; pointer-events:none; appearance:none !important;
+          -webkit-appearance:none !important; box-shadow:none !important;
+        }
+        .lg-remember-check {
+          width:21px; height:21px; display:grid; place-items:center; flex:0 0 21px;
+          border-radius:6px; border:1.5px solid #a9b2c3; background:#fff;
+          transition:background .2s ease,border-color .2s ease,box-shadow .2s ease,transform .2s ease;
+        }
+        .lg-remember-check svg {
+          width:14px; height:14px; fill:none; stroke:#fff; stroke-width:2.5;
+          stroke-linecap:round; stroke-linejoin:round; stroke-dasharray:20; stroke-dashoffset:20;
+          transition:stroke-dashoffset .2s ease;
+        }
+        .botree-login-shell .lg-remember-text {
+          color:#344563; font-size:13px; font-weight:650; letter-spacing:.055em;
+          line-height:21px; white-space:nowrap;
+        }
+        .lg-remember:hover .lg-remember-check { border-color:#465d9a; box-shadow:0 0 0 4px #465d9a12; }
+        .lg-remember input:checked + .lg-remember-check {
+          background:#344c91; border-color:#344c91; transform:scale(1.02);
+        }
+        .lg-remember input:checked + .lg-remember-check svg { stroke-dashoffset:0; }
+        .lg-remember input:focus-visible + .lg-remember-check { outline:3px solid #92adf5; outline-offset:3px; }
+        @media (prefers-reduced-motion:reduce) {
+          .lg-remember-check,.lg-remember-check svg { transition:none; }
+        }
         .botree-login-shell a { color:#6520ae; text-decoration:none; font-weight:600; cursor:pointer; }
         .lg-primary {
           width:100%; height:49px; border:0; border-radius:13px; color:white; font:600 14px "Poppins";
@@ -272,7 +282,9 @@ const Login = () => {
         html.dark-theme .lg-desc, html.dark-theme .lg-remember{color:#aaa0b0}
         html.dark-theme .botree-login-shell label{color:#c8bdce}
         html.dark-theme .botree-login-shell input{background:#18121b;border-color:#33293a;color:#fff}
-        html.dark-theme .botree-login-shell .lg-remember input[type="checkbox"]{appearance:auto !important;-webkit-appearance:auto !important;background:none !important;accent-color:#a665df !important}
+        html.dark-theme .botree-login-shell .lg-remember-check { background:#18121b; border-color:#756b7c; }
+        html.dark-theme .botree-login-shell .lg-remember-text { color:#c8bdce; }
+        html.dark-theme .botree-login-shell .lg-remember input:checked + .lg-remember-check { background:#7750bb; border-color:#7750bb; }
         html.dark-theme .botree-login-shell input::placeholder{color:#756b7c}
         html.dark-theme .botree-login-shell input:focus{border-color:#9857d9;box-shadow:0 0 0 4px rgba(145,76,211,.12)}
         html.dark-theme .lg-sso{background:#18121b;border-color:#33293a;color:#f7f3f9}
@@ -391,8 +403,11 @@ const Login = () => {
 
               <div className="lg-meta">
                 <label className="lg-remember">
-                  <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />
-                  Keep me signed in
+                  <input id="rememberMe" name="rememberMe" type="checkbox" autoComplete="off" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />
+                  <span className="lg-remember-check" aria-hidden="true">
+                    <svg viewBox="0 0 16 16"><path d="m3.2 8.1 3.2 3.1 6.4-6.5" /></svg>
+                  </span>
+                  <span className="lg-remember-text">KEEP ME SIGNED IN</span>
                 </label>
                 <a onClick={handleForgotPassword}>Forgot password?</a>
               </div>
