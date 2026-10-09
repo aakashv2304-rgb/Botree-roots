@@ -1393,10 +1393,10 @@ async def create_proposal(proposal: ProposalCreate, request: Request):
     return response_proposal
 
 @api_router.get("/proposals")
-async def get_proposals(request: Request, status: Optional[str] = None, search: Optional[str] = None):
+async def get_proposals(request: Request, status: Optional[str] = None, search: Optional[str] = None, dashboard_only: bool = False):
     current_user = await get_current_user(request)
     
-    query = {}
+    query = _dashboard_filter(current_user, dashboard_only)
     if status:
         if status == "pending":
             query["status"] = {"$ne": "approved"}
@@ -2409,13 +2409,21 @@ async def download_proposal_file(proposal_id: str, request: Request):
         headers={"Content-Disposition": f"attachment; filename={file_info['filename']}"}
     )
 
+# Dashboard data is restricted to the authenticated user's proposals.
+# The Admin role can see company-wide performance. Other screens retain their
+# existing access rules by not supplying dashboard_only.
+def _dashboard_filter(user: dict, dashboard_only: bool = False) -> dict:
+    return {} if not dashboard_only or user.get("role") == "Admin" else {"created_by": user["id"]}
+
 # Analytics endpoints
 @api_router.get("/analytics/stage-counts")
-async def get_stage_counts(request: Request):
-    await get_current_user(request)
+async def get_stage_counts(request: Request, dashboard_only: bool = False):
+    current_user = await get_current_user(request)
+    ownership = _dashboard_filter(current_user, dashboard_only)
     
     # Count proposals by stage
     pipeline = [
+        {"$match": ownership},
         {"$group": {"_id": "$status", "count": {"$sum": 1}}}
     ]
     results = await db.proposals.aggregate(pipeline).to_list(None)
@@ -2449,11 +2457,12 @@ async def get_stage_counts(request: Request):
     }
 
 @api_router.get("/analytics/approval-rate")
-async def get_approval_rate(request: Request):
-    await get_current_user(request)
+async def get_approval_rate(request: Request, dashboard_only: bool = False):
+    current_user = await get_current_user(request)
+    ownership = _dashboard_filter(current_user, dashboard_only)
     
-    total = await db.proposals.count_documents({})
-    approved = await db.proposals.count_documents({"status": "approved"})
+    total = await db.proposals.count_documents(ownership)
+    approved = await db.proposals.count_documents({**ownership, "status": "approved"})
     
     approval_percentage = (approved / total * 100) if total > 0 else 0
     
@@ -2464,13 +2473,15 @@ async def get_approval_rate(request: Request):
     }
 
 @api_router.get("/analytics/bottlenecks")
-async def get_bottlenecks(request: Request):
-    await get_current_user(request)
+async def get_bottlenecks(request: Request, dashboard_only: bool = False):
+    current_user = await get_current_user(request)
+    ownership = _dashboard_filter(current_user, dashboard_only)
     
     # Find proposals that have been in the same stage for > 7 days
     seven_days_ago = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
     
     bottleneck_proposals = await db.proposals.find({
+        **ownership,
         "status": {"$nin": ["approved", "needs_revision"]},
         "updated_at": {"$lt": seven_days_ago}
     }).to_list(100)
@@ -2500,11 +2511,12 @@ async def get_bottlenecks(request: Request):
     return {"bottlenecks": bottlenecks}
 
 @api_router.get("/analytics/activity-feed")
-async def get_activity_feed(request: Request):
-    await get_current_user(request)
+async def get_activity_feed(request: Request, dashboard_only: bool = False):
+    current_user = await get_current_user(request)
+    ownership = _dashboard_filter(current_user, dashboard_only)
     
     # Get recent 20 proposals with history
-    proposals = await db.proposals.find({}).sort("updated_at", -1).limit(20).to_list(20)
+    proposals = await db.proposals.find(ownership).sort("updated_at", -1).limit(20).to_list(20)
     
     activities = []
     for p in proposals:
@@ -2524,13 +2536,15 @@ async def get_activity_feed(request: Request):
     return {"activities": activities[:15]}
 
 @api_router.get("/analytics/throughput")
-async def get_throughput(request: Request):
-    await get_current_user(request)
+async def get_throughput(request: Request, dashboard_only: bool = False):
+    current_user = await get_current_user(request)
+    ownership = _dashboard_filter(current_user, dashboard_only)
     
     # Count proposals approved in last 30 days
     thirty_days_ago = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
     
     approved_count = await db.proposals.count_documents({
+        **ownership,
         "status": "approved",
         "updated_at": {"$gte": thirty_days_ago}
     })
@@ -2545,6 +2559,7 @@ async def get_throughput(request: Request):
         day_end = (datetime.now(timezone.utc) - timedelta(days=i)).replace(hour=23, minute=59, second=59, microsecond=999999).isoformat()
         
         day_count = await db.proposals.count_documents({
+            **ownership,
             "status": "approved",
             "updated_at": {"$gte": day_start, "$lte": day_end}
         })
@@ -2557,24 +2572,28 @@ async def get_throughput(request: Request):
     }
 
 @api_router.get("/analytics/sla-health")
-async def get_sla_health(request: Request):
-    await get_current_user(request)
+async def get_sla_health(request: Request, dashboard_only: bool = False):
+    current_user = await get_current_user(request)
+    ownership = _dashboard_filter(current_user, dashboard_only)
     
     # Find proposals in review for > 3 days (critical SLA)
     three_days_ago = (datetime.now(timezone.utc) - timedelta(days=3)).isoformat()
     one_day_ago = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
     
     critical_count = await db.proposals.count_documents({
+        **ownership,
         "status": {"$nin": ["approved", "needs_revision"]},
         "updated_at": {"$lt": three_days_ago}
     })
     
     warning_count = await db.proposals.count_documents({
+        **ownership,
         "status": {"$nin": ["approved", "needs_revision"]},
         "updated_at": {"$gte": three_days_ago, "$lt": one_day_ago}
     })
     
     total_active = await db.proposals.count_documents({
+        **ownership,
         "status": {"$nin": ["approved", "needs_revision"]}
     })
     
@@ -2588,22 +2607,24 @@ async def get_sla_health(request: Request):
     }
 
 @api_router.get("/analytics/dsp-summary")
-async def get_dsp_summary(request: Request):
+async def get_dsp_summary(request: Request, dashboard_only: bool = False):
     """Headline Days-in-Sales-Pipeline figures for the dashboard: cycle time of approved
     deals, and the age of those still open (including the single oldest)."""
-    await get_current_user(request)
-    proposals = await db.proposals.find({}, {"title": 1, **DSP_FIELDS}).to_list(5000)
+    current_user = await get_current_user(request)
+    ownership = _dashboard_filter(current_user, dashboard_only)
+    proposals = await db.proposals.find(ownership, {"title": 1, **DSP_FIELDS}).to_list(5000)
     return dsp_summary([
         {"id": str(p["_id"]), "title": p.get("title", ""), "dsp": pipeline_from_proposal(p)} for p in proposals
     ])
 
 @api_router.get("/analytics/deal-value-summary")
-async def get_deal_value_summary(request: Request):
-    await get_current_user(request)
+async def get_deal_value_summary(request: Request, dashboard_only: bool = False):
+    current_user = await get_current_user(request)
+    ownership = _dashboard_filter(current_user, dashboard_only)
     
     # Calculate total deal value for active proposals
     pipeline = [
-        {"$match": {"status": {"$nin": ["approved", "needs_revision"]}, "deal_value": {"$ne": None}}},
+        {"$match": {**ownership, "status": {"$nin": ["approved", "needs_revision"]}, "deal_value": {"$ne": None}}},
         {"$group": {"_id": None, "total_value": {"$sum": "$deal_value"}}}
     ]
     
@@ -2612,7 +2633,7 @@ async def get_deal_value_summary(request: Request):
     
     # Calculate total approved value
     pipeline_approved = [
-        {"$match": {"status": "approved", "deal_value": {"$ne": None}}},
+        {"$match": {**ownership, "status": "approved", "deal_value": {"$ne": None}}},
         {"$group": {"_id": None, "total_value": {"$sum": "$deal_value"}}}
     ]
     
@@ -2626,9 +2647,10 @@ async def get_deal_value_summary(request: Request):
     }
 
 @api_router.get("/analytics/monthly-proposals")
-async def get_monthly_proposals(request: Request, year: int = None, month: int = None):
+async def get_monthly_proposals(request: Request, year: int = None, month: int = None, dashboard_only: bool = False):
     """Get proposal counts for a specific month"""
-    await get_current_user(request)
+    current_user = await get_current_user(request)
+    ownership = _dashboard_filter(current_user, dashboard_only)
     
     # Default to current month if not specified
     now = datetime.now(timezone.utc)
@@ -2650,6 +2672,7 @@ async def get_monthly_proposals(request: Request, year: int = None, month: int =
     
     # Count proposals created in this month
     total_proposals = await db.proposals.count_documents({
+        **ownership,
         "created_at": {
             "$gte": start_of_month.isoformat(),
             "$lt": end_of_month.isoformat()
@@ -2660,6 +2683,7 @@ async def get_monthly_proposals(request: Request, year: int = None, month: int =
     pipeline = [
         {
             "$match": {
+                **ownership,
                 "created_at": {
                     "$gte": start_of_month.isoformat(),
                     "$lt": end_of_month.isoformat()
