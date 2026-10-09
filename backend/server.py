@@ -2410,12 +2410,17 @@ async def download_proposal_file(proposal_id: str, request: Request):
     )
 
 # Analytics endpoints
+def _dashboard_scope(user):
+    return {} if user["role"] == "Admin" else {"created_by": str(user["id"])}
+
 @api_router.get("/analytics/stage-counts")
 async def get_stage_counts(request: Request):
-    await get_current_user(request)
+    current_user = await get_current_user(request)
+    scope = _dashboard_scope(current_user)
     
     # Count proposals by stage
     pipeline = [
+        {"$match": scope},
         {"$group": {"_id": "$status", "count": {"$sum": 1}}}
     ]
     results = await db.proposals.aggregate(pipeline).to_list(None)
@@ -2450,10 +2455,11 @@ async def get_stage_counts(request: Request):
 
 @api_router.get("/analytics/approval-rate")
 async def get_approval_rate(request: Request):
-    await get_current_user(request)
+    current_user = await get_current_user(request)
+    scope = _dashboard_scope(current_user)
     
-    total = await db.proposals.count_documents({})
-    approved = await db.proposals.count_documents({"status": "approved"})
+    total = await db.proposals.count_documents(scope)
+    approved = await db.proposals.count_documents({**scope, "status": "approved"})
     
     approval_percentage = (approved / total * 100) if total > 0 else 0
     
@@ -2465,12 +2471,14 @@ async def get_approval_rate(request: Request):
 
 @api_router.get("/analytics/bottlenecks")
 async def get_bottlenecks(request: Request):
-    await get_current_user(request)
+    current_user = await get_current_user(request)
+    scope = _dashboard_scope(current_user)
     
     # Find proposals that have been in the same stage for > 7 days
     seven_days_ago = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
     
     bottleneck_proposals = await db.proposals.find({
+        **scope,
         "status": {"$nin": ["approved", "needs_revision"]},
         "updated_at": {"$lt": seven_days_ago}
     }).to_list(100)
@@ -2501,10 +2509,11 @@ async def get_bottlenecks(request: Request):
 
 @api_router.get("/analytics/activity-feed")
 async def get_activity_feed(request: Request):
-    await get_current_user(request)
+    current_user = await get_current_user(request)
+    scope = _dashboard_scope(current_user)
     
     # Get recent 20 proposals with history
-    proposals = await db.proposals.find({}).sort("updated_at", -1).limit(20).to_list(20)
+    proposals = await db.proposals.find(scope).sort("updated_at", -1).limit(20).to_list(20)
     
     activities = []
     for p in proposals:
@@ -2525,12 +2534,14 @@ async def get_activity_feed(request: Request):
 
 @api_router.get("/analytics/throughput")
 async def get_throughput(request: Request):
-    await get_current_user(request)
+    current_user = await get_current_user(request)
+    scope = _dashboard_scope(current_user)
     
     # Count proposals approved in last 30 days
     thirty_days_ago = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
     
     approved_count = await db.proposals.count_documents({
+        **scope,
         "status": "approved",
         "updated_at": {"$gte": thirty_days_ago}
     })
@@ -2545,6 +2556,7 @@ async def get_throughput(request: Request):
         day_end = (datetime.now(timezone.utc) - timedelta(days=i)).replace(hour=23, minute=59, second=59, microsecond=999999).isoformat()
         
         day_count = await db.proposals.count_documents({
+            **scope,
             "status": "approved",
             "updated_at": {"$gte": day_start, "$lte": day_end}
         })
@@ -2558,23 +2570,27 @@ async def get_throughput(request: Request):
 
 @api_router.get("/analytics/sla-health")
 async def get_sla_health(request: Request):
-    await get_current_user(request)
+    current_user = await get_current_user(request)
+    scope = _dashboard_scope(current_user)
     
     # Find proposals in review for > 3 days (critical SLA)
     three_days_ago = (datetime.now(timezone.utc) - timedelta(days=3)).isoformat()
     one_day_ago = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
     
     critical_count = await db.proposals.count_documents({
+        **scope,
         "status": {"$nin": ["approved", "needs_revision"]},
         "updated_at": {"$lt": three_days_ago}
     })
     
     warning_count = await db.proposals.count_documents({
+        **scope,
         "status": {"$nin": ["approved", "needs_revision"]},
         "updated_at": {"$gte": three_days_ago, "$lt": one_day_ago}
     })
     
     total_active = await db.proposals.count_documents({
+        **scope,
         "status": {"$nin": ["approved", "needs_revision"]}
     })
     
@@ -2591,19 +2607,21 @@ async def get_sla_health(request: Request):
 async def get_dsp_summary(request: Request):
     """Headline Days-in-Sales-Pipeline figures for the dashboard: cycle time of approved
     deals, and the age of those still open (including the single oldest)."""
-    await get_current_user(request)
-    proposals = await db.proposals.find({}, {"title": 1, **DSP_FIELDS}).to_list(5000)
+    current_user = await get_current_user(request)
+    scope = _dashboard_scope(current_user)
+    proposals = await db.proposals.find(scope, {"title": 1, **DSP_FIELDS}).to_list(5000)
     return dsp_summary([
         {"id": str(p["_id"]), "title": p.get("title", ""), "dsp": pipeline_from_proposal(p)} for p in proposals
     ])
 
 @api_router.get("/analytics/deal-value-summary")
 async def get_deal_value_summary(request: Request):
-    await get_current_user(request)
+    current_user = await get_current_user(request)
+    scope = _dashboard_scope(current_user)
     
     # Calculate total deal value for active proposals
     pipeline = [
-        {"$match": {"status": {"$nin": ["approved", "needs_revision"]}, "deal_value": {"$ne": None}}},
+        {"$match": {**scope, "status": {"$nin": ["approved", "needs_revision"]}, "deal_value": {"$ne": None}}},
         {"$group": {"_id": None, "total_value": {"$sum": "$deal_value"}}}
     ]
     
@@ -2612,7 +2630,7 @@ async def get_deal_value_summary(request: Request):
     
     # Calculate total approved value
     pipeline_approved = [
-        {"$match": {"status": "approved", "deal_value": {"$ne": None}}},
+        {"$match": {**scope, "status": "approved", "deal_value": {"$ne": None}}},
         {"$group": {"_id": None, "total_value": {"$sum": "$deal_value"}}}
     ]
     
@@ -2628,7 +2646,8 @@ async def get_deal_value_summary(request: Request):
 @api_router.get("/analytics/monthly-proposals")
 async def get_monthly_proposals(request: Request, year: int = None, month: int = None):
     """Get proposal counts for a specific month"""
-    await get_current_user(request)
+    current_user = await get_current_user(request)
+    scope = _dashboard_scope(current_user)
     
     # Default to current month if not specified
     now = datetime.now(timezone.utc)
@@ -2650,6 +2669,7 @@ async def get_monthly_proposals(request: Request, year: int = None, month: int =
     
     # Count proposals created in this month
     total_proposals = await db.proposals.count_documents({
+        **scope,
         "created_at": {
             "$gte": start_of_month.isoformat(),
             "$lt": end_of_month.isoformat()
@@ -2660,6 +2680,7 @@ async def get_monthly_proposals(request: Request, year: int = None, month: int =
     pipeline = [
         {
             "$match": {
+                **scope,
                 "created_at": {
                     "$gte": start_of_month.isoformat(),
                     "$lt": end_of_month.isoformat()
