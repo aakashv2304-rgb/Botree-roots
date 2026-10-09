@@ -171,12 +171,14 @@ const Login = () => {
           display:flex; align-items:center;
         }
         .lg-meta { display:flex; justify-content:space-between; align-items:center; margin:0 0 14px; font-size:12px; }
-        .lg-remember { display:flex; align-items:center; gap:8px; color:#756d7e; cursor:pointer; }
-        .lg-remember input {
+        .lg-remember { display:inline-flex; align-items:center; gap:8px; color:#756d7e; cursor:pointer; line-height:1.4; white-space:nowrap; }
+        .botree-login-shell .lg-remember input[type="checkbox"] {
           appearance: auto !important;
           -webkit-appearance: auto !important;
           width: 14px !important;
           height: 14px !important;
+          min-height: 14px !important;
+          max-height: 14px !important;
           min-width: 14px !important;
           border: none !important;
           border-radius: 3px !important;
@@ -185,7 +187,11 @@ const Login = () => {
           padding: 0 !important;
           accent-color: var(--purple) !important;
           cursor: pointer;
-          flex-shrink: 0;
+          flex: 0 0 14px;
+          display: inline-block;
+          vertical-align: middle;
+          position: static;
+          transform: none !important;
         }
         .lg-remember input:hover { transform: none !important; }
         .lg-remember input::after { content: none !important; }
@@ -263,6 +269,7 @@ const Login = () => {
         html.dark-theme .lg-desc, html.dark-theme .lg-remember{color:#aaa0b0}
         html.dark-theme .botree-login-shell label{color:#c8bdce}
         html.dark-theme .botree-login-shell input{background:#18121b;border-color:#33293a;color:#fff}
+        html.dark-theme .botree-login-shell .lg-remember input[type="checkbox"]{appearance:auto !important;-webkit-appearance:auto !important;background:none !important;accent-color:#a665df !important}
         html.dark-theme .botree-login-shell input::placeholder{color:#756b7c}
         html.dark-theme .botree-login-shell input:focus{border-color:#9857d9;box-shadow:0 0 0 4px rgba(145,76,211,.12)}
         html.dark-theme .lg-sso{background:#18121b;border-color:#33293a;color:#f7f3f9}
