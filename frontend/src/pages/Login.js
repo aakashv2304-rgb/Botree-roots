@@ -335,9 +335,9 @@ const Login = () => {
             </div>
           </div>
           <div className="lg-copy">
-            <div className="lg-eyebrow"><i></i> Enterprise Proposal Tracker</div>
+            <div className="lg-eyebrow"><i></i> Draft it. Track it. Close it.</div>
             <h1>Proposals, moving <span>forward.</span></h1>
-            <p className="lg-sub">Botree Roots brings your proposal pipeline, reviews and ownership into one focused workspace.</p>
+            <p className="lg-sub">Draft it. Track it. Close it.</p>
             <div className="lg-flow" aria-label="Proposal workflow">
               <div className="lg-step active"><span className="lg-dot"></span>Opportunity</div><span className="lg-line"></span>
               <div className="lg-step"><span className="lg-dot"></span>Build</div><span className="lg-line"></span>
@@ -345,14 +345,14 @@ const Login = () => {
               <div className="lg-step"><span className="lg-dot"></span>Submit</div>
             </div>
           </div>
-          <div className="lg-foot">BOTREE ROOTS &middot; PROPOSAL WORKSPACE</div>
+          <div className="lg-foot">BOTREE DEALPATH &middot; Draft it. Track it. Close it.</div>
         </section>
 
         <section className="lg-auth">
           <div className="lg-card">
             <div className="lg-product">
               <div className="lg-mark">R</div>
-              <div><b>Botree Roots</b><small>Proposal Workspace</small></div>
+              <div><b>Botree DealPath</b><small>Draft it. Track it. Close it.</small></div>
             </div>
             <div className="lg-welcome">Welcome back</div>
             <h2>Sign in to continue.</h2>

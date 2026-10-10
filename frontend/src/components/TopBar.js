@@ -106,7 +106,7 @@ const TopBar = () => {
           </div>
           <div className="hidden lg:block h-6 w-px bg-[#E4DCF0]" />
           <span className="hidden lg:block text-sm font-semibold text-[#5B4B7A]">
-            Enterprise Proposal Tracker
+            Draft it. Track it. Close it.
           </span>
         </div>
 

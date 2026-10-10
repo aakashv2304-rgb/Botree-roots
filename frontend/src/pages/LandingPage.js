@@ -59,7 +59,7 @@ const LandingPage = () => {
             </div>
             <div>
               <h1 className="text-xl font-bold">Botree Software</h1>
-              <p className="text-xs text-[#7A6B9E]">Botree Roots</p>
+              <p className="text-xs text-[#7A6B9E]">Botree DealPath</p>
             </div>
           </div>
           <Button 

@@ -29,7 +29,7 @@ const SplashScreen = () => {
             className="text-sm font-semibold tracking-wide bg-gradient-to-r from-[#7518F2] to-[#E64AD1] bg-clip-text text-transparent"
             style={{ animation: 'fadeIn 0.6s ease-in 0.3s both' }}
           >
-            Botree Roots
+            Botree DealPath
           </p>
         </div>
       </div>

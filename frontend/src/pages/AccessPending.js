@@ -29,7 +29,7 @@ const AccessPending = () => {
 
           <h2 className="text-xl font-bold text-[#1E1533] mb-2">Access Request Submitted</h2>
           <p className="text-sm text-[#7A6B9E] leading-relaxed">
-            You signed in with Zoho, but you don't have a Botree Roots account yet.
+            You signed in with Zoho, but you don't have a Botree DealPath account yet.
             An Admin has been notified and will review your request shortly.
           </p>
           <p className="text-sm text-[#7A6B9E] leading-relaxed mt-3">
