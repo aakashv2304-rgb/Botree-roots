@@ -23,21 +23,21 @@ const UserManagement = () => {
   const [resetPasswordOpen, setResetPasswordOpen] = useState(false);
   const [resetPasswordValue, setResetPasswordValue] = useState('');
   const [resetPasswordLoading, setResetPasswordLoading] = useState(false);
-  const [formData, setFormData] = useState({ email: '', name: '', role: 'Sales', department: 'Sales' });
+  const [formData, setFormData] = useState({ email: '', name: '', role: 'User', department: 'Sales' });
   const [baseTemplate, setBaseTemplate] = useState(null);
   const [templateUploading, setTemplateUploading] = useState(false);
   const [accessRequests, setAccessRequests] = useState([]);
   const [approveOpen, setApproveOpen] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState(null);
-  const [approveRole, setApproveRole] = useState('Sales');
-  const [approveDepartment, setApproveDepartment] = useState('Sales');
+  const [approveRole, setApproveRole] = useState('User');
+  const [approveDepartment, setApproveDepartment] = useState('User');
   const [approveLoading, setApproveLoading] = useState(false);
 
   useEffect(() => {
     if (user?.role === 'Admin') {
       fetchUsers();
       fetchBaseTemplate();
-      fetchAccessRequests();
+
     }
   }, [user]);
 
@@ -52,7 +52,7 @@ const UserManagement = () => {
 
   const openApproveDialog = (req) => {
     setSelectedRequest(req);
-    setApproveRole('Sales');
+    setApproveRole('User');
     setApproveDepartment('Sales');
     setApproveOpen(true);
   };
@@ -151,7 +151,7 @@ const UserManagement = () => {
       await axios.post(`${API}/users`, formData, { withCredentials: true });
       toast.success('User created successfully');
       setOpen(false);
-      setFormData({ email: '', name: '', role: 'Sales', department: 'Sales' });
+      setFormData({ email: '', name: '', role: 'User', department: 'Sales' });
       fetchUsers();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to create user');
@@ -265,11 +265,7 @@ const UserManagement = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Admin">Admin</SelectItem>
-                    <SelectItem value="Sales">Sales</SelectItem>
-                    <SelectItem value="CGO">CGO</SelectItem>
-                    <SelectItem value="Finance">Finance</SelectItem>
-                    <SelectItem value="Legal">Legal</SelectItem>
-                    <SelectItem value="CFO">CFO</SelectItem>
+                    <SelectItem value="User">User</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -280,11 +276,7 @@ const UserManagement = () => {
                     <SelectValue placeholder="Select department" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Sales">Sales</SelectItem>
-                    <SelectItem value="CGO">CGO</SelectItem>
-                    <SelectItem value="Finance">Finance</SelectItem>
-                    <SelectItem value="Legal">Legal</SelectItem>
-                    <SelectItem value="CFO">CFO</SelectItem>
+                    <SelectItem value="User">User</SelectItem>
                     <SelectItem value="Admin">Admin</SelectItem>
                   </SelectContent>
                 </Select>
@@ -349,53 +341,6 @@ const UserManagement = () => {
           {migratingDomain ? 'Updating...' : 'Migrate botree.co.in → botree.ai'}
         </Button>
       </div>
-
-      {/* Pending Access Requests (Zoho SSO) */}
-      {accessRequests.length > 0 && (
-        <div className="bg-[#FFFFFF] border border-amber-300 rounded-lg shadow-sm p-6 mb-6" data-testid="access-requests-section">
-          <h2 className="text-lg font-bold text-[#1E1533] mb-1 flex items-center gap-2">
-            <UserCirclePlus size={22} className="text-amber-600" />
-            Pending Access Requests
-            <span className="text-xs font-semibold text-white bg-amber-500 rounded-full px-2 py-0.5">{accessRequests.length}</span>
-          </h2>
-          <p className="text-sm text-[#7A6B9E] mb-4">
-            These people signed in with Zoho but don't have a Botree Roots account yet. Approve to assign them a role, or decline.
-          </p>
-          <div className="space-y-2">
-            {accessRequests.map((req) => (
-              <div key={req.id} className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-lg px-4 py-3" data-testid={`access-request-${req.id}`}>
-                <div>
-                  <p className="font-semibold text-[#1E1533]">{req.name}</p>
-                  <p className="text-sm text-[#7A6B9E]">{req.email}</p>
-                  <p className="text-xs text-[#8577A3]">Requested {new Date(req.created_at).toLocaleString()}</p>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    onClick={() => openApproveDialog(req)}
-                    data-testid={`approve-request-${req.id}`}
-                    className="text-white font-semibold"
-                    style={{ background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)' }}
-                  >
-                    <Check size={16} className="mr-1" />
-                    Approve
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleRejectRequest(req)}
-                    data-testid={`reject-request-${req.id}`}
-                    className="border-red-300 text-red-700 hover:bg-red-50"
-                  >
-                    <X size={16} className="mr-1" />
-                    Decline
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       <div className="bg-[#FFFFFF] border border-[#E4DCF0] rounded-lg shadow-sm">
         <div className="overflow-x-auto">
@@ -512,11 +457,7 @@ const UserManagement = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Admin">Admin</SelectItem>
-                  <SelectItem value="Sales">Sales</SelectItem>
-                  <SelectItem value="CGO">CGO</SelectItem>
-                  <SelectItem value="Finance">Finance</SelectItem>
-                  <SelectItem value="Legal">Legal</SelectItem>
-                  <SelectItem value="CFO">CFO</SelectItem>
+                  <SelectItem value="User">User</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -589,11 +530,7 @@ const UserManagement = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Admin">Admin</SelectItem>
-                  <SelectItem value="Sales">Sales</SelectItem>
-                  <SelectItem value="CGO">CGO</SelectItem>
-                  <SelectItem value="Finance">Finance</SelectItem>
-                  <SelectItem value="Legal">Legal</SelectItem>
-                  <SelectItem value="CFO">CFO</SelectItem>
+                  <SelectItem value="User">User</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -604,11 +541,7 @@ const UserManagement = () => {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Sales">Sales</SelectItem>
-                  <SelectItem value="CGO">CGO</SelectItem>
-                  <SelectItem value="Finance">Finance</SelectItem>
-                  <SelectItem value="Legal">Legal</SelectItem>
-                  <SelectItem value="CFO">CFO</SelectItem>
+                  <SelectItem value="User">User</SelectItem>
                   <SelectItem value="Admin">Admin</SelectItem>
                 </SelectContent>
               </Select>
