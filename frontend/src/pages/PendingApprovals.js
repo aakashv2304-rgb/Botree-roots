@@ -32,7 +32,7 @@ const PendingApprovals = () => {
   // Waiting for ME: it is my turn at the current approval stage (the server decides - the person named for
   // that stage, or for an old role-based proposal anyone with that role), or it was returned to Sales to revise.
   const myProposals = proposals.filter(p => {
-    if (p.status === 'needs_revision' && user.role === 'Sales') return true;
+    if (p.status === 'needs_revision' && user.role === 'User') return true;
     return !!p.workflow_view?.can_act;
   });
 
