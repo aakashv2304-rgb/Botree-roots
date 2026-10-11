@@ -336,7 +336,7 @@ const Login = () => {
           </div>
           <div className="lg-copy">
             <div className="lg-eyebrow"><i></i> Draft it. Track it. Close it.</div>
-            <h1>Proposals, moving <span>forward.</span></h1>
+            <h1>Draft it. <span>Track it. Close it.</span></h1>
             <p className="lg-sub">Draft it. Track it. Close it.</p>
             <div className="lg-flow" aria-label="Proposal workflow">
               <div className="lg-step active"><span className="lg-dot"></span>Opportunity</div><span className="lg-line"></span>
@@ -351,7 +351,7 @@ const Login = () => {
         <section className="lg-auth">
           <div className="lg-card">
             <div className="lg-product">
-              <div className="lg-mark">R</div>
+              <div className="lg-mark">D</div>
               <div><b>Botree DealPath</b><small>Draft it. Track it. Close it.</small></div>
             </div>
             <div className="lg-welcome">Welcome back</div>
