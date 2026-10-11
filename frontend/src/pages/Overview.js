@@ -39,15 +39,15 @@ const Overview = () => {
   const fetchAll = async () => {
     try {
       const [proposalsRes, stageRes, approvalRes, bottleneckRes, activityRes, slaRes, dealValueRes, monthlyRes, dspRes] = await Promise.all([
-        axios.get(`${API}/proposals`, { withCredentials: true }),
-        axios.get(`${API}/analytics/stage-counts`, { withCredentials: true }),
-        axios.get(`${API}/analytics/approval-rate`, { withCredentials: true }),
-        axios.get(`${API}/analytics/bottlenecks`, { withCredentials: true }),
-        axios.get(`${API}/analytics/activity-feed`, { withCredentials: true }),
-        axios.get(`${API}/analytics/sla-health`, { withCredentials: true }),
-        axios.get(`${API}/analytics/deal-value-summary`, { withCredentials: true }),
-        axios.get(`${API}/analytics/monthly-proposals?year=${selectedYear}&month=${selectedMonth}`, { withCredentials: true }),
-        axios.get(`${API}/analytics/dsp-summary`, { withCredentials: true }).catch(() => ({ data: null })),
+        axios.get(`${API}/proposals?dashboard_only=true`, { withCredentials: true }),
+        axios.get(`${API}/analytics/stage-counts?dashboard_only=true`, { withCredentials: true }),
+        axios.get(`${API}/analytics/approval-rate?dashboard_only=true`, { withCredentials: true }),
+        axios.get(`${API}/analytics/bottlenecks?dashboard_only=true`, { withCredentials: true }),
+        axios.get(`${API}/analytics/activity-feed?dashboard_only=true`, { withCredentials: true }),
+        axios.get(`${API}/analytics/sla-health?dashboard_only=true`, { withCredentials: true }),
+        axios.get(`${API}/analytics/deal-value-summary?dashboard_only=true`, { withCredentials: true }),
+        axios.get(`${API}/analytics/monthly-proposals?year=${selectedYear}&month=${selectedMonth}&dashboard_only=true`, { withCredentials: true }),
+        axios.get(`${API}/analytics/dsp-summary?dashboard_only=true`, { withCredentials: true }).catch(() => ({ data: null })),
       ]);
 
       setProposals(proposalsRes.data);
