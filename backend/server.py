@@ -680,15 +680,16 @@ async def startup():
 
 async def seed_users():
     
+    # Seed only the system administrator. Other accounts self-register through Zoho.
     users_to_seed = [
         {"email": "admin@botree.ai", "password": DEFAULT_USER_PASSWORD, "name": "System Admin", "role": "Admin", "department": "Admin"},
-        {"email": "sales@botree.ai", "password": DEFAULT_USER_PASSWORD, "name": "Sales User", "role": "Sales", "department": "Sales"},
-        {"email": "varun.gupta@botree.ai", "password": DEFAULT_USER_PASSWORD, "name": "Varun Gupta", "role": "CGO", "department": "CGO"},
-        {"email": "aakash.vimalanathan@botree.ai", "password": DEFAULT_USER_PASSWORD, "name": "Aakash Vimalanathan", "role": "Finance", "department": "Finance"},
-        {"email": "anakha.sajikumar@botree.ai", "password": DEFAULT_USER_PASSWORD, "name": "Anakha Sajikumar", "role": "Legal", "department": "Legal"},
-        {"email": "chandra.prakash@botree.ai", "password": DEFAULT_USER_PASSWORD, "name": "Chandra Prakash", "role": "CFO", "department": "CFO"},
     ]
-    
+    # Normalize existing departmental roles without granting Admin.
+    await db.users.update_many(
+        {"role": {"$nin": ["Admin", "User"]}},
+        {"$set": {"role": "User", "status": "active"}}
+    )
+
     for user_data in users_to_seed:
         existing = await db.users.find_one({"email": user_data["email"]})
         if existing is None:
@@ -825,27 +826,26 @@ async def zoho_callback(request: Request, response: Response, code: str = None, 
 
     user = await db.users.find_one({"email": zoho_email})
     if not user:
-        # New user: create a pending access request, no role/password yet.
-        # They get no session until an Admin approves and assigns a role.
-        new_request_doc = {
+        # Zoho-authenticated staff join immediately as User; only an Admin may promote them.
+        new_user = {
             "email": zoho_email,
             "name": zoho_name or zoho_email.split("@")[0],
             "password_hash": None,
-            "role": None,
-            "department": None,
+            "role": "User",
+            "department": "",
             "auth_provider": "zoho",
-            "status": "pending",
+            "status": "active",
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
-        await db.users.insert_one(new_request_doc)
-        await send_access_request_notification(zoho_email, new_request_doc["name"])
-        return RedirectResponse(url=f"{APP_URL}/access-pending")
-
-    status = user.get("status", "active")  # existing users created before this feature default to active
-    if status == "pending":
-        return RedirectResponse(url=f"{APP_URL}/access-pending")
-    if status == "rejected":
-        return RedirectResponse(url=f"{APP_URL}/?error=zoho_access_denied")
+        result = await db.users.insert_one(new_user)
+        new_user["_id"] = result.inserted_id
+        user = new_user
+    elif user.get("status") in ("pending", "rejected"):
+        await db.users.update_one(
+            {"_id": user["_id"]},
+            {"$set": {"status": "active", "role": "User"}}
+        )
+        user["role"] = "User"
 
     user_id = str(user["_id"])
     access_token = create_access_token(user_id, user["email"])
@@ -887,7 +887,7 @@ async def approve_access_request(request_id: str, approval: AccessRequestApprova
     if current_user["role"] != "Admin":
         raise HTTPException(status_code=403, detail="Only Admin can approve access requests")
 
-    valid_roles = ["Admin", "Finance", "Sales", "CGO", "Legal", "CFO"]
+    valid_roles = ["Admin", "User"]
     if approval.role not in valid_roles:
         raise HTTPException(status_code=400, detail=f"Invalid role. Must be one of: {', '.join(valid_roles)}")
     valid_departments = ["Sales", "CGO", "Finance", "Legal", "CFO", "Admin"]
@@ -924,7 +924,7 @@ async def create_user(user_data: UserCreate, request: Request):
     
     # Validate department
     valid_departments = ["Sales", "CGO", "Finance", "Legal", "CFO", "Admin"]
-    if user_data.department not in valid_departments:
+    if user_data.department and user_data.department not in valid_departments:
         raise HTTPException(status_code=400, detail=f"Invalid department. Must be one of: {', '.join(valid_departments)}")
     
     existing = await db.users.find_one({"email": user_data.email.lower()})
@@ -936,7 +936,7 @@ async def create_user(user_data: UserCreate, request: Request):
         "email": user_data.email.lower(),
         "password_hash": hashed,
         "name": user_data.name,
-        "role": user_data.role,
+        "role": user_data.role if user_data.role in ("Admin", "User") else "User",
         "department": user_data.department,
         "created_at": datetime.now(timezone.utc).isoformat()
     }
@@ -1029,7 +1029,7 @@ async def update_user_role(user_id: str, role: str, request: Request):
     if user_id == current_user["id"]:
         raise HTTPException(status_code=400, detail="Cannot change your own role")
     
-    valid_roles = ["Admin", "Finance", "Sales", "CGO", "Legal", "CFO"]
+    valid_roles = ["Admin", "User"]
     if role not in valid_roles:
         raise HTTPException(status_code=400, detail=f"Invalid role. Must be one of: {', '.join(valid_roles)}")
     
@@ -1254,8 +1254,8 @@ async def users_directory(request: Request):
 async def create_proposal(proposal: ProposalCreate, request: Request):
     current_user = await get_current_user(request)
     
-    if current_user["role"] != "Sales":
-        raise HTTPException(status_code=403, detail="Only Sales can create proposals")
+    if current_user["role"] not in ("User", "Admin"):
+        raise HTTPException(status_code=403, detail="Only User or Admin can create proposals")
 
     # The creator builds the approval chain - there is no default. Check it first so a bad
     # chain fails before any document work is done.
@@ -1913,8 +1913,8 @@ async def download_version_pdf(proposal_id: str, version_number: int, request: R
 async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: Request):
     current_user = await get_current_user(request)
     
-    if current_user["role"] not in ("Sales", "Admin"):
-        raise HTTPException(status_code=403, detail="Only Sales or Admin can edit proposals")
+    if current_user["role"] not in ("User", "Admin"):
+        raise HTTPException(status_code=403, detail="Only User or Admin can edit proposals")
     
     existing_proposal = await db.proposals.find_one({"_id": ObjectId(proposal_id)})
     if not existing_proposal:
