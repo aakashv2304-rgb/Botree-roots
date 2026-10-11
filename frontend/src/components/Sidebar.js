@@ -58,7 +58,7 @@ const Sidebar = () => {
           </NavLink>
         ))}
 
-        {user?.role === 'Sales' && (
+        {user?.role === 'User' && (
           <Button
             onClick={() => navigate('/dashboard/new')}
             data-testid="new-proposal-button"
