@@ -840,12 +840,15 @@ async def zoho_callback(request: Request, response: Response, code: str = None, 
         result = await db.users.insert_one(new_user)
         new_user["_id"] = result.inserted_id
         user = new_user
-    elif user.get("status") in ("pending", "rejected"):
+    elif user.get("status") == "pending":
         await db.users.update_one(
             {"_id": user["_id"]},
             {"$set": {"status": "active", "role": "User"}}
         )
         user["role"] = "User"
+
+    if user.get("status") == "rejected":
+        return RedirectResponse(url=f"{APP_URL}/?error=zoho_access_denied")
 
     user_id = str(user["_id"])
     access_token = create_access_token(user_id, user["email"])
@@ -871,50 +874,6 @@ async def get_users(request: Request):
     
     users = await db.users.find({"status": {"$nin": ["pending", "rejected"]}}, {"password_hash": 0}).to_list(1000)
     return [{"id": str(u["_id"]), "email": u["email"], "name": u["name"], "role": u["role"], "department": u.get("department", ""), "created_at": u["created_at"]} for u in users]
-
-@api_router.get("/access-requests")
-async def get_access_requests(request: Request):
-    current_user = await get_current_user(request)
-    if current_user["role"] != "Admin":
-        raise HTTPException(status_code=403, detail="Only Admin can view access requests")
-
-    pending = await db.users.find({"status": "pending"}, {"password_hash": 0}).to_list(1000)
-    return [{"id": str(r["_id"]), "email": r["email"], "name": r["name"], "created_at": r["created_at"]} for r in pending]
-
-@api_router.post("/access-requests/{request_id}/approve")
-async def approve_access_request(request_id: str, approval: AccessRequestApproval, request: Request):
-    current_user = await get_current_user(request)
-    if current_user["role"] != "Admin":
-        raise HTTPException(status_code=403, detail="Only Admin can approve access requests")
-
-    valid_roles = ["Admin", "User"]
-    if approval.role not in valid_roles:
-        raise HTTPException(status_code=400, detail=f"Invalid role. Must be one of: {', '.join(valid_roles)}")
-    valid_departments = ["Sales", "CGO", "Finance", "Legal", "CFO", "Admin"]
-    if approval.department not in valid_departments:
-        raise HTTPException(status_code=400, detail=f"Invalid department. Must be one of: {', '.join(valid_departments)}")
-
-    result = await db.users.update_one(
-        {"_id": ObjectId(request_id), "status": "pending"},
-        {"$set": {"role": approval.role, "department": approval.department, "status": "active"}}
-    )
-    if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Access request not found or already handled")
-    return {"message": "Access approved"}
-
-@api_router.post("/access-requests/{request_id}/reject")
-async def reject_access_request(request_id: str, request: Request):
-    current_user = await get_current_user(request)
-    if current_user["role"] != "Admin":
-        raise HTTPException(status_code=403, detail="Only Admin can reject access requests")
-
-    result = await db.users.update_one(
-        {"_id": ObjectId(request_id), "status": "pending"},
-        {"$set": {"status": "rejected"}}
-    )
-    if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Access request not found or already handled")
-    return {"message": "Access rejected"}
 
 @api_router.post("/users")
 async def create_user(user_data: UserCreate, request: Request):
