@@ -411,7 +411,7 @@ const ProposalDetail = () => {
     return user.role === 'Sales' || user.role === 'Admin';
   };
 
-  const canOverrideWorkflow = () => user.role === 'Admin' && proposal && !proposal.is_closed && proposal.status !== 'approved';
+  const canOverrideWorkflow = () => user.role === 'Admin' && proposal && !proposal.is_closed;
 
   const canDeleteProposal = () => {
     if (!proposal) return false;
@@ -430,6 +430,7 @@ const ProposalDetail = () => {
 
   const handleOverrideStage = async () => {
     if (!overrideTarget) return;
+    if (proposal.status === 'approved' && !window.confirm('Reopen this approved proposal at the selected approval stage? The assigned approver will need to approve it again.')) return;
     setOverrideLoading(true);
     try {
       await axios.post(
@@ -1272,7 +1273,7 @@ const ProposalDetail = () => {
             <div className="bg-[#FFFFFF] border border-[#E4DCF0] p-6 shadow-sm" data-testid="admin-override-panel">
               <h2 className="text-lg font-bold tracking-tight mb-2 font-heading">Admin: Override Workflow Stage</h2>
               <p className="text-xs text-[#7A6B9E] mb-4">
-                Move this proposal directly to any stage, bypassing the normal one-step-at-a-time approval flow (e.g. stage 1 straight to the last stage).
+                Move this proposal to any approval stage. For an approved proposal, choose the earlier stage to reopen it and resume approval from that approver. The action is recorded in the proposal history.
               </p>
               <div className="space-y-3">
                 <select
@@ -1295,7 +1296,7 @@ const ProposalDetail = () => {
                   className="w-full text-white"
                   style={{ backgroundColor: '#9B30FF' }}
                 >
-                  {overrideLoading ? 'Updating...' : 'Move Workflow'}
+                  {overrideLoading ? 'Updating...' : proposal.status === 'approved' ? 'Reopen at Selected Stage' : 'Move Workflow'}
                 </Button>
               </div>
             </div>
