@@ -332,7 +332,7 @@ const Login = () => {
         .lg-line { background:rgba(121,77,164,.19); }
         .lg-foot { color:#9485a5; }
         .lg-product { gap:14px; margin-bottom:27px; }
-        .lg-product-logo { display:block; width:clamp(104px,10vw,144px); height:auto; object-fit:contain; flex-shrink:0; }
+        .lg-product-logo { display:block; width:clamp(104px,10vw,144px); height:auto; object-fit:contain; flex-shrink:0; filter:url(#dealpath-logo-bg-removal); }
         .lg-product-divider { width:1px; height:38px; flex-shrink:0; background:#e4dcf0; }
         .lg-product b { font-size:clamp(17px,1.5vw,22px); white-space:nowrap; }
         .lg-product .lg-dealpath-accent { color:#8624d4; }
@@ -412,6 +412,14 @@ const Login = () => {
         <section className="lg-auth">
           <div className="lg-card">
             <div className="lg-product">
+              {/* Filter removes the pale background embedded in the source PNG, preserving the official logo artwork. */}
+              <svg width="0" height="0" aria-hidden="true" focusable="false" style={{ position: 'absolute', pointerEvents: 'none' }}>
+                <defs>
+                  <filter id="dealpath-logo-bg-removal" colorInterpolationFilters="sRGB">
+                    <feColorMatrix type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  -1.7 -1.7 -1.7 0 4.65" />
+                  </filter>
+                </defs>
+              </svg>
               <img className="lg-product-logo" src={LOGO_SRC} alt="Botree Software" />
               <span className="lg-product-divider" aria-hidden="true"></span>
               <div><b>Botree <span className="lg-dealpath-accent">DealPath</span></b><small>Draft it. Track it. Close it.</small></div>
