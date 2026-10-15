@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import TopBar from '../components/TopBar';
 import PageTransition from '../components/PageTransition';
@@ -28,7 +28,7 @@ const Dashboard = () => {
           <Route path="/users" element={<UserManagement />} />
           <Route path="/proposal/:id" element={<ProposalDetail />} />
           <Route path="/proposal/:id/edit" element={<EditProposal />} />
-          <Route path="/new" element={<NewProposal />} />
+          <Route path="/new" element={(user?.role === 'Admin' || user?.can_create_proposals === true) ? <NewProposal /> : <Navigate to="/dashboard" replace />} />
           <Route path="/profitability-analyzer" element={<ProfitabilityHub />} />
         </Routes>
       </PageTransition>

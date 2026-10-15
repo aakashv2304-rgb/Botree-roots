@@ -26,6 +26,20 @@ const UserManagement = () => {
   const [formData, setFormData] = useState({ email: '', name: '', role: 'User', department: 'Sales' });
   const [baseTemplate, setBaseTemplate] = useState(null);
   const [templateUploading, setTemplateUploading] = useState(false);
+  const [permissionUpdating, setPermissionUpdating] = useState(null);
+  const updateCreatePermission = async (target) => {
+    setPermissionUpdating(target.id);
+    try {
+      await axios.patch(`${API}/users/${target.id}/proposal-create-permission`,
+        { can_create_proposals: !target.can_create_proposals }, { withCredentials: true });
+      toast.success(`Proposal creation ${target.can_create_proposals ? 'disabled' : 'enabled'} for ${target.name}`);
+      fetchUsers();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Could not update permission');
+    } finally {
+      setPermissionUpdating(null);
+    }
+  };
   useEffect(() => {
     if (user?.role === 'Admin') {
       fetchUsers();
@@ -300,6 +314,7 @@ const UserManagement = () => {
                 <th className="p-4 text-xs uppercase tracking-wider text-[#7A6B9E] font-semibold">Name</th>
                 <th className="p-4 text-xs uppercase tracking-wider text-[#7A6B9E] font-semibold">Email</th>
                 <th className="p-4 text-xs uppercase tracking-wider text-[#7A6B9E] font-semibold">Role</th>
+                <th className="p-4 text-xs uppercase tracking-wider text-[#7A6B9E] font-semibold">Create Proposal</th>
                 <th className="p-4 text-xs uppercase tracking-wider text-[#7A6B9E] font-semibold">Department</th>
                 <th className="p-4 text-xs uppercase tracking-wider text-[#7A6B9E] font-semibold">Created</th>
                 <th className="p-4 text-xs uppercase tracking-wider text-[#7A6B9E] font-semibold">Actions</th>
@@ -316,7 +331,19 @@ const UserManagement = () => {
                     </span>
                   </td>
                   <td className="p-4">
-                    <span className="inline-block px-3 py-1 text-xs font-medium bg-[#F1EBFA] text-[#5B4B7A] rounded-full">
+                    {u.role === 'Admin' ? (
+                      <span className="text-xs text-[#5B4B7A] font-semibold">Always enabled</span>
+                    ) : (
+                      <label className="inline-flex items-center gap-2 text-xs text-[#5B4B7A]">
+                        <input type="checkbox" aria-label={`Allow ${u.name} to create proposals`}
+                          checked={!!u.can_create_proposals} disabled={permissionUpdating === u.id}
+                          onChange={() => updateCreatePermission(u)} className="accent-[#9B30FF] w-4 h-4" />
+                        {u.can_create_proposals ? 'Enabled' : 'Disabled'}
+                      </label>
+                    )}
+                  </td>
+                  <td className="p-4">
+                    <span className="inline-block px-3 py-1 text-xs font-medium bg-[#F1EBFA]' text-[#5B4B7A] rounded-full">
                       {u.department || 'N/A'}
                     </span>
                   </td>

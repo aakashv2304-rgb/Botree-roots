@@ -182,7 +182,7 @@ const TopBar = () => {
             )}
           </div>
 
-          {user?.role === 'Sales' && (
+          {(user?.role === 'Admin' || user?.can_create_proposals === true) && (
             <Button
               onClick={() => navigate('/dashboard/new')}
               data-testid="new-proposal-button"

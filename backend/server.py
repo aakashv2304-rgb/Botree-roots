@@ -511,6 +511,9 @@ class AccessRequestApproval(BaseModel):
     role: str
     department: str
 
+class ProposalCreatePermissionUpdate(BaseModel):
+    can_create_proposals: bool
+
 class UserResponse(BaseModel):
     id: str
     email: str
@@ -873,7 +876,24 @@ async def get_users(request: Request):
         raise HTTPException(status_code=403, detail="Only Admin can manage users")
     
     users = await db.users.find({"status": {"$nin": ["pending", "rejected"]}}, {"password_hash": 0}).to_list(1000)
-    return [{"id": str(u["_id"]), "email": u["email"], "name": u["name"], "role": u["role"], "department": u.get("department", ""), "created_at": u["created_at"]} for u in users]
+    return [{"id": str(u["_id"]), "email": u["email"], "name": u["name"], "role": u["role"], "department": u.get("department", ""), "created_at": u["created_at"], "can_create_proposals": u.get("role") == "Admin" or u.get("can_create_proposals", False)} for u in users]
+
+@api_router.patch("/users/{user_id}/proposal-create-permission")
+async def update_proposal_create_permission(user_id: str, payload: ProposalCreatePermissionUpdate, request: Request):
+    admin = await get_current_user(request)
+    if admin["role"] != "Admin":
+        raise HTTPException(status_code=403, detail="Only Admin can manage proposal creation permissions")
+    try:
+        oid = ObjectId(user_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid user ID")
+    target = await db.users.find_one({"_id": oid, "status": {"$nin": ["pending", "rejected"]}})
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    if target.get("role") == "Admin":
+        raise HTTPException(status_code=400, detail="Admins always have proposal creation access")
+    await db.users.update_one({"_id": oid}, {"$set": {"can_create_proposals": payload.can_create_proposals}})
+    return {"message": "Proposal creation permission updated", "can_create_proposals": payload.can_create_proposals}
 
 @api_router.post("/users")
 async def create_user(user_data: UserCreate, request: Request):
@@ -897,6 +917,7 @@ async def create_user(user_data: UserCreate, request: Request):
         "name": user_data.name,
         "role": user_data.role if user_data.role in ("Admin", "User") else "User",
         "department": user_data.department,
+        "can_create_proposals": user_data.role == "Admin",
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     result = await db.users.insert_one(new_user)
@@ -1213,8 +1234,8 @@ async def users_directory(request: Request):
 async def create_proposal(proposal: ProposalCreate, request: Request):
     current_user = await get_current_user(request)
     
-    if current_user["role"] not in ("User", "Admin"):
-        raise HTTPException(status_code=403, detail="Only User or Admin can create proposals")
+    if current_user["role"] != "Admin" and not current_user.get("can_create_proposals", False):
+        raise HTTPException(status_code=403, detail="You are not authorized to create proposals. Contact an Admin.")
 
     # The creator builds the approval chain - there is no default. Check it first so a bad
     # chain fails before any document work is done.
