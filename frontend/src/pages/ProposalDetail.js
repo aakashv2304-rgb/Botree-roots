@@ -1126,46 +1126,51 @@ const ProposalDetail = () => {
           <div className="bg-[#FFFFFF] border border-[#E4DCF0] p-6 shadow-sm">
             <h2 className="text-xl font-bold tracking-tight mb-6 font-heading">Workflow Progress</h2>
             
-            <div className="space-y-6" data-testid="workflow-stepper">
-              {stepperNodes.map((node, index) => {
-                const status = node.state;
-                return (
-                  <div key={node.key} className="flex items-start gap-4" data-testid={`stage-${index}`}>
-                    <div className="flex flex-col items-center">
-                      <div
-                        className={`w-10 h-10 rounded-full border flex items-center justify-center transition-all ${
-                          status === 'rejected'
-                            ? 'bg-[#DC2626] border-[#DC2626] text-white'
-                            : status === 'completed'
-                            ? 'bg-[#10B981] border-[#10B981] text-[#1E1533]'
-                            : status === 'active'
-                            ? 'bg-[#3B82F6] border-[#3B82F6] text-[#1E1533] animate-pulse'
-                            : 'bg-[#FFFFFF] border-[#E4DCF0] text-[#7A6B9E]'
-                        }`}
-                        data-testid={`stage-circle-${index}`}
-                      >
-                        {status === 'completed' ? <Check size={20} weight="bold" /> : status === 'active' ? <Clock size={20} /> : node.key === 'approved' ? <Check size={20} /> : index}
+            {/* Each proposal supplies its own assigned approval chain in workflow_view.stages.
+                Horizontal scrolling on narrow screens preserves all stages without squeezing labels. */}
+            <div className="w-full overflow-x-auto pb-3" data-testid="workflow-stepper">
+              <div className="flex items-start min-w-max w-full">
+                {stepperNodes.map((node, index) => {
+                  const status = node.state;
+                  return (
+                    <div key={node.key} className="flex items-start flex-1 min-w-[150px] max-w-[240px]" data-testid={`stage-${index}`}>
+                      <div className="flex flex-col items-center min-w-[135px] flex-1 text-center px-2">
+                        <div
+                          className={`w-10 h-10 shrink-0 rounded-full border flex items-center justify-center transition-all ${
+                            status === 'rejected'
+                              ? 'bg-[#DC2626] border-[#DC2626] text-white'
+                              : status === 'completed'
+                              ? 'bg-[#10B981] border-[#10B981] text-white'
+                              : status === 'active'
+                              ? 'bg-[#3B82F6] border-[#3B82F6] text-white'
+                              : 'bg-[#FFFFFF] border-[#E4DCF0] text-[#7A6B9E]'
+                          }`}
+                          data-testid={`stage-circle-${index}`}
+                          aria-label={`${node.title}: ${status}`}
+                        >
+                          {status === 'completed' ? <Check size={20} weight="bold" /> : status === 'active' ? <Clock size={20} /> : node.key === 'approved' ? <Check size={20} /> : index}
+                        </div>
+                        <p className="font-semibold text-sm text-[#1E1533] mt-3 break-words w-full" data-testid={`stage-title-${index}`}>{node.title}</p>
+                        {node.subtitle && <p className="text-xs text-[#7A6B9E] mt-1 break-words w-full">{node.subtitle}</p>}
+                        {node.warning && <p className="text-xs text-red-700 mt-1 break-words w-full">{node.warning}</p>}
+                        {status === 'rejected' && <p className="text-xs text-red-700 font-medium mt-1">Rejected here</p>}
+                        {status === 'completed' && node.timestamp && (
+                          <p className="text-xs text-[#059669] font-medium mt-1" data-testid={`stage-timestamp-${index}`}>
+                            {new Date(node.timestamp).toLocaleString('en-IN', {
+                              day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                            })}
+                          </p>
+                        )}
                       </div>
                       {index < stepperNodes.length - 1 && (
-                        <div className={`w-0.5 h-10 ${status === 'completed' ? 'bg-[#10B981]' : 'bg-[#F1EBFA]'}`}></div>
+                        <div className={`h-0.5 w-8 shrink-0 mt-5 ${
+                          status === 'completed' ? 'bg-[#10B981]' : 'bg-[#E4DCF0]'
+                        }`} aria-hidden="true" />
                       )}
                     </div>
-                    <div className="flex-1 pb-4">
-                      <p className="font-semibold text-sm" data-testid={`stage-title-${index}`}>{node.title}</p>
-                      {node.subtitle && <p className="text-xs text-[#7A6B9E]">{node.subtitle}</p>}
-                      {node.warning && <p className="text-xs text-red-700 mt-0.5">{node.warning}</p>}
-                      {status === 'rejected' && <p className="text-xs text-red-700 font-medium mt-0.5">Rejected here</p>}
-                      {status === 'completed' && node.timestamp && (
-                        <p className="text-xs text-[#10B981] font-medium mt-0.5" data-testid={`stage-timestamp-${index}`}>
-                          {new Date(node.timestamp).toLocaleString('en-IN', {
-                            day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
-                          })}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
           </div>
 
