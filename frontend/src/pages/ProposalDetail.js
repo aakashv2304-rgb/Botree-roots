@@ -408,7 +408,7 @@ const ProposalDetail = () => {
     // Any Sales user (not just the exact original creator) or Admin can pick
     // up a proposal that needs revision - avoids proposals getting stuck if
     // the original creator's account was deleted/recreated.
-    return user.role === 'Sales' || user.role === 'Admin';
+    return user.role === 'User' || user.role === 'Admin';
   };
 
   const canOverrideWorkflow = () => user.role === 'Admin' && proposal && !proposal.is_closed;
