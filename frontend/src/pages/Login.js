@@ -411,9 +411,6 @@ const Login = () => {
 
         <section className="lg-auth">
           <div className="lg-card">
-            <div className="lg-product">
-              <div><b>Botree <span className="lg-dealpath-accent">DealPath</span></b><small>Draft it. Track it. Close it.</small></div>
-            </div>
             <div className="lg-welcome">Welcome back</div>
             <h2>Sign in to continue.</h2>
             <p className="lg-desc">Access your proposals and workspace.</p>
