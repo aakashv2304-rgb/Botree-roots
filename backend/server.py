@@ -395,46 +395,91 @@ async def send_workflow_notification(
         except Exception as e:
             logger.warning(f"Could not add days-in-pipeline to email: {e}")
 
-        # Build HTML email
+        # Premium Minimal notification: inline styles ensure Outlook/Gmail CTA contrast.
+        # The logo URL uses the existing official Botree artwork already used in DealPath.
+        from html import escape as html_escape
+        from urllib.parse import quote
+        from datetime import datetime as notification_datetime
+        safe_name = html_escape(recipient_name or "there")
+        safe_proposal = html_escape(proposal_title or "Proposal")
+        safe_stage = html_escape(stage or "Approval")
+        safe_comment = html_escape(comment or "")
+        safe_url = html_escape(f"{APP_URL}/dashboard/proposal/{quote(str(proposal_id), safe='')}", quote=True)
+        botree_logo = "https://customer-assets-7cd3h4nn.emergentagent.net/job_proposal-tracker-app/artifacts/12kvgckj_Botree%20Logo-white-bg.webp"
+
+        messages = {
+            "assigned": ("ACTION REQUIRED · APPROVAL", "A proposal needs your approval.", f"A proposal has reached your approval stage. Please review and take action in DealPath.", "Awaiting your review"),
+            "approved": ("WORKFLOW UPDATE · APPROVED", "A proposal stage was approved.", "An approval has been recorded. View the latest proposal status in DealPath.", "Approved"),
+            "rejected": ("WORKFLOW UPDATE · REJECTED", "A proposal was rejected.", "Review the decision and approval history in DealPath.", "Rejected"),
+            "returned": ("ACTION REQUIRED · REVISION", "A proposal needs revision.", "Review the approver's feedback and update the proposal in DealPath.", "Needs revision"),
+        }
+        eyebrow, heading, description, status_label = messages.get(
+            action, ("PROPOSAL UPDATE", "A proposal was updated.", "View the latest information in DealPath.", "Updated")
+        )
+        comment_section = (
+            f'<tr><td style="padding:0 40px 22px"><div style="border-left:3px solid #9B30FF;padding:12px 16px;'
+            f'background:#FAF8FD;font-size:13px;line-height:1.6;color:#554968">'
+            f'<strong>Comment</strong><br>{safe_comment}</div></td></tr>'
+            if comment else ""
+        )
+
         html_content = f"""
         <!DOCTYPE html>
-        <html>
-        <head>
-            <style>
-                body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
-                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
-                .header {{ background: linear-gradient(135deg, #F72585 0%, #7209B7 100%); color: white; padding: 20px; border-radius: 8px 8px 0 0; }}
-                .content {{ background: #f9f9f9; padding: 30px; border: 1px solid #ddd; border-top: none; }}
-                .footer {{ background: #333; color: white; padding: 15px; text-align: center; border-radius: 0 0 8px 8px; font-size: 12px; }}
-                .btn {{ display: inline-block; padding: 12px 24px; background: linear-gradient(135deg, #F72585 0%, #7209B7 100%); color: white; text-decoration: none; border-radius: 6px; margin: 20px 0; }}
-                .comment-box {{ background: white; padding: 15px; border-left: 4px solid #7209B7; margin: 15px 0; }}
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <div class="header">
-                    <h1 style="margin: 0;">Botree DealPath</h1>
-                    <p style="margin: 5px 0 0 0;">Proposal Workflow Notification</p>
-                </div>
-                <div class="content">
-                    <h2 style="color: #7209B7;">Hello {recipient_name},</h2>
-                    <p><strong>{action_text}</strong></p>
-                    <p><strong>Proposal:</strong> {proposal_title}</p>
-                    <p><strong>Stage:</strong> {stage}</p>
-                    {dsp_html}
-                    {f'<div class="comment-box"><strong>Comment:</strong><br>{comment}</div>' if comment else ''}
-                    <p>Click below to review and take action on this proposal.</p>
-                    <a href="{APP_URL}/dashboard/proposal/{proposal_id}" class="btn" target="_blank" rel="noopener noreferrer" style="color: white;">View Proposal</a>
-                    <p style="font-size: 12px; color: #666;">If the button doesn't work, copy and paste this link into your browser:<br>{APP_URL}/dashboard/proposal/{proposal_id}</p>
-                </div>
-                <div class="footer">
-                    <p>&copy; 2026 Botree Software Solutions. All rights reserved.</p>
-                </div>
-            </div>
-        </body>
-        </html>
+        <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+        <body style="margin:0;padding:24px 12px;background:#F7F4FC;font-family:Arial,Helvetica,sans-serif;color:#1E1533">
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"
+                 style="max-width:620px;margin:0 auto;background:#FFFFFF;border:1px solid #E4DCF0">
+            <tr><td style="padding:26px 40px 23px">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr>
+                <td><img src="{botree_logo}" width="160" alt="Botree Software"
+                         style="width:160px;height:auto;display:block;border:0"></td>
+                <td align="right" style="font-size:15px;font-weight:bold;color:#6B18CF">DealPath</td>
+              </tr></table>
+            </td></tr>
+            <tr><td style="height:3px;background:#9B30FF;font-size:0;line-height:0">&nbsp;</td></tr>
+            <tr><td style="padding:35px 40px 16px">
+              <p style="font-size:11px;letter-spacing:1.3px;color:#8530CC;font-weight:bold;margin:0 0 14px">{eyebrow}</p>
+              <h1 style="font-size:25px;line-height:1.3;color:#1E1533;margin:0 0 12px">{heading}</h1>
+              <p style="font-size:14px;line-height:1.7;color:#6D617D;margin:0 0 20px">
+                Hello {safe_name}, {description}
+              </p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
+                     style="background:#FAF8FD;border:1px solid #EEE7F5">
+                <tr><td colspan="2" style="padding:17px 19px 12px">
+                  <div style="color:#9787A8;font-size:10px;letter-spacing:1px">PROPOSAL</div>
+                  <div style="font-size:18px;font-weight:bold;color:#1E1533;margin-top:6px">{safe_proposal}</div>
+                </td></tr>
+                <tr><td style="padding:12px 19px 18px;width:55%;vertical-align:top">
+                  <div style="color:#9787A8;font-size:10px;letter-spacing:1px">CURRENT STAGE</div>
+                  <div style="font-size:13px;font-weight:bold;margin-top:7px;color:#1E1533">{safe_stage}</div>
+                </td><td style="padding:12px 19px 18px;vertical-align:top">
+                  <div style="color:#9787A8;font-size:10px;letter-spacing:1px">STATUS</div>
+                  <div style="font-size:13px;font-weight:bold;margin-top:7px;color:#1E1533">{status_label}</div>
+                </td></tr>
+              </table>
+            </td></tr>
+            {comment_section}
+            <tr><td style="padding:8px 40px 30px">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+                <td bgcolor="#922CF1" style="background-color:#922CF1;border-radius:7px">
+                  <a href="{safe_url}" target="_blank"
+                     style="display:inline-block;background-color:#922CF1;color:#FFFFFF!important;
+                            text-decoration:none;padding:15px 25px;font-size:14px;font-weight:bold;
+                            border-radius:7px">Open Proposal &#8599;</a>
+                </td>
+              </tr></table>
+              <p style="font-size:12px;line-height:1.6;color:#8B7B9E;margin:18px 0 0">
+                If the button does not open, <a href="{safe_url}" style="color:#8530CC;text-decoration:underline">open the proposal here</a>.
+              </p>
+            </td></tr>
+            <tr><td style="border-top:1px solid #EEE9F4;padding:21px 40px;color:#968AA5;font-size:11px">
+              <strong style="color:#62516E">Botree DealPath</strong> &nbsp;·&nbsp; Draft it. Track it. Close it.
+              <div style="margin-top:7px">Automated notification · Please do not reply</div>
+            </td></tr>
+          </table>
+        </body></html>
         """
-        
+
         await send_email(recipient_email, subject, html_content)
         
     except Exception as e:
