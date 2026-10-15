@@ -249,12 +249,12 @@ const EditProposal = () => {
     return <LoadingSpinner fullScreen label="Loading proposal..." />
   }
 
-  const canAccessEdit = (user?.role === 'Sales' || user?.role === 'Admin') && proposal.status === 'needs_revision' && !proposal.is_closed;
+  const canAccessEdit = (user?.role === 'User' || user?.role === 'Admin') && proposal.status === 'needs_revision' && !proposal.is_closed;
   if (!canAccessEdit) {
     return (
       <div className="p-6">
         <div className="bg-[#FFFFFF] border border-[#E4DCF0] rounded-lg p-6 text-center">
-          <p className="text-[#7A6B9E]">You can only edit rejected proposals.</p>
+          <p className="text-[#7A6B9E]">Only open proposals marked Needs Revision can be edited and resubmitted.</p>
         </div>
       </div>
     );
