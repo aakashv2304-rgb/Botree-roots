@@ -1418,10 +1418,10 @@ async def create_proposal(proposal: ProposalCreate, request: Request):
     return response_proposal
 
 @api_router.get("/proposals")
-async def get_proposals(request: Request, status: Optional[str] = None, search: Optional[str] = None, dashboard_only: bool = False):
+async def get_proposals(request: Request, status: Optional[str] = None, search: Optional[str] = None, dashboard_only: bool = False, my_only: bool = False):
     current_user = await get_current_user(request)
     
-    query = await _dashboard_filter(current_user, dashboard_only)
+    query = {"created_by": current_user["id"]} if my_only else await _dashboard_filter(current_user, dashboard_only)
     if status:
         if status == "pending":
             query["status"] = {"$ne": "approved"}
