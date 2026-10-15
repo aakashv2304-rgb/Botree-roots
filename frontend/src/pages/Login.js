@@ -412,11 +412,11 @@ const Login = () => {
         <section className="lg-auth">
           <div className="lg-card">
             <div className="lg-product">
-              {/* Filter removes the pale background embedded in the source PNG, preserving the official logo artwork. */}
+              {/* Remove near-white pixels using inverse brightness alpha; the prior matrix incorrectly made dark regions opaque and produced a black box. */}
               <svg width="0" height="0" aria-hidden="true" focusable="false" style={{ position: 'absolute', pointerEvents: 'none' }}>
                 <defs>
                   <filter id="dealpath-logo-bg-removal" colorInterpolationFilters="sRGB">
-                    <feColorMatrix type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  -1.7 -1.7 -1.7 0 4.65" />
+                    <feColorMatrix type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  -1 -1 -1 0 3" />
                   </filter>
                 </defs>
               </svg>
