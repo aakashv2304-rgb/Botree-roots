@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import TopBar from '../components/TopBar';
 import PageTransition from '../components/PageTransition';
 import Overview from './Overview';
+import MyProposals from './MyProposals';
 import PendingApprovals from './PendingApprovals';
 import ApprovedProposals from './ApprovedProposals';
 import UserManagement from './UserManagement';
@@ -23,6 +24,7 @@ const Dashboard = () => {
       <PageTransition key={location.pathname}>
         <Routes location={location}>
           <Route path="/" element={<Overview />} />
+          <Route path="/my-proposals" element={<MyProposals />} />
           <Route path="/pending" element={<PendingApprovals />} />
           <Route path="/approved" element={<ApprovedProposals />} />
           <Route path="/users" element={<UserManagement />} />
