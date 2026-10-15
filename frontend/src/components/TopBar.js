@@ -4,7 +4,7 @@ import DspBadge from './DspBadge';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
-  House, ClockCounterClockwise, CheckCircle, Users, SignOut,
+  House, ClockCounterClockwise, CheckCircle, Users, SignOut, FileText,
   Plus, Calculator, MagnifyingGlass, Bell, GearSix
 } from '@phosphor-icons/react';
 import { Button } from './ui/button';
@@ -81,6 +81,7 @@ const TopBar = () => {
 
   const navItems = [
     { path: '/dashboard', icon: House, label: 'Dashboard', testId: 'nav-dashboard' },
+    { path: '/dashboard/my-proposals', icon: FileText, label: 'My Proposals', testId: 'nav-my-proposals' },
     { path: '/dashboard/pending', icon: ClockCounterClockwise, label: 'Pending', testId: 'nav-pending' },
     { path: '/dashboard/approved', icon: CheckCircle, label: 'Approved', testId: 'nav-approved' },
     { path: '/dashboard/profitability-analyzer', icon: Calculator, label: 'Profitability', testId: 'nav-profitability-analyzer' },
