@@ -304,6 +304,67 @@ const Login = () => {
           .botree-login-shell h1{font-size:38px}.lg-sub{display:none}
           .lg-auth{min-height:65vh;padding:30px}.lg-logo{width:190px}.lg-foot{display:none}
         }
+
+        /* Premium light branding uses the official Botree logo already present in Login.js. */
+        .botree-login-shell { --ink:#1e1533; grid-template-columns:minmax(0,.94fr) minmax(440px,1.06fr); }
+        .lg-brand {
+          background:radial-gradient(circle at 88% 70%,rgba(178,116,250,.14),transparent 38%),
+                     radial-gradient(circle at 18% 17%,rgba(243,197,255,.28),transparent 42%),
+                     linear-gradient(150deg,#faf8ff 0%,#f1eafb 100%);
+          color:#1e1533;
+        }
+        .lg-brand:before { border-color:rgba(111,52,169,.055); }
+        .lg-brand:after { background:linear-gradient(120deg,transparent,rgba(141,91,203,.035),transparent); }
+        .lg-logo-wrap { background:transparent; box-shadow:none; padding:0; border-radius:0; }
+        .lg-logo { width:clamp(165px,14vw,230px); }
+        .lg-copy { max-width:580px; }
+        .botree-login-shell .lg-brand h1 { font-size:clamp(48px,4.4vw,76px); font-weight:700; color:#181126; max-width:520px; }
+        .botree-login-shell .lg-brand h1 span {
+          display:block; background:linear-gradient(100deg,#ad27da,#6816cd);
+          -webkit-background-clip:text; background-clip:text; color:transparent;
+        }
+        .lg-brand-tagline { font-size:clamp(11px,1.12vw,15px); font-weight:700; letter-spacing:.14em; color:#776b8c; margin:0 0 24px; }
+        .lg-sub { color:#746b82; max-width:490px; font-size:clamp(14px,1.1vw,17px); line-height:1.75; }
+        .lg-flow { margin-top:55px; gap:5px; }
+        .lg-step { color:#584a77; }
+        .lg-dot { background:#a875e8; box-shadow:0 0 0 5px rgba(155,48,255,.10); }
+        .lg-step.active .lg-dot { background:#9b30ff; box-shadow:0 0 0 5px rgba(155,48,255,.12); }
+        .lg-line { background:rgba(121,77,164,.19); }
+        .lg-foot { color:#9485a5; }
+        .lg-product { gap:14px; margin-bottom:27px; }
+        .lg-product-logo { display:block; width:clamp(104px,10vw,144px); height:auto; object-fit:contain; flex-shrink:0; }
+        .lg-product-divider { width:1px; height:38px; flex-shrink:0; background:#e4dcf0; }
+        .lg-product b { font-size:clamp(17px,1.5vw,22px); white-space:nowrap; }
+        .lg-product .lg-dealpath-accent { color:#8624d4; }
+        .lg-product small { font-size:9px; letter-spacing:.12em; white-space:nowrap; }
+        html.dark-theme .lg-brand { background:linear-gradient(145deg,#21152e,#170f25); color:#fff; }
+        html.dark-theme .lg-brand h1 { color:#fff; }
+        html.dark-theme .lg-brand-tagline, html.dark-theme .lg-sub { color:#cbbbdc; }
+        html.dark-theme .lg-step { color:#d7c4e8; }
+        html.dark-theme .lg-foot { color:#bcabd0; }
+        html.dark-theme .lg-product .lg-dealpath-accent { color:#bd8bff; }
+        @media(max-width:900px) {
+          .botree-login-shell { grid-template-columns:1fr 1fr; }
+          .lg-product-logo { width:108px; }
+          .lg-product b { font-size:17px; }
+          .lg-product small { font-size:8px; letter-spacing:.06em; }
+        }
+        @media(max-width:720px) {
+          .lg-brand { min-height:27vh; }
+          .lg-copy { margin-top:22px; }
+          .botree-login-shell .lg-brand h1 { font-size:36px; }
+          .lg-brand-tagline { font-size:10px; margin-bottom:0; }
+          .lg-auth { min-height:73vh; }
+          .lg-product-logo { width:116px; }
+        }
+        @media(max-width:390px) {
+          .lg-product { gap:9px; }
+          .lg-product-logo { width:90px; }
+          .lg-product-divider { height:32px; }
+          .lg-product b { font-size:16px; }
+          .lg-product small { font-size:7px; letter-spacing:0; }
+        }
+
         @media(prefers-reduced-motion:reduce){
           .botree-login-shell *, .botree-login-shell *:before, .botree-login-shell *:after {
             animation:none!important; transition:none!important;
@@ -335,9 +396,9 @@ const Login = () => {
             </div>
           </div>
           <div className="lg-copy">
-            <div className="lg-eyebrow"><i></i> Draft it. Track it. Close it.</div>
-            <h1>Draft it. <span>Track it. Close it.</span></h1>
-            <p className="lg-sub">Draft it. Track it. Close it.</p>
+            <h1>Botree <span>DealPath</span></h1>
+            <div className="lg-brand-tagline">DRAFT IT. TRACK IT. CLOSE IT.</div>
+            <p className="lg-sub">A smarter way to manage proposals from draft to approval, with real-time visibility and profitability insights.</p>
             <div className="lg-flow" aria-label="Proposal workflow">
               <div className="lg-step active"><span className="lg-dot"></span>Opportunity</div><span className="lg-line"></span>
               <div className="lg-step"><span className="lg-dot"></span>Build</div><span className="lg-line"></span>
@@ -351,8 +412,9 @@ const Login = () => {
         <section className="lg-auth">
           <div className="lg-card">
             <div className="lg-product">
-              <div className="lg-mark">D</div>
-              <div><b>Botree DealPath</b><small>Draft it. Track it. Close it.</small></div>
+              <img className="lg-product-logo" src={LOGO_SRC} alt="Botree Software" />
+              <span className="lg-product-divider" aria-hidden="true"></span>
+              <div><b>Botree <span className="lg-dealpath-accent">DealPath</span></b><small>Draft it. Track it. Close it.</small></div>
             </div>
             <div className="lg-welcome">Welcome back</div>
             <h2>Sign in to continue.</h2>
