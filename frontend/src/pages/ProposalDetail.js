@@ -411,6 +411,13 @@ const ProposalDetail = () => {
     return user.role === 'User' || user.role === 'Admin';
   };
 
+  const canStartApprovedRevision = () => (
+    !!proposal &&
+    proposal.status === 'approved' &&
+    !proposal.is_closed &&
+    (user?.role === 'Admin' || (user?.role === 'User' && proposal.created_by?.id === user?.id))
+  );
+
   const canOverrideWorkflow = () => user.role === 'Admin' && proposal && !proposal.is_closed;
 
   const canDeleteProposal = () => {
@@ -427,6 +434,9 @@ const ProposalDetail = () => {
   const [overrideLoading, setOverrideLoading] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [revisionDialogOpen, setRevisionDialogOpen] = useState(false);
+  const [revisionReason, setRevisionReason] = useState('');
+  const [startingRevision, setStartingRevision] = useState(false);
 
   const handleOverrideStage = async () => {
     if (!overrideTarget) return;
@@ -457,6 +467,34 @@ const ProposalDetail = () => {
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to delete proposal');
       setDeleteLoading(false);
+    }
+  };
+
+  const handleStartRevision = async () => {
+    if (proposal?.draft_version) {
+      navigate(`/dashboard/proposal/${id}/edit?revision_version=${proposal.draft_version}`);
+      return;
+    }
+    if (!revisionReason.trim()) {
+      toast.error('Please provide a reason for revising this approved proposal');
+      return;
+    }
+    setStartingRevision(true);
+    try {
+      const { data } = await axios.post(
+        `${API}/proposals/${id}/revisions`,
+        { reason: revisionReason.trim() },
+        { withCredentials: true }
+      );
+      setRevisionDialogOpen(false);
+      toast.success(`Draft ${data.version_label} created. The approved version remains unchanged.`);
+      navigate(`/dashboard/proposal/${id}/edit?revision_version=${data.version_number}`);
+      fetchProposal();
+      fetchVersionHistory();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to start proposal revision');
+    } finally {
+      setStartingRevision(false);
     }
   };
 
@@ -563,6 +601,23 @@ const ProposalDetail = () => {
                     Edit & Resubmit
                   </Button>
                 )}
+                {canStartApprovedRevision() && (
+                  <Button
+                    onClick={() => {
+                      if (proposal.draft_version) {
+                        navigate(`/dashboard/proposal/${id}/edit?revision_version=${proposal.draft_version}`);
+                      } else {
+                        setRevisionReason('');
+                        setRevisionDialogOpen(true);
+                      }
+                    }}
+                    className="text-white font-semibold shadow-md"
+                    style={{background: 'linear-gradient(135deg, #F72585 0%, #7209B7 100%)'}}
+                    data-testid="revise-approved-proposal-button"
+                  >
+                    {proposal.draft_version ? 'Continue Draft Revision' : 'Revise Proposal'}
+                  </Button>
+                )}
                 {canDeleteProposal() && (
                   <Button
                     onClick={() => setDeleteConfirmOpen(true)}
@@ -574,6 +629,16 @@ const ProposalDetail = () => {
                   </Button>
                 )}
               </div>
+              {proposal.draft_version && proposal.status === 'approved' && (
+                <div className="mt-4 p-3 rounded-lg border border-amber-200 bg-amber-50 text-sm text-amber-900" data-testid="revision-draft-notice">
+                  Draft v{proposal.draft_version} is being prepared. Version v{proposal.approved_version || proposal.current_version} remains approved until the revision completes its approval workflow.
+                </div>
+              )}
+              {proposal.approved_version && proposal.current_version !== proposal.approved_version && proposal.status !== 'approved' && (
+                <div className="mt-4 p-3 rounded-lg border border-blue-200 bg-blue-50 text-sm text-blue-900" data-testid="last-approved-version-notice">
+                  Last approved version: v{proposal.approved_version}. Current v{proposal.current_version} is not approved yet; the last approved version remains preserved until this revision is approved.
+                </div>
+              )}
             </div>
 
             <div className="space-y-3 text-sm border-t border-[#E4DCF0] pt-4 mt-4">
@@ -1045,7 +1110,7 @@ const ProposalDetail = () => {
                       <div key={version.version_number} className="relative pb-5 last:pb-0">
                         <div
                           className={`absolute -left-6 top-1 w-3.5 h-3.5 rounded-full border-2 border-white ${
-                            version.version_number === proposal.current_version ? 'bg-indigo-600' : 'bg-[#94A3B8]'
+                            version.version_number === proposal.draft_version ? 'bg-amber-500' : version.version_number === proposal.current_version ? 'bg-indigo-600' : 'bg-[#94A3B8]'
                           }`}
                         ></div>
                         <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -1066,22 +1131,35 @@ const ProposalDetail = () => {
                   <div 
                     key={version.version_number} 
                     className={`p-4 rounded-lg border ${
-                      version.version_number === proposal.current_version 
-                        ? 'border-indigo-500 bg-indigo-50' 
+                      version.version_number === proposal.draft_version
+                        ? 'border-amber-400 bg-amber-50'
+                        : version.version_number === proposal.current_version
+                        ? 'border-indigo-500 bg-indigo-50'
                         : 'border-[#E4DCF0] bg-[#F7F4FC]'
                     }`}
                   >
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex items-center gap-2 flex-wrap">
                         <Badge className={
-                          version.version_number === proposal.current_version 
-                            ? 'bg-indigo-600 text-white' 
+                          version.version_number === proposal.draft_version
+                            ? 'bg-amber-500 text-white'
+                            : version.version_number === proposal.current_version
+                            ? 'bg-indigo-600 text-white'
                             : 'bg-[#E4DCF0] text-[#1E1533]'
                         }>
                           {version.version_label}
                         </Badge>
+                        {version.version_number === proposal.draft_version && (
+                          <span className="text-xs text-amber-800 font-semibold">DRAFT</span>
+                        )}
                         {version.version_number === proposal.current_version && (
                           <span className="text-xs text-indigo-700 font-semibold">CURRENT</span>
+                        )}
+                        {version.version_number === (proposal.approved_version || (proposal.status === 'approved' ? proposal.current_version : null)) && (
+                          <span className="text-xs text-emerald-700 font-semibold">LAST APPROVED</span>
+                        )}
+                        {version.approval_status === 'in_review' && version.version_number === proposal.current_version && proposal.status !== 'approved' && (
+                          <span className="text-xs text-blue-700 font-semibold">UNDER REVIEW</span>
                         )}
                         {canEdit() && version.version_number !== proposal.current_version && !proposal.is_closed && (
                           <Button
@@ -1315,6 +1393,44 @@ const ProposalDetail = () => {
 
       {/* Deal status: S1-S6, closed as won or lost, with comments. Editable only by the uploader. */}
       <DealStatusSection proposal={proposal} user={user} onUpdated={fetchProposal} />
+
+      {/* Start a revision without changing the approved snapshot */}
+      <Dialog open={revisionDialogOpen} onOpenChange={setRevisionDialogOpen}>
+        <DialogContent className="bg-[#FFFFFF]">
+          <DialogHeader>
+            <DialogTitle>Revise Approved Proposal</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-[#5B4B7A]">
+            A new version will be created under the same Proposal ID. The currently approved version will remain unchanged until the new version completes approval.
+          </p>
+          <div className="space-y-2 mt-3">
+            <Label htmlFor="revision-reason">Reason for Revision <span className="text-red-700">*</span></Label>
+            <Textarea
+              id="revision-reason"
+              value={revisionReason}
+              onChange={(e) => setRevisionReason(e.target.value)}
+              placeholder="Explain the customer's requested changes..."
+              rows={4}
+              required
+              data-testid="revision-reason-input"
+            />
+          </div>
+          <div className="flex gap-3 justify-end mt-4">
+            <Button variant="outline" onClick={() => setRevisionDialogOpen(false)} disabled={startingRevision}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleStartRevision}
+              disabled={startingRevision || !revisionReason.trim()}
+              data-testid="create-revision-draft-button"
+              className="text-white"
+              style={{background: 'linear-gradient(135deg, #F72585 0%, #7209B7 100%)'}}
+            >
+              {startingRevision ? 'Creating Draft...' : 'Create Revision Draft'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Proposal confirmation */}
       <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
