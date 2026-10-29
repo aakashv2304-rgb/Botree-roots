@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import LoadingSpinner from '../components/LoadingSpinner';
 import axios from 'axios';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -18,6 +18,10 @@ const EditProposal = () => {
   const { id } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const revisionVersionParam = searchParams.get('revision_version');
+  const revisionVersion = revisionVersionParam ? parseInt(revisionVersionParam, 10) : null;
+  const isApprovedRevision = Number.isInteger(revisionVersion) && revisionVersion > 0;
   const [loading, setLoading] = useState(false);
   const [proposal, setProposal] = useState(null);
   const [formData, setFormData] = useState({ 
@@ -95,7 +99,7 @@ const EditProposal = () => {
 
   useEffect(() => {
     fetchProposal();
-  }, [id]);
+  }, [id, revisionVersion]);
 
   const chargeToStrings = (c) => ({
     quantity: c?.quantity ?? '',
@@ -107,45 +111,58 @@ const EditProposal = () => {
   const fetchProposal = async () => {
     try {
       const { data } = await axios.get(`${API}/proposals/${id}`, { withCredentials: true });
+      const revisionDraft = isApprovedRevision
+        ? (data.versions || []).find((v) => v.version_number === revisionVersion)
+        : null;
+      if (isApprovedRevision && (
+        !revisionDraft ||
+        revisionDraft.approval_status !== 'draft' ||
+        data.draft_version !== revisionVersion
+      )) {
+        toast.error('This revision draft is no longer available. Open the proposal and start or continue the current draft.');
+        navigate(`/dashboard/proposal/${id}`);
+        return;
+      }
+      const source = revisionDraft || data;
       setProposal(data);
       if (data.workflow_view?.custom) {
         setApproverIds(data.workflow_view.stages.map((st) => st.approver_id));
         setApproverNames(Object.fromEntries(data.workflow_view.stages.map((st) => [st.approver_id, st.approver_name])));
       }
       setFormData({ 
-        title: data.title, 
-        description: data.description, 
-        customer_name: data.customer_name || '',
-        industry: data.industry || '',
-        comments: data.comments || '',
-        deal_value: data.deal_value || '',
-        one_time_setup_fee: data.one_time_setup_fee || '',
-        integration_fee: data.integration_fee || '',
-        contract_years: data.contract_years || '',
-        price_escalation_percent: data.price_escalation_percent || '',
-        change_note: ''
+        title: source.title, 
+        description: source.description, 
+        customer_name: source.customer_name || '',
+        industry: source.industry || '',
+        comments: source.comments || '',
+        deal_value: source.deal_value || '',
+        one_time_setup_fee: source.one_time_setup_fee || '',
+        integration_fee: source.integration_fee || '',
+        contract_years: source.contract_years || '',
+        price_escalation_percent: source.price_escalation_percent || '',
+        change_note: isApprovedRevision ? (source.revision_reason || source.change_note || '') : ''
       });
       setOneTimeOptionalFees({
-        dms_training_fee: data.dms_training_fee || '',
-        sfa_training_fee: data.sfa_training_fee || '',
-        flexidms_deployment_fee: data.flexidms_deployment_fee || '',
-        customization_fee: data.customization_fee || '',
-        workshop_fee: data.workshop_fee || '',
+        dms_training_fee: source.dms_training_fee || '',
+        sfa_training_fee: source.sfa_training_fee || '',
+        flexidms_deployment_fee: source.flexidms_deployment_fee || '',
+        customization_fee: source.customization_fee || '',
+        workshop_fee: source.workshop_fee || '',
       });
-      setAdditionalFees(data.additional_fees || []);
+      setAdditionalFees(source.additional_fees || []);
       setOngoingCharges({
-        flexidms_distributor_charge: chargeToStrings(data.flexidms_distributor_charge),
-        dms_distributor_charge: chargeToStrings(data.dms_distributor_charge),
-        sfa_user_charge: chargeToStrings(data.sfa_user_charge),
-        shared_l1_support_charge: chargeToStrings(data.shared_l1_support_charge),
+        flexidms_distributor_charge: chargeToStrings(source.flexidms_distributor_charge),
+        dms_distributor_charge: chargeToStrings(source.dms_distributor_charge),
+        sfa_user_charge: chargeToStrings(source.sfa_user_charge),
+        shared_l1_support_charge: chargeToStrings(source.shared_l1_support_charge),
       });
       // No document may be attached at all - guard against that.
-      setFileName(data.file_info?.filename || '');
+      setFileName(source.file_info?.filename || '');
 
       // Description/Invoicing per row: use whatever was saved on this
       // proposal already; for any row missing that, fall back to the
       // current base template's default text.
-      const savedText = data.one_time_line_item_text || {};
+      const savedText = source.one_time_line_item_text || {};
       let templateDefaults = {};
       try {
         const { data: baseTemplateData } = await axios.get(`${API}/base-template`, { withCredentials: true });
@@ -234,10 +251,12 @@ const EditProposal = () => {
         shared_l1_support_charge: buildCharge('shared_l1_support_charge'),
         change_note: formData.change_note,
         approver_ids: approverIds,
+        revision_mode: isApprovedRevision,
+        revision_version: isApprovedRevision ? revisionVersion : null,
       }, { withCredentials: true });
 
-      toast.success('Proposal updated and resubmitted successfully');
-      navigate('/dashboard');
+      toast.success(isApprovedRevision ? 'Revision submitted for approval' : 'Proposal updated and resubmitted successfully');
+      navigate(isApprovedRevision ? `/dashboard/proposal/${id}` : '/dashboard');
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to update proposal');
     } finally {
@@ -249,12 +268,17 @@ const EditProposal = () => {
     return <LoadingSpinner fullScreen label="Loading proposal..." />
   }
 
-  const canAccessEdit = (user?.role === 'User' || user?.role === 'Admin') && proposal.status === 'needs_revision' && !proposal.is_closed;
+  const isOwnerOrAdmin = user?.role === 'Admin' || proposal.created_by?.id === user?.id;
+  const canAccessEdit = isApprovedRevision
+    ? proposal.status === 'approved' && !proposal.is_closed &&
+      proposal.draft_version === revisionVersion && isOwnerOrAdmin
+    : (user?.role === 'User' || user?.role === 'Admin') &&
+      proposal.status === 'needs_revision' && !proposal.is_closed;
   if (!canAccessEdit) {
     return (
       <div className="p-6">
         <div className="bg-[#FFFFFF] border border-[#E4DCF0] rounded-lg p-6 text-center">
-          <p className="text-[#7A6B9E]">Only open proposals marked Needs Revision can be edited and resubmitted.</p>
+          <p className="text-[#7A6B9E]">{isApprovedRevision ? 'This approved proposal revision is no longer editable. Return to the proposal and continue the active draft.' : 'Only open proposals marked Needs Revision can be edited and resubmitted.'}</p>
         </div>
       </div>
     );
@@ -263,7 +287,7 @@ const EditProposal = () => {
   return (
     <div className="p-6" data-testid="edit-proposal-page">
       <Button
-        onClick={() => navigate('/dashboard')}
+        onClick={() => navigate(isApprovedRevision ? `/dashboard/proposal/${id}` : '/dashboard')}
         variant="ghost"
         className="mb-6 text-[#7A6B9E] hover:text-[#1E1533]"
         data-testid="back-button"
@@ -274,10 +298,10 @@ const EditProposal = () => {
 
       <div className="mb-6">
         <div className="flex flex-wrap items-center gap-3 mb-2">
-          <h1 className="text-3xl font-bold text-[#1E1533]">Edit & Resubmit Proposal</h1>
+          <h1 className="text-3xl font-bold text-[#1E1533]">{isApprovedRevision ? 'Revise Approved Proposal' : 'Edit & Resubmit Proposal'}</h1>
           <DspBadge dsp={proposal?.dsp} testId="edit-dsp" />
         </div>
-        <p className="text-[#7A6B9E]">Update your rejected proposal and resubmit for approval</p>
+        <p className="text-[#7A6B9E]">{isApprovedRevision ? 'Prepare a new version of this approved proposal. The existing approved version stays intact until the revision is approved.' : 'Update your proposal and resubmit for approval'}</p>
       </div>
 
       <div className="max-w-2xl">
@@ -529,17 +553,17 @@ const EditProposal = () => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="change_note">Change Note <span className="text-red-700">*</span></Label>
+              <Label htmlFor="change_note">{isApprovedRevision ? 'Revision Reason' : 'Change Note'} <span className="text-red-700">*</span></Label>
               <Textarea
                 id="change_note"
                         className="bg-[#FFFFFF]"
                 value={formData.change_note}
                 onChange={(e) => setFormData({ ...formData, change_note: e.target.value })}
-                placeholder="Explain what changes were made based on reviewer feedback..."
+                placeholder={isApprovedRevision ? "Explain the customer's requested changes..." : "Explain what changes were made based on reviewer feedback..."}
                 rows={3}
                 required
               />
-              <p className="text-xs text-[#7A6B9E]">Required: Describe what you changed after the review feedback</p>
+              <p className="text-xs text-[#7A6B9E]">{isApprovedRevision ? 'Required: Record why the approved proposal is being revised. This reason is saved in the audit trail.' : 'Required: Describe what you changed after the review feedback'}</p>
             </div>
 
             <div className="space-y-2">
@@ -564,7 +588,7 @@ const EditProposal = () => {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => navigate('/dashboard')}
+                onClick={() => navigate(isApprovedRevision ? `/dashboard/proposal/${id}` : '/dashboard')}
                 data-testid="cancel-button"
                 className="bg-[#FFFFFF] text-[#1E1533] border-[#E4DCF0] hover:bg-[#F1EBFA]"
               >
@@ -577,7 +601,7 @@ const EditProposal = () => {
                 className="text-white font-semibold shadow-md"
                 style={{background: 'linear-gradient(135deg, #F72585 0%, #7209B7 100%)'}}
               >
-                {loading ? 'Updating...' : 'Update & Resubmit'}
+                {loading ? (isApprovedRevision ? 'Submitting Revision...' : 'Updating...') : (isApprovedRevision ? 'Submit Revision for Approval' : 'Update & Resubmit')}
               </Button>
             </div>
           </form>

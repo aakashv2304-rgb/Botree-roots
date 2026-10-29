@@ -611,6 +611,8 @@ class ProposalCreate(BaseModel):
     contract_years: Optional[int] = None
     price_escalation_percent: Optional[float] = None
     change_note: Optional[str] = None
+    revision_mode: Optional[bool] = False
+    revision_version: Optional[int] = None
     # Table B.1 line items not covered by one_time_setup_fee/integration_fee.
     # All are numeric fee inputs - a blank value removes the row entirely.
     dms_training_fee: Optional[float] = None
@@ -636,6 +638,9 @@ class ProposalCreate(BaseModel):
 class ProposalAction(BaseModel):
     comment: Optional[str] = None
     target_stage: Optional[str] = None  # used only by the admin stage-override endpoint
+
+class ProposalRevisionStart(BaseModel):
+    reason: str
 
 # ============ Profitability Analyzer: hardcoded rate card ============
 # Fixed monthly cost per role. Not editable via API - change here only.
@@ -1351,7 +1356,8 @@ async def create_proposal(proposal: ProposalCreate, request: Request):
         "extra_ongoing_charges": extra_ongoing_dict,
         "created_by": current_user["id"],
         "created_at": now.isoformat(),
-        "change_note": "Initial version"
+        "change_note": "Initial version",
+        "approval_status": "in_review"
     }
     
     new_proposal = {
@@ -1361,6 +1367,7 @@ async def create_proposal(proposal: ProposalCreate, request: Request):
         "current_stage": 1,
         "workflow": workflow,
         "current_version": 1,
+        "approved_version": None,
         "is_closed": False,
         "created_by": current_user["id"],
         "file_info": version_data["file_info"],
@@ -1450,6 +1457,8 @@ async def get_proposals(request: Request, status: Optional[str] = None, search: 
             "status": p["status"],
             "current_stage": p["current_stage"],
             "current_version": p.get("current_version", 1),
+            "approved_version": p.get("approved_version"),
+            "draft_version": p.get("draft_version"),
             "is_closed": p.get("is_closed", False),
             "created_by": {"id": str(creator["_id"]), "name": creator["name"], "role": creator["role"]},
             "file_info": p.get("file_info"),
@@ -1562,6 +1571,8 @@ async def get_proposal(proposal_id: str, request: Request):
         "status": proposal["status"],
         "current_stage": proposal["current_stage"],
         "current_version": proposal.get("current_version", 1),
+        "approved_version": proposal.get("approved_version"),
+        "draft_version": proposal.get("draft_version"),
         "is_closed": proposal.get("is_closed", False),
         "created_by": {"id": str(creator["_id"]), "name": creator["name"], "role": creator["role"], "email": creator.get("email", "")},
         "file_info": proposal.get("file_info"),
@@ -1603,6 +1614,101 @@ async def get_proposal(proposal_id: str, request: Request):
         response["profitability"] = proposal.get("profitability")
 
     return response
+
+@api_router.post("/proposals/{proposal_id}/revisions")
+async def start_proposal_revision(proposal_id: str, payload: ProposalRevisionStart, request: Request):
+    """Create a draft revision without changing the currently approved proposal."""
+    current_user = await get_current_user(request)
+    if current_user["role"] not in ("User", "Admin"):
+        raise HTTPException(status_code=403, detail="Only the proposal owner or an Admin can revise an approved proposal")
+
+    try:
+        oid = ObjectId(proposal_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid proposal ID")
+
+    proposal = await db.proposals.find_one({"_id": oid})
+    if not proposal:
+        raise HTTPException(status_code=404, detail="Proposal not found")
+
+    is_admin = current_user["role"] == "Admin"
+    is_owner = str(proposal.get("created_by")) == str(current_user["id"])
+    if not (is_admin or is_owner):
+        raise HTTPException(status_code=403, detail="Only the proposal owner or an Admin can revise this proposal")
+    if proposal.get("status") != "approved":
+        raise HTTPException(status_code=400, detail="Only approved proposals can start a new revision")
+    if proposal.get("is_closed", False):
+        raise HTTPException(status_code=400, detail="Cannot revise a closed proposal")
+    if proposal.get("draft_version") is not None:
+        raise HTTPException(status_code=409, detail="A revision draft already exists. Continue that draft before starting another.")
+
+    reason = (payload.reason or "").strip()
+    if not reason:
+        raise HTTPException(status_code=400, detail="A revision reason is required")
+
+    versions = proposal.get("versions", [])
+    approved_version_number = proposal.get("approved_version") or proposal.get("current_version", 1)
+    base_version = next((v for v in versions if v.get("version_number") == approved_version_number), None)
+    snapshot_fields = [
+        "title", "description", "file_info", "products", "customer_name", "industry",
+        "comments", "deal_value", "one_time_setup_fee", "integration_fee", "additional_fees",
+        "contract_years", "price_escalation_percent", "dms_training_fee", "sfa_training_fee",
+        "flexidms_deployment_fee", "customization_fee", "workshop_fee", "one_time_line_item_text",
+        "flexidms_distributor_charge", "dms_distributor_charge", "sfa_user_charge",
+        "shared_l1_support_charge", "extra_ongoing_charges"
+    ]
+    snapshot = {
+        key: (base_version[key] if base_version and key in base_version else proposal.get(key))
+        for key in snapshot_fields
+    }
+    snapshot["products"] = snapshot.get("products") or []
+    snapshot["additional_fees"] = snapshot.get("additional_fees") or []
+    snapshot["extra_ongoing_charges"] = snapshot.get("extra_ongoing_charges") or []
+    snapshot["one_time_line_item_text"] = snapshot.get("one_time_line_item_text") or {}
+
+    now = datetime.now(timezone.utc)
+    version_number = max([v.get("version_number", 0) for v in versions] + [0]) + 1
+    version_label = f"v{version_number}_{now.strftime('%Y-%m-%d')}"
+    draft = {
+        **snapshot,
+        "version_number": version_number,
+        "version_label": version_label,
+        "created_by": current_user["id"],
+        "created_at": now.isoformat(),
+        "change_note": reason,
+        "revision_reason": reason,
+        "based_on_version": approved_version_number,
+        "approval_status": "draft"
+    }
+    history_entry = {
+        "action": "revision_draft_created",
+        "by": {"id": current_user["id"], "name": current_user["name"], "role": current_user["role"]},
+        "comment": f"Revision draft created from v{approved_version_number}: {reason}",
+        "version": version_number,
+        "timestamp": now.isoformat()
+    }
+
+    result = await db.proposals.update_one(
+        {
+            "_id": oid,
+            "status": "approved",
+            "$or": [{"draft_version": {"$exists": False}}, {"draft_version": None}]
+        },
+        {
+            "$set": {"draft_version": version_number, "updated_at": now.isoformat()},
+            "$push": {"versions": draft, "history": history_entry}
+        }
+    )
+    if result.modified_count != 1:
+        raise HTTPException(status_code=409, detail="The proposal changed while the revision was being started. Refresh and try again.")
+
+    return {
+        "message": f"Revision draft {version_label} created. The approved version remains unchanged.",
+        "version_number": version_number,
+        "version_label": version_label,
+        "based_on_version": approved_version_number
+    }
+
 
 @api_router.get("/proposals/{proposal_id}/versions")
 async def get_proposal_versions(proposal_id: str, request: Request):
@@ -1945,13 +2051,31 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
     if not existing_proposal:
         raise HTTPException(status_code=404, detail="Proposal not found")
     
-    # Any Sales user (not just the exact original creator) or Admin can pick
-    # up a proposal that needs revision and resubmit it - avoids proposals
-    # getting stuck if the original creator's account was deleted/recreated
-    # (e.g. via the idempotent seed_users() startup routine).
-    if existing_proposal["status"] != "needs_revision":
-        raise HTTPException(status_code=400, detail="Can only edit proposals that need revision")
-    
+    is_approved_revision = proposal.revision_mode is True
+    draft_version = None
+    if existing_proposal.get("status") == "approved":
+        if not is_approved_revision:
+            raise HTTPException(status_code=400, detail="Approved proposals must be revised through the revision workflow")
+        if current_user["role"] != "Admin" and str(existing_proposal.get("created_by")) != str(current_user["id"]):
+            raise HTTPException(status_code=403, detail="Only the proposal owner or an Admin can revise this proposal")
+        if proposal.revision_version is None or proposal.revision_version != existing_proposal.get("draft_version"):
+            raise HTTPException(status_code=409, detail="This revision draft is no longer current. Refresh the proposal and try again.")
+        draft_version = next(
+            (v for v in existing_proposal.get("versions", []) if v.get("version_number") == proposal.revision_version),
+            None
+        )
+        if not draft_version or draft_version.get("approval_status") != "draft":
+            raise HTTPException(status_code=409, detail="Revision draft not found. Start a new revision.")
+        if not proposal.change_note or not proposal.change_note.strip():
+            raise HTTPException(status_code=400, detail="A revision reason is required")
+        base_proposal = {**existing_proposal, **draft_version}
+    else:
+        if is_approved_revision:
+            raise HTTPException(status_code=400, detail="Revision mode is only available for an approved proposal")
+        if existing_proposal.get("status") != "needs_revision":
+            raise HTTPException(status_code=400, detail="Can only edit proposals that need revision")
+        base_proposal = existing_proposal
+
     # Check if proposal is closed
     if existing_proposal.get("is_closed", False):
         raise HTTPException(status_code=400, detail="Cannot edit a closed/rejected proposal")
@@ -1966,37 +2090,41 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
         raise HTTPException(status_code=400, detail="Set the approval workflow before resubmitting. This proposal was started on the old fixed approval chain, which no longer exists.")
     
     now = datetime.now(timezone.utc)
-    new_version_number = existing_proposal.get("current_version", 1) + 1
-    version_label = f"v{new_version_number}_{now.strftime('%Y-%m-%d')}"
+    if is_approved_revision:
+        new_version_number = proposal.revision_version
+        version_label = draft_version.get("version_label") or f"v{new_version_number}_{now.strftime('%Y-%m-%d')}"
+    else:
+        new_version_number = existing_proposal.get("current_version", 1) + 1
+        version_label = f"v{new_version_number}_{now.strftime('%Y-%m-%d')}"
 
     # The revision form doesn't resend products/fees - preserve whatever was
     # already on the proposal rather than wiping it out with empty defaults.
-    products_data = [p.dict() for p in proposal.products] if proposal.products else existing_proposal.get("products", [])
-    one_time_setup_fee = proposal.one_time_setup_fee if proposal.one_time_setup_fee is not None else existing_proposal.get("one_time_setup_fee")
-    integration_fee = proposal.integration_fee if proposal.integration_fee is not None else existing_proposal.get("integration_fee")
-    additional_fees_data = [f.dict() for f in proposal.additional_fees] if proposal.additional_fees else existing_proposal.get("additional_fees", [])
-    contract_years = proposal.contract_years if proposal.contract_years is not None else existing_proposal.get("contract_years")
-    price_escalation_percent = proposal.price_escalation_percent if proposal.price_escalation_percent is not None else existing_proposal.get("price_escalation_percent")
+    products_data = [p.dict() for p in proposal.products] if proposal.products else base_proposal.get("products", [])
+    one_time_setup_fee = proposal.one_time_setup_fee if (is_approved_revision or proposal.one_time_setup_fee is not None) else base_proposal.get("one_time_setup_fee")
+    integration_fee = proposal.integration_fee if (is_approved_revision or proposal.integration_fee is not None) else base_proposal.get("integration_fee")
+    additional_fees_data = [f.dict() for f in proposal.additional_fees] if (is_approved_revision or proposal.additional_fees) else base_proposal.get("additional_fees", [])
+    contract_years = proposal.contract_years if (is_approved_revision or proposal.contract_years is not None) else base_proposal.get("contract_years")
+    price_escalation_percent = proposal.price_escalation_percent if (is_approved_revision or proposal.price_escalation_percent is not None) else base_proposal.get("price_escalation_percent")
 
     def _charge_dict(line):
         return line.dict() if line is not None else None
 
-    flexidms_distributor_charge = _charge_dict(proposal.flexidms_distributor_charge) or existing_proposal.get("flexidms_distributor_charge")
-    dms_distributor_charge = _charge_dict(proposal.dms_distributor_charge) or existing_proposal.get("dms_distributor_charge")
-    sfa_user_charge = _charge_dict(proposal.sfa_user_charge) or existing_proposal.get("sfa_user_charge")
-    shared_l1_support_charge = _charge_dict(proposal.shared_l1_support_charge) or existing_proposal.get("shared_l1_support_charge")
-    extra_ongoing_charges_data = [c.dict() for c in proposal.extra_ongoing_charges] if proposal.extra_ongoing_charges else existing_proposal.get("extra_ongoing_charges", [])
+    flexidms_distributor_charge = _charge_dict(proposal.flexidms_distributor_charge) if is_approved_revision else (_charge_dict(proposal.flexidms_distributor_charge) or base_proposal.get("flexidms_distributor_charge"))
+    dms_distributor_charge = _charge_dict(proposal.dms_distributor_charge) if is_approved_revision else (_charge_dict(proposal.dms_distributor_charge) or base_proposal.get("dms_distributor_charge"))
+    sfa_user_charge = _charge_dict(proposal.sfa_user_charge) if is_approved_revision else (_charge_dict(proposal.sfa_user_charge) or base_proposal.get("sfa_user_charge"))
+    shared_l1_support_charge = _charge_dict(proposal.shared_l1_support_charge) if is_approved_revision else (_charge_dict(proposal.shared_l1_support_charge) or base_proposal.get("shared_l1_support_charge"))
+    extra_ongoing_charges_data = [c.dict() for c in proposal.extra_ongoing_charges] if proposal.extra_ongoing_charges else base_proposal.get("extra_ongoing_charges", [])
 
-    dms_training_fee = proposal.dms_training_fee if proposal.dms_training_fee is not None else existing_proposal.get("dms_training_fee")
-    sfa_training_fee = proposal.sfa_training_fee if proposal.sfa_training_fee is not None else existing_proposal.get("sfa_training_fee")
-    flexidms_deployment_fee = proposal.flexidms_deployment_fee if proposal.flexidms_deployment_fee is not None else existing_proposal.get("flexidms_deployment_fee")
-    customization_fee = proposal.customization_fee if proposal.customization_fee is not None else existing_proposal.get("customization_fee")
-    workshop_fee = proposal.workshop_fee if proposal.workshop_fee is not None else existing_proposal.get("workshop_fee")
+    dms_training_fee = proposal.dms_training_fee if (is_approved_revision or proposal.dms_training_fee is not None) else base_proposal.get("dms_training_fee")
+    sfa_training_fee = proposal.sfa_training_fee if (is_approved_revision or proposal.sfa_training_fee is not None) else base_proposal.get("sfa_training_fee")
+    flexidms_deployment_fee = proposal.flexidms_deployment_fee if (is_approved_revision or proposal.flexidms_deployment_fee is not None) else base_proposal.get("flexidms_deployment_fee")
+    customization_fee = proposal.customization_fee if (is_approved_revision or proposal.customization_fee is not None) else base_proposal.get("customization_fee")
+    workshop_fee = proposal.workshop_fee if (is_approved_revision or proposal.workshop_fee is not None) else base_proposal.get("workshop_fee")
 
-    if proposal.one_time_line_item_text:
-        one_time_line_item_text = {k: v.dict() for k, v in proposal.one_time_line_item_text.items()}
+    if proposal.one_time_line_item_text or is_approved_revision:
+        one_time_line_item_text = {k: v.dict() for k, v in (proposal.one_time_line_item_text or {}).items()}
     else:
-        one_time_line_item_text = existing_proposal.get("one_time_line_item_text") or {}
+        one_time_line_item_text = base_proposal.get("one_time_line_item_text") or {}
 
     # Resolve which document to (re-)merge from: an explicit new upload,
     # otherwise whatever's already attached to this proposal (re-merging is
@@ -2026,8 +2154,8 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
         source_file_doc = await db.files.find_one({"id": proposal.file_id, "is_deleted": False})
         if not source_file_doc:
             raise HTTPException(status_code=404, detail="File not found")
-    elif existing_proposal.get("file_info", {}) and existing_proposal["file_info"].get("id"):
-        source_file_doc = await db.files.find_one({"id": existing_proposal["file_info"]["id"], "is_deleted": False})
+    elif base_proposal.get("file_info", {}) and existing_proposal["file_info"].get("id"):
+        source_file_doc = await db.files.find_one({"id": base_proposal["file_info"]["id"], "is_deleted": False})
     else:
         source_file_doc = await get_base_template_file_doc()
 
@@ -2035,7 +2163,7 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
         file_doc = await apply_commercials_to_file(source_file_doc, resolved_commercial_data, current_user["id"])
         file_info = {
             "id": file_doc["id"],
-            "filename": build_proposal_filename(proposal.customer_name or existing_proposal.get("customer_name"), new_version_number, now, file_doc["original_filename"]),
+            "filename": build_proposal_filename(proposal.customer_name or base_proposal.get("customer_name"), new_version_number, now, file_doc["original_filename"]),
             "size": file_doc["size"],
             "storage_path": file_doc["storage_path"]
         }
@@ -2070,65 +2198,89 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
         "sfa_user_charge": sfa_user_charge,
         "shared_l1_support_charge": shared_l1_support_charge,
         "extra_ongoing_charges": extra_ongoing_charges_data,
-        "created_by": current_user["id"],
-        "created_at": now.isoformat(),
-        "change_note": proposal.change_note or "Revised after review feedback"
+        "created_by": draft_version.get("created_by", current_user["id"]) if is_approved_revision else current_user["id"],
+        "created_at": draft_version.get("created_at", now.isoformat()) if is_approved_revision else now.isoformat(),
+        "submitted_at": now.isoformat(),
+        "revised_by": current_user["id"] if is_approved_revision else None,
+        "change_note": proposal.change_note or "Revised after review feedback",
+        "revision_reason": proposal.change_note or "Revised after review feedback",
+        "based_on_version": draft_version.get("based_on_version") if is_approved_revision else existing_proposal.get("current_version", 1),
+        "approval_status": "in_review"
     }
     
     history_entry = {
-        "action": "updated",
+        "action": "revision_submitted" if is_approved_revision else "updated",
         "by": {"id": current_user["id"], "name": current_user["name"], "role": current_user["role"]},
-        "comment": f"Proposal updated to {version_label} and resubmitted",
+        "comment": (
+            f"Approved proposal revised to {version_label} and resubmitted. Reason: {proposal.change_note.strip()}"
+            if is_approved_revision
+            else f"Proposal updated to {version_label} and resubmitted"
+        ),
         "version": new_version_number,
         "timestamp": now.isoformat()
     }
     
-    # Update proposal with new version and reset to first stage
-    await db.proposals.update_one(
-        {"_id": ObjectId(proposal_id)},
-        {
-            "$set": {
-                "title": proposal.title,
-                "description": proposal.description,
-                "status": IN_REVIEW,
-                "current_stage": 1,
-                "workflow": new_workflow,
-                "current_version": new_version_number,
-                "file_info": file_info,
-                "products": products_data,
-                "customer_name": proposal.customer_name,
-                "industry": proposal.industry,
-                "comments": proposal.comments,
-                "deal_value": computed_deal_value,
-                "one_time_setup_fee": one_time_setup_fee,
-                "integration_fee": integration_fee,
-                "additional_fees": additional_fees_data,
-                "contract_years": contract_years,
-                "price_escalation_percent": price_escalation_percent,
-                "dms_training_fee": dms_training_fee,
-                "sfa_training_fee": sfa_training_fee,
-                "flexidms_deployment_fee": flexidms_deployment_fee,
-                "customization_fee": customization_fee,
-                "workshop_fee": workshop_fee,
-                "one_time_line_item_text": one_time_line_item_text,
-                "flexidms_distributor_charge": flexidms_distributor_charge,
-                "dms_distributor_charge": dms_distributor_charge,
-                "sfa_user_charge": sfa_user_charge,
-                "shared_l1_support_charge": shared_l1_support_charge,
-                "extra_ongoing_charges": extra_ongoing_charges_data,
-                "updated_at": now.isoformat()
-            },
-            "$push": {
-                "history": history_entry,
-                "versions": new_version
-            }
-        }
+    # Update the live proposal for approval. A draft revision replaces only its own
+    # version snapshot; the previously approved snapshot and approved_version pointer remain intact.
+    update_fields = {
+        "title": proposal.title,
+        "description": proposal.description,
+        "status": IN_REVIEW,
+        "current_stage": 1,
+        "workflow": new_workflow,
+        "current_version": new_version_number,
+        "file_info": file_info,
+        "products": products_data,
+        "customer_name": proposal.customer_name,
+        "industry": proposal.industry,
+        "comments": proposal.comments,
+        "deal_value": computed_deal_value,
+        "one_time_setup_fee": one_time_setup_fee,
+        "integration_fee": integration_fee,
+        "additional_fees": additional_fees_data,
+        "contract_years": contract_years,
+        "price_escalation_percent": price_escalation_percent,
+        "dms_training_fee": dms_training_fee,
+        "sfa_training_fee": sfa_training_fee,
+        "flexidms_deployment_fee": flexidms_deployment_fee,
+        "customization_fee": customization_fee,
+        "workshop_fee": workshop_fee,
+        "one_time_line_item_text": one_time_line_item_text,
+        "flexidms_distributor_charge": flexidms_distributor_charge,
+        "dms_distributor_charge": dms_distributor_charge,
+        "sfa_user_charge": sfa_user_charge,
+        "shared_l1_support_charge": shared_l1_support_charge,
+        "extra_ongoing_charges": extra_ongoing_charges_data,
+        "updated_at": now.isoformat()
+    }
+    update_document = {"$set": update_fields, "$push": {"history": history_entry}}
+    if is_approved_revision:
+        updated_versions = list(existing_proposal.get("versions", []))
+        replaced_draft = False
+        for version_index, saved_version in enumerate(updated_versions):
+            if saved_version.get("version_number") == new_version_number:
+                updated_versions[version_index] = new_version
+                replaced_draft = True
+                break
+        if not replaced_draft:
+            raise HTTPException(status_code=409, detail="Revision draft not found. Start a new revision.")
+        update_fields["versions"] = updated_versions
+        update_fields["approved_version"] = existing_proposal.get("approved_version") or existing_proposal.get("current_version", 1)
+        update_document["$unset"] = {"draft_version": ""}
+    else:
+        update_document["$push"]["versions"] = new_version
+
+    await db.proposals.update_one({"_id": ObjectId(proposal_id)}, update_document)
+
+    logger.info(f"[EMAIL] Proposal '{proposal.title}' submitted as {version_label} by {current_user['name']} - stage 1 approver should be notified")
+    await _notify_stage_approver({**existing_proposal, **new_version, "workflow": new_workflow}, proposal_id, 1, "assigned", proposal.change_note)
+
+    message = (
+        f"Revision submitted as {version_label}. The previous approved version remains in history."
+        if is_approved_revision
+        else f"Proposal updated to {version_label} and resubmitted successfully"
     )
-    
-    logger.info(f"[EMAIL] Proposal '{proposal.title}' updated to {version_label} by {current_user['name']} - stage 1 approver should be notified")
-    await _notify_stage_approver({**existing_proposal, "workflow": new_workflow}, proposal_id, 1, "assigned", proposal.change_note)
-    
-    return {"message": f"Proposal updated to {version_label} and resubmitted successfully", "version": version_label}
+    return {"message": message, "version": version_label}
 
 @api_router.patch("/proposals/{proposal_id}/finance-details")
 async def update_finance_details(proposal_id: str, details: FinanceDetailsUpdate, request: Request):
@@ -2256,30 +2408,39 @@ async def approve_proposal(proposal_id: str, action: ProposalAction, request: Re
     
     current_version = proposal.get("current_version", 1)
     
+    approval_timestamp = datetime.now(timezone.utc).isoformat()
     history_entry = {
         "action": "approved",
         "by": {"id": current_user["id"], "name": current_user["name"], "role": current_user["role"]},
         "comment": action.comment or "Approved",
         "stage": current_stage,
         "version": current_version,
-        "timestamp": datetime.now(timezone.utc).isoformat()
+        "timestamp": approval_timestamp
     }
-    
+
     next_stage = current_stage + 1
     new_status = status_for_stage(proposal, next_stage)
-    
-    await db.proposals.update_one(
-        {"_id": ObjectId(proposal_id)},
-        {
-            "$set": {
-                "current_stage": next_stage,
-                "status": new_status,
-                "updated_at": datetime.now(timezone.utc).isoformat()
-            },
-            "$push": {"history": history_entry}
+    update_fields = {
+        "current_stage": next_stage,
+        "status": new_status,
+        "updated_at": approval_timestamp
+    }
+    update_document = {"$set": update_fields, "$push": {"history": history_entry}}
+    if new_status == "approved":
+        update_fields["approved_version"] = current_version
+        update_fields["versions.$[version_entry].approval_status"] = "approved"
+        update_fields["versions.$[version_entry].approved_at"] = approval_timestamp
+        update_fields["versions.$[version_entry].approved_by"] = {
+            "id": current_user["id"], "name": current_user["name"], "role": current_user["role"]
         }
-    )
-    
+        await db.proposals.update_one(
+            {"_id": ObjectId(proposal_id)},
+            update_document,
+            array_filters=[{"version_entry.version_number": current_version}]
+        )
+    else:
+        await db.proposals.update_one({"_id": ObjectId(proposal_id)}, update_document)
+
     # Send email notification
     if new_status == "approved":
         logger.info(f"[EMAIL] Proposal '{proposal['title']}' fully approved by {current_user['name']}")
