@@ -13,7 +13,7 @@ import ReassignApprovers from '../components/ReassignApprovers';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { toast } from 'sonner';
-import { ArrowLeft, Check, Clock, Download, ArrowBendUpLeft, X, GitBranch, ListNumbers, FilePdf, Eye } from '@phosphor-icons/react';
+import { ArrowLeft, ArrowRight, Check, Clock, Download, ArrowBendUpLeft, X, GitBranch, ListNumbers, FilePdf, Eye } from '@phosphor-icons/react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -31,6 +31,7 @@ const ProposalDetail = () => {
   const [loading, setLoading] = useState(true);
   const [comment, setComment] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+  const [forwardApproverId, setForwardApproverId] = useState('');
   const [aboutCustomer, setAboutCustomer] = useState('');
   const [profitability, setProfitability] = useState('');
   const [savingFinanceDetails, setSavingFinanceDetails] = useState(false);
@@ -73,10 +74,33 @@ const ProposalDetail = () => {
     try {
       await axios.post(`${API}/proposals/${id}/approve`, { comment }, { withCredentials: true });
       toast.success('Proposal approved');
-      fetchProposal();
+      await Promise.all([fetchProposal(), fetchVersionHistory()]);
       setComment('');
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to approve');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleForward = async () => {
+    if (!forwardApproverId) {
+      toast.error('Select the next approver');
+      return;
+    }
+    setActionLoading(true);
+    try {
+      const { data } = await axios.post(
+        `${API}/proposals/${id}/forward`,
+        { approver_id: forwardApproverId, comment: comment.trim() || null },
+        { withCredentials: true }
+      );
+      toast.success(data.message || 'Proposal forwarded to the next approver');
+      setForwardApproverId('');
+      setComment('');
+      await Promise.all([fetchProposal(), fetchVersionHistory()]);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to forward proposal');
     } finally {
       setActionLoading(false);
     }
@@ -428,9 +452,9 @@ const ProposalDetail = () => {
   const [overrideTarget, setOverrideTarget] = useState('');
   const [directory, setDirectory] = useState([]);
   useEffect(() => {
-    if (user?.role !== 'Admin') return;
+    if (user?.role !== 'Admin' && !proposal?.dynamic_approval_flow) return;
     axios.get(`${API}/users/directory`, { withCredentials: true }).then((r) => setDirectory(r.data)).catch(() => {});
-  }, [user]);
+  }, [user, proposal?.dynamic_approval_flow]);
   const [overrideLoading, setOverrideLoading] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -522,11 +546,18 @@ const ProposalDetail = () => {
       state: proposal.status === 'needs_revision' ? 'active' : 'completed',
       timestamp: created ? created.timestamp : proposal.created_at, warning: null,
     }];
-    wf.stages.forEach((st) => nodes.push({
-      key: `stage-${st.stage}`, title: st.label,
-      subtitle: wf.custom ? `Approval stage ${st.stage}${st.approver_role ? ` · ${st.approver_role}` : ''}` : `${st.label} Review`,
-      state: st.state, timestamp: st.completed_at, warning: st.approver_missing ? 'No longer an active user' : null,
-    }));
+    wf.stages.forEach((st) => {
+      const forwardedEntry = proposal.dynamic_approval_flow && (proposal.history || []).find(
+        (h) => h.action === 'forwarded_to_approver' && h.stage === st.stage && h.version === proposal.current_version
+      );
+      nodes.push({
+        key: `stage-${st.stage}`, title: st.label,
+        subtitle: wf.custom ? `Approval stage ${st.stage}${st.approver_role ? ` · ${st.approver_role}` : ''}` : `${st.label} Review`,
+        state: forwardedEntry ? 'forwarded' : st.state,
+        timestamp: forwardedEntry?.timestamp || st.completed_at,
+        warning: st.approver_missing ? 'No longer an active user' : null,
+      });
+    });
     const last = wf.stages[wf.stages.length - 1];
     nodes.push({
       key: 'approved', title: 'Approved', subtitle: null, state: proposal.status === 'approved' ? 'completed' : 'pending',
@@ -1219,6 +1250,8 @@ const ProposalDetail = () => {
                               ? 'bg-[#DC2626] border-[#DC2626] text-white'
                               : status === 'completed'
                               ? 'bg-[#10B981] border-[#10B981] text-white'
+                              : status === 'forwarded'
+                              ? 'bg-[#9B30FF] border-[#9B30FF] text-white'
                               : status === 'active'
                               ? 'bg-[#3B82F6] border-[#3B82F6] text-white'
                               : 'bg-[#FFFFFF] border-[#E4DCF0] text-[#7A6B9E]'
@@ -1226,14 +1259,15 @@ const ProposalDetail = () => {
                           data-testid={`stage-circle-${index}`}
                           aria-label={`${node.title}: ${status}`}
                         >
-                          {status === 'completed' ? <Check size={20} weight="bold" /> : status === 'active' ? <Clock size={20} /> : node.key === 'approved' ? <Check size={20} /> : index}
+                          {status === 'completed' ? <Check size={20} weight="bold" /> : status === 'forwarded' ? <ArrowRight size={18} /> : status === 'active' ? <Clock size={20} /> : node.key === 'approved' ? <Check size={20} /> : index}
                         </div>
                         <p className="font-semibold text-sm text-[#1E1533] mt-3 break-words w-full" data-testid={`stage-title-${index}`}>{node.title}</p>
                         {node.subtitle && <p className="text-xs text-[#7A6B9E] mt-1 break-words w-full">{node.subtitle}</p>}
                         {node.warning && <p className="text-xs text-red-700 mt-1 break-words w-full">{node.warning}</p>}
                         {status === 'rejected' && <p className="text-xs text-red-700 font-medium mt-1">Rejected here</p>}
-                        {status === 'completed' && node.timestamp && (
-                          <p className="text-xs text-[#059669] font-medium mt-1" data-testid={`stage-timestamp-${index}`}>
+                        {(status === 'completed' || status === 'forwarded') && node.timestamp && (
+                          <p className={`text-xs font-medium mt-1 ${status === 'forwarded' ? 'text-purple-700' : 'text-[#059669]'}`} data-testid={`stage-timestamp-${index}`}>
+                            {status === 'forwarded' ? 'Forwarded · ' : ''}
                             {new Date(node.timestamp).toLocaleString('en-IN', {
                               day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
                             })}
@@ -1299,16 +1333,49 @@ const ProposalDetail = () => {
               
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="comment">Comment</Label>
+                  <Label htmlFor="comment">{proposal.dynamic_approval_flow ? 'Comment (optional)' : 'Comment'}</Label>
                   <Textarea
                     id="comment"
                     value={comment}
                     onChange={(e) => setComment(e.target.value)}
-                    placeholder="Add your comments (required for reject/return)..."
+                    placeholder={proposal.dynamic_approval_flow ? 'Optional note for the next approver or approval record...' : 'Add your comments (required for reject/return)...'}
                     rows={4}
                     data-testid="action-comment-input"
                   />
                 </div>
+
+                {proposal.dynamic_approval_flow && proposal.workflow_view.stages.length < 10 && (
+                  <div className="space-y-2 rounded-lg border border-[#E4DCF0] bg-[#F7F4FC] p-3" data-testid="forward-approver-panel">
+                    <Label htmlFor="forward-approver">Forward to Another Approver</Label>
+                    <select
+                      id="forward-approver"
+                      value={forwardApproverId}
+                      onChange={(e) => setForwardApproverId(e.target.value)}
+                      data-testid="forward-approver-select"
+                      className="w-full h-10 px-3 rounded-lg bg-[#FFFFFF] border border-[#E4DCF0] text-sm text-[#1E1533] focus:outline-none focus:ring-2 focus:ring-[#9B30FF]/30 focus:border-[#9B30FF]"
+                    >
+                      <option value="">Select the next approver...</option>
+                      {directory.filter((candidate) =>
+                        candidate.id !== proposal.created_by?.id &&
+                        !proposal.workflow_view.stages.some((stage) => String(stage.approver_id) === String(candidate.id))
+                      ).map((candidate) => (
+                        <option key={candidate.id} value={candidate.id}>
+                          {candidate.name}{candidate.role ? ` · ${candidate.role}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <Button
+                      onClick={handleForward}
+                      disabled={actionLoading || !forwardApproverId}
+                      data-testid="forward-approver-button"
+                      className="w-full text-white"
+                      style={{background: 'linear-gradient(135deg, #9B30FF 0%, #E64AD1 100%)'}}
+                    >
+                      <ArrowRight size={18} className="mr-2" />
+                      {actionLoading ? 'Processing...' : 'Forward to Another Approver'}
+                    </Button>
+                  </div>
+                )}
 
                 <div className="space-y-3">
                   <Button
@@ -1318,34 +1385,46 @@ const ProposalDetail = () => {
                     className="w-full bg-[#10B981] hover:bg-[#059669] text-[#1E1533]"
                   >
                     <Check size={20} className="mr-2" />
-                    {actionLoading ? 'Processing...' : 'Approve'}
+                    {actionLoading ? 'Processing...' : proposal.dynamic_approval_flow ? 'Approve Proposal' : 'Approve'}
                   </Button>
-                  <Button
-                    onClick={handleReturnForRevision}
-                    disabled={actionLoading}
-                    data-testid="return-button"
-                    variant="outline"
-                    className="w-full border-amber-500 text-amber-700 hover:bg-amber-500 hover:text-white"
-                  >
-                    <ArrowBendUpLeft size={20} className="mr-2" />
-                    {actionLoading ? 'Processing...' : 'Return for Revision'}
-                  </Button>
-                  <Button
-                    onClick={handleReject}
-                    disabled={actionLoading}
-                    data-testid="reject-button"
-                    variant="outline"
-                    className="w-full border-[#EF4444] text-[#EF4444] hover:bg-[#EF4444] hover:text-[#1E1533]"
-                  >
-                    <X size={20} className="mr-2" />
-                    {actionLoading ? 'Processing...' : 'Reject Permanently'}
-                  </Button>
+                  {!proposal.dynamic_approval_flow && (
+                    <>
+                      <Button
+                        onClick={handleReturnForRevision}
+                        disabled={actionLoading}
+                        data-testid="return-button"
+                        variant="outline"
+                        className="w-full border-amber-500 text-amber-700 hover:bg-amber-500 hover:text-white"
+                      >
+                        <ArrowBendUpLeft size={20} className="mr-2" />
+                        {actionLoading ? 'Processing...' : 'Return for Revision'}
+                      </Button>
+                      <Button
+                        onClick={handleReject}
+                        disabled={actionLoading}
+                        data-testid="reject-button"
+                        variant="outline"
+                        className="w-full border-[#EF4444] text-[#EF4444] hover:bg-[#EF4444] hover:text-[#1E1533]"
+                      >
+                        <X size={20} className="mr-2" />
+                        {actionLoading ? 'Processing...' : 'Reject Permanently'}
+                      </Button>
+                    </>
+                  )}
                 </div>
-                <p className="text-xs text-[#7A6B9E] border-t pt-3">
-                  <strong>Return for Revision:</strong> Sends back to Sales for editing (resubmittable).
-                  <br />
-                  <strong>Reject Permanently:</strong> Closes proposal (cannot be reopened).
-                </p>
+                {proposal.dynamic_approval_flow ? (
+                  <p className="text-xs text-[#7A6B9E] border-t pt-3">
+                    <strong>Forward:</strong> Sends the proposal to the selected approver and records the hand-off.
+                    <br />
+                    <strong>Approve Proposal:</strong> Final approval; the proposal moves to the Approved folder.
+                  </p>
+                ) : (
+                  <p className="text-xs text-[#7A6B9E] border-t pt-3">
+                    <strong>Return for Revision:</strong> Sends back to Sales for editing (resubmittable).
+                    <br />
+                    <strong>Reject Permanently:</strong> Closes proposal (cannot be reopened).
+                  </p>
+                )}
               </div>
             </div>
           </div>

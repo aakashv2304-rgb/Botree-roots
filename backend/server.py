@@ -32,7 +32,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 from io import BytesIO
 from commercials_merge import fill_commercials, extract_one_time_row_defaults
 from workflow_logic import (
-    IN_REVIEW, workflow_stages, stage_count, status_for_stage, initial_status, has_custom_workflow, is_current_approver,
+    IN_REVIEW, MAX_APPROVAL_STAGES, workflow_stages, stage_count, status_for_stage, initial_status, has_custom_workflow, is_current_approver,
     stage_label, workflow_view, validate_workflow_input, validate_reassignment, resolve_override_target,
 )
 from tracker_calc import (
@@ -638,6 +638,10 @@ class ProposalCreate(BaseModel):
 class ProposalAction(BaseModel):
     comment: Optional[str] = None
     target_stage: Optional[str] = None  # used only by the admin stage-override endpoint
+
+class ForwardProposalAction(BaseModel):
+    approver_id: str
+    comment: Optional[str] = None
 
 class ProposalRevisionStart(BaseModel):
     reason: str
@@ -1287,9 +1291,12 @@ async def create_proposal(proposal: ProposalCreate, request: Request):
     if current_user["role"] != "Admin" and not current_user.get("can_create_proposals", False):
         raise HTTPException(status_code=403, detail="You are not authorized to create proposals. Contact an Admin.")
 
-    # The creator builds the approval chain - there is no default. Check it first so a bad
-    # chain fails before any document work is done.
-    workflow = await _build_workflow(proposal.approver_ids, current_user["id"])
+    # Sales assigns exactly one initial approver. Subsequent routing is decided by each
+    # approver from within the proposal, and Approve always means final approval.
+    approver_ids = [str(x).strip() for x in (proposal.approver_ids or []) if str(x or "").strip()]
+    if len(approver_ids) != 1:
+        raise HTTPException(status_code=400, detail="Choose exactly one initial approver. Additional approvers are selected during review.")
+    workflow = await _build_workflow(approver_ids, current_user["id"])
 
     file_info = None
     if proposal.file_id:
@@ -1366,6 +1373,7 @@ async def create_proposal(proposal: ProposalCreate, request: Request):
         "status": IN_REVIEW,
         "current_stage": 1,
         "workflow": workflow,
+        "dynamic_approval_flow": True,
         "current_version": 1,
         "approved_version": None,
         "is_closed": False,
@@ -1457,6 +1465,7 @@ async def get_proposals(request: Request, status: Optional[str] = None, search: 
             "status": p["status"],
             "current_stage": p["current_stage"],
             "current_version": p.get("current_version", 1),
+            "dynamic_approval_flow": p.get("dynamic_approval_flow", False),
             "approved_version": p.get("approved_version"),
             "draft_version": p.get("draft_version"),
             "is_closed": p.get("is_closed", False),
@@ -1571,6 +1580,7 @@ async def get_proposal(proposal_id: str, request: Request):
         "status": proposal["status"],
         "current_stage": proposal["current_stage"],
         "current_version": proposal.get("current_version", 1),
+        "dynamic_approval_flow": proposal.get("dynamic_approval_flow", False),
         "approved_version": proposal.get("approved_version"),
         "draft_version": proposal.get("draft_version"),
         "is_closed": proposal.get("is_closed", False),
@@ -2080,15 +2090,15 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
     if existing_proposal.get("is_closed", False):
         raise HTTPException(status_code=400, detail="Cannot edit a closed/rejected proposal")
 
-    # Approval chain for the new round: a new one if the editor sent one, else keep the proposal's own.
-    # A proposal that began on the old fixed chain has nothing to keep - it must be given a real workflow now.
-    if proposal.approver_ids:
-        new_workflow = await _build_workflow(proposal.approver_ids, existing_proposal["created_by"], also_not=(current_user["id"],))
-    elif has_custom_workflow(existing_proposal):
-        new_workflow = existing_proposal["workflow"]
-    else:
-        raise HTTPException(status_code=400, detail="Set the approval workflow before resubmitting. This proposal was started on the old fixed approval chain, which no longer exists.")
-    
+    # Every new submission round starts with one named approver. Later routing is
+    # controlled by the person currently reviewing the proposal.
+    approver_ids = [str(x).strip() for x in (proposal.approver_ids or []) if str(x or "").strip()]
+    if len(approver_ids) != 1:
+        raise HTTPException(status_code=400, detail="Choose exactly one initial approver before resubmitting.")
+    new_workflow = await _build_workflow(
+        approver_ids, existing_proposal["created_by"], also_not=(current_user["id"],)
+    )
+
     now = datetime.now(timezone.utc)
     if is_approved_revision:
         new_version_number = proposal.revision_version
@@ -2228,6 +2238,7 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
         "status": IN_REVIEW,
         "current_stage": 1,
         "workflow": new_workflow,
+        "dynamic_approval_flow": True,
         "current_version": new_version_number,
         "file_info": file_info,
         "products": products_data,
@@ -2392,6 +2403,94 @@ async def reassign_approver(proposal_id: str, payload: ReassignApprover, request
         await _notify_stage_approver(updated, proposal_id, payload.stage, "assigned", payload.comment)
     return {"message": note, "workflow_view": workflow_view(updated, current_user, await _users_for_views([updated]))}
 
+@api_router.post("/proposals/{proposal_id}/forward")
+async def forward_proposal(proposal_id: str, payload: ForwardProposalAction, request: Request):
+    """Forward a dynamically-routed proposal to one additional approver."""
+    current_user = await get_current_user(request)
+    try:
+        oid = ObjectId(proposal_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid proposal ID")
+
+    proposal = await db.proposals.find_one({"_id": oid})
+    if not proposal:
+        raise HTTPException(status_code=404, detail="Proposal not found")
+    if not proposal.get("dynamic_approval_flow", False):
+        raise HTTPException(status_code=400, detail="This proposal uses a fixed approval chain and cannot be forwarded dynamically")
+    if proposal.get("status") != IN_REVIEW or proposal.get("is_closed", False):
+        raise HTTPException(status_code=400, detail="Only proposals currently under review can be forwarded")
+    if not is_current_approver(proposal, current_user):
+        raise HTTPException(status_code=403, detail="Only the current approver can forward this proposal")
+
+    workflow = [dict(stage) for stage in (proposal.get("workflow") or [])]
+    current_stage = int(proposal.get("current_stage", 0))
+    if not workflow or current_stage != len(workflow):
+        raise HTTPException(status_code=409, detail="Refresh the proposal before forwarding it")
+    if len(workflow) >= MAX_APPROVAL_STAGES:
+        raise HTTPException(status_code=400, detail=f"A proposal can have at most {MAX_APPROVAL_STAGES} approvers")
+
+    approver_id = str(payload.approver_id or "").strip()
+    if not approver_id:
+        raise HTTPException(status_code=400, detail="Select the next approver")
+    active_user = (await _active_users([approver_id])).get(approver_id)
+    if not active_user:
+        raise HTTPException(status_code=400, detail="The selected approver is not an active user")
+    if approver_id == str(proposal.get("created_by")):
+        raise HTTPException(status_code=400, detail="The proposal creator cannot approve their own proposal")
+    if any(str(stage.get("approver_id")) == approver_id for stage in workflow):
+        raise HTTPException(status_code=400, detail="This person has already been an approver on this proposal. Choose another approver.")
+
+    next_stage = len(workflow) + 1
+    next_approver = {
+        "stage": next_stage,
+        "approver_id": active_user["id"],
+        "approver_name": active_user.get("name", ""),
+        "approver_email": active_user.get("email", ""),
+        "approver_role": active_user.get("role"),
+    }
+    updated_workflow = workflow + [next_approver]
+    now = datetime.now(timezone.utc).isoformat()
+    comment = (payload.comment or "").strip()
+    history_entry = {
+        "action": "forwarded_to_approver",
+        "by": {"id": current_user["id"], "name": current_user["name"], "role": current_user["role"]},
+        "comment": comment or f"Forwarded to {active_user.get('name', 'next approver')}",
+        "stage": current_stage,
+        "to_stage": next_stage,
+        "to_approver": {"id": active_user["id"], "name": active_user.get("name", ""), "role": active_user.get("role")},
+        "version": proposal.get("current_version", 1),
+        "timestamp": now,
+    }
+    result = await db.proposals.update_one(
+        {
+            "_id": oid,
+            "status": IN_REVIEW,
+            "current_stage": current_stage,
+            "dynamic_approval_flow": True,
+            "workflow": proposal.get("workflow", []),
+        },
+        {
+            "$set": {
+                "workflow": updated_workflow,
+                "current_stage": next_stage,
+                "status": IN_REVIEW,
+                "updated_at": now,
+            },
+            "$push": {"history": history_entry},
+        },
+    )
+    if result.modified_count != 1:
+        raise HTTPException(status_code=409, detail="The proposal changed while you were forwarding it. Refresh and try again.")
+
+    updated_proposal = {**proposal, "workflow": updated_workflow, "current_stage": next_stage, "status": IN_REVIEW}
+    await _notify_stage_approver(updated_proposal, proposal_id, next_stage, "assigned", comment or None)
+    return {
+        "message": f"Forwarded to {active_user.get('name', 'the next approver')}",
+        "current_stage": next_stage,
+        "workflow_view": workflow_view(updated_proposal, current_user, await _users_for_views([updated_proposal])),
+    }
+
+
 @api_router.post("/proposals/{proposal_id}/approve")
 async def approve_proposal(proposal_id: str, action: ProposalAction, request: Request):
     current_user = await get_current_user(request)
@@ -2419,7 +2518,9 @@ async def approve_proposal(proposal_id: str, action: ProposalAction, request: Re
     }
 
     next_stage = current_stage + 1
-    new_status = status_for_stage(proposal, next_stage)
+    # For approver-driven proposals, Approve is always final. Existing fixed-chain
+    # proposals retain their prior sequential approval behavior.
+    new_status = "approved" if proposal.get("dynamic_approval_flow", False) else status_for_stage(proposal, next_stage)
     update_fields = {
         "current_stage": next_stage,
         "status": new_status,
