@@ -152,9 +152,9 @@ const NewProposal = () => {
       return;
     }
 
-    if (approverIds.length === 0) {
+    if (approverIds.length !== 1) {
       document.getElementById('approval-workflow')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      setValidationError('Add at least one approval stage. Choose an approver in the Approval Workflow section and click “Add approval stage 1”.');
+      setValidationError('Choose exactly one initial approver. That approver can forward the proposal to others or approve it as final.');
       return;
     }
 
@@ -647,9 +647,9 @@ const NewProposal = () => {
               <UsersThree size={22} className="text-purple-700" /> Approval Workflow <span className="text-red-700">*</span>
             </h2>
             <p className="text-sm text-[#7A6B9E] mb-4">
-              Set who must approve this proposal and in what order. Pick a person, then click “Add approval stage”. Each stage is approved by one person, and the proposal moves to the next stage only after they approve.
+              Choose one initial approver. During review, each approver can forward the proposal to another person or approve it as final.
             </p>
-            <WorkflowBuilder users={directory} value={approverIds} onChange={setApproverIds} excludeIds={[user?.id]} />
+            <WorkflowBuilder users={directory} value={approverIds} onChange={setApproverIds} excludeIds={[user?.id]} maxStages={1} />
           </div>
 
           {/* Submit */}

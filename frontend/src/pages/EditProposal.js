@@ -126,7 +126,7 @@ const EditProposal = () => {
       const source = revisionDraft || data;
       setProposal(data);
       if (data.workflow_view?.custom) {
-        setApproverIds(data.workflow_view.stages.map((st) => st.approver_id));
+        setApproverIds(data.workflow_view.stages[0]?.approver_id ? [data.workflow_view.stages[0].approver_id] : []);
         setApproverNames(Object.fromEntries(data.workflow_view.stages.map((st) => [st.approver_id, st.approver_name])));
       }
       setFormData({ 
@@ -204,9 +204,9 @@ const EditProposal = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (approverIds.length === 0) {
+    if (approverIds.length !== 1) {
       document.getElementById('approval-workflow')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      toast.error('Add at least one approval stage before resubmitting');
+      toast.error('Choose exactly one initial approver before resubmitting');
       return;
     }
     
@@ -579,9 +579,9 @@ const EditProposal = () => {
                   This proposal was started on the old fixed approval chain, which no longer exists. Build its approval workflow below to resubmit it.
                 </p>
               )}
-              <p className="text-xs text-[#7A6B9E]">The resubmitted proposal goes to stage 1 again and moves through each stage in order. Change the people or the order if you need to.</p>
+              <p className="text-xs text-[#7A6B9E]">Choose one initial approver for this submission round. That approver can forward it to others or approve it as final.</p>
               <WorkflowBuilder users={directory} value={approverIds} onChange={setApproverIds} names={approverNames}
-                excludeIds={[user?.id, proposal?.created_by?.id].filter(Boolean)} />
+                excludeIds={[user?.id, proposal?.created_by?.id].filter(Boolean)} maxStages={1} />
             </div>
 
             <div className="flex gap-4 pt-4">
