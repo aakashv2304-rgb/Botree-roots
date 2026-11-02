@@ -23,6 +23,10 @@ const EditProposal = () => {
   const revisionVersion = revisionVersionParam ? parseInt(revisionVersionParam, 10) : null;
   const isApprovedRevision = Number.isInteger(revisionVersion) && revisionVersion > 0;
   const [loading, setLoading] = useState(false);
+  const [documentGenerationLoading, setDocumentGenerationLoading] = useState(false);
+  const [documentUploadLoading, setDocumentUploadLoading] = useState(false);
+  const [generatedDocument, setGeneratedDocument] = useState(null);
+  const [editedDocument, setEditedDocument] = useState(null);
   const [proposal, setProposal] = useState(null);
   const [formData, setFormData] = useState({ 
     title: '', 
@@ -201,6 +205,132 @@ const EditProposal = () => {
     }
   };
 
+  const buildProposalPayload = () => {
+    const buildCharge = (key) => {
+      const c = ongoingCharges[key];
+      if (!c.quantity && !c.rate_per_user_month && !c.monthly_minimum_billing) return null;
+      return {
+        quantity: c.quantity ? parseFloat(c.quantity) : null,
+        rate_per_user_month: c.rate_per_user_month ? parseFloat(c.rate_per_user_month) : null,
+        monthly_minimum_billing: c.monthly_minimum_billing ? parseFloat(c.monthly_minimum_billing) : null,
+        description: c.description || null,
+      };
+    };
+    const additionalFeesData = additionalFees
+      .map(f => ({ name: f.name, value: parseFloat(f.value) || 0, description: f.description || null }))
+      .filter(f => f.name && f.value);
+
+    return {
+      title: formData.title,
+      description: formData.description,
+      customer_name: formData.customer_name,
+      industry: formData.industry,
+      comments: formData.comments,
+      deal_value: formData.deal_value ? parseFloat(formData.deal_value) : null,
+      one_time_setup_fee: formData.one_time_setup_fee ? parseFloat(formData.one_time_setup_fee) : null,
+      integration_fee: formData.integration_fee ? parseFloat(formData.integration_fee) : null,
+      additional_fees: additionalFeesData,
+      contract_years: formData.contract_years ? parseInt(formData.contract_years) : null,
+      price_escalation_percent: formData.price_escalation_percent ? parseFloat(formData.price_escalation_percent) : null,
+      dms_training_fee: oneTimeOptionalFees.dms_training_fee ? parseFloat(oneTimeOptionalFees.dms_training_fee) : null,
+      sfa_training_fee: oneTimeOptionalFees.sfa_training_fee ? parseFloat(oneTimeOptionalFees.sfa_training_fee) : null,
+      flexidms_deployment_fee: oneTimeOptionalFees.flexidms_deployment_fee ? parseFloat(oneTimeOptionalFees.flexidms_deployment_fee) : null,
+      customization_fee: oneTimeOptionalFees.customization_fee ? parseFloat(oneTimeOptionalFees.customization_fee) : null,
+      workshop_fee: oneTimeOptionalFees.workshop_fee ? parseFloat(oneTimeOptionalFees.workshop_fee) : null,
+      one_time_line_item_text: oneTimeLineItemText,
+      flexidms_distributor_charge: buildCharge('flexidms_distributor_charge'),
+      dms_distributor_charge: buildCharge('dms_distributor_charge'),
+      sfa_user_charge: buildCharge('sfa_user_charge'),
+      shared_l1_support_charge: buildCharge('shared_l1_support_charge'),
+      change_note: formData.change_note,
+      approver_ids: approverIds,
+      revision_mode: isApprovedRevision,
+      revision_version: isApprovedRevision ? revisionVersion : null,
+    };
+  };
+
+  const getDocumentFingerprint = (payload) => {
+    const {
+      approver_ids, change_note, revision_mode, revision_version,
+      file_id, document_finalized, ...documentFields
+    } = payload;
+    return JSON.stringify(documentFields);
+  };
+
+  const currentProposalPayload = buildProposalPayload();
+  const currentDocumentFingerprint = getDocumentFingerprint(currentProposalPayload);
+  const generatedDocumentCurrent = generatedDocument?.fingerprint === currentDocumentFingerprint;
+  const editedDocumentCurrent = editedDocument?.fingerprint === currentDocumentFingerprint;
+
+  const downloadDocument = async (fileId, filename) => {
+    const response = await axios.get(`${API}/files/${fileId}`, {
+      withCredentials: true,
+      responseType: 'blob'
+    });
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  };
+
+  const handleGenerateDocument = async () => {
+    setDocumentGenerationLoading(true);
+    try {
+      const payload = buildProposalPayload();
+      const params = new URLSearchParams({ proposal_id: id });
+      if (isApprovedRevision) params.set('revision_version', String(revisionVersion));
+      const { data } = await axios.post(
+        `${API}/proposals/prepare-document?${params.toString()}`,
+        payload,
+        { withCredentials: true }
+      );
+      const generated = { ...data, fingerprint: getDocumentFingerprint(payload) };
+      setGeneratedDocument(generated);
+      setEditedDocument(null);
+      try {
+        await downloadDocument(data.id, data.filename);
+        toast.success('Word document generated and downloaded. Edit it in Microsoft Word, then upload the final copy.');
+      } catch (downloadError) {
+        toast.success('Word document generated. Use the download button below to open it in Microsoft Word.');
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to generate the proposal document');
+    } finally {
+      setDocumentGenerationLoading(false);
+    }
+  };
+
+  const handleUploadEditedDocument = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.docx')) {
+      toast.error('Please upload the edited Word document in .docx format');
+      return;
+    }
+    if (!generatedDocumentCurrent) {
+      toast.error('Proposal details have changed. Regenerate and download the Word document before uploading the edited copy.');
+      return;
+    }
+    setDocumentUploadLoading(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      form.append('source_file_id', generatedDocument.id);
+      const { data } = await axios.post(`${API}/proposals/upload-edited-document`, form, { withCredentials: true });
+      setEditedDocument({ ...data, fingerprint: currentDocumentFingerprint });
+      toast.success('Edited Word document uploaded successfully');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to upload the edited Word document');
+    } finally {
+      setDocumentUploadLoading(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -209,50 +339,18 @@ const EditProposal = () => {
       toast.error('Choose exactly one initial approver before resubmitting');
       return;
     }
-    
+    if (!editedDocumentCurrent) {
+      document.getElementById('proposal-document')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      toast.error('Generate the Word document, edit it in Microsoft Word, and upload the final .docx before submitting.');
+      return;
+    }
+
     setLoading(true);
     try {
-      const buildCharge = (key) => {
-        const c = ongoingCharges[key];
-        if (!c.quantity && !c.rate_per_user_month && !c.monthly_minimum_billing) return null;
-        return {
-          quantity: c.quantity ? parseFloat(c.quantity) : null,
-          rate_per_user_month: c.rate_per_user_month ? parseFloat(c.rate_per_user_month) : null,
-          monthly_minimum_billing: c.monthly_minimum_billing ? parseFloat(c.monthly_minimum_billing) : null,
-          description: c.description || null,
-        };
-      };
-
-      const additionalFeesData = additionalFees
-        .map(f => ({ name: f.name, value: parseFloat(f.value) || 0, description: f.description || null }))
-        .filter(f => f.name && f.value);
-
       await axios.put(`${API}/proposals/${id}`, {
-        title: formData.title,
-        description: formData.description,
-        customer_name: formData.customer_name,
-        industry: formData.industry,
-        comments: formData.comments,
-        deal_value: formData.deal_value ? parseFloat(formData.deal_value) : null,
-        one_time_setup_fee: formData.one_time_setup_fee ? parseFloat(formData.one_time_setup_fee) : null,
-        integration_fee: formData.integration_fee ? parseFloat(formData.integration_fee) : null,
-        additional_fees: additionalFeesData,
-        contract_years: formData.contract_years ? parseInt(formData.contract_years) : null,
-        price_escalation_percent: formData.price_escalation_percent ? parseFloat(formData.price_escalation_percent) : null,
-        dms_training_fee: oneTimeOptionalFees.dms_training_fee ? parseFloat(oneTimeOptionalFees.dms_training_fee) : null,
-        sfa_training_fee: oneTimeOptionalFees.sfa_training_fee ? parseFloat(oneTimeOptionalFees.sfa_training_fee) : null,
-        flexidms_deployment_fee: oneTimeOptionalFees.flexidms_deployment_fee ? parseFloat(oneTimeOptionalFees.flexidms_deployment_fee) : null,
-        customization_fee: oneTimeOptionalFees.customization_fee ? parseFloat(oneTimeOptionalFees.customization_fee) : null,
-        workshop_fee: oneTimeOptionalFees.workshop_fee ? parseFloat(oneTimeOptionalFees.workshop_fee) : null,
-        one_time_line_item_text: oneTimeLineItemText,
-        flexidms_distributor_charge: buildCharge('flexidms_distributor_charge'),
-        dms_distributor_charge: buildCharge('dms_distributor_charge'),
-        sfa_user_charge: buildCharge('sfa_user_charge'),
-        shared_l1_support_charge: buildCharge('shared_l1_support_charge'),
-        change_note: formData.change_note,
-        approver_ids: approverIds,
-        revision_mode: isApprovedRevision,
-        revision_version: isApprovedRevision ? revisionVersion : null,
+        ...buildProposalPayload(),
+        file_id: editedDocument.id,
+        document_finalized: true,
       }, { withCredentials: true });
 
       toast.success(isApprovedRevision ? 'Revision submitted for approval' : 'Proposal updated and resubmitted successfully');
@@ -263,7 +361,6 @@ const EditProposal = () => {
       setLoading(false);
     }
   };
-
   if (!proposal) {
     return <LoadingSpinner fullScreen label="Loading proposal..." />
   }
@@ -566,10 +663,75 @@ const EditProposal = () => {
               <p className="text-xs text-[#7A6B9E]">{isApprovedRevision ? 'Required: Record why the approved proposal is being revised. This reason is saved in the audit trail.' : 'Required: Describe what you changed after the review feedback'}</p>
             </div>
 
-            <div className="space-y-2">
-              <Label>Proposal Document</Label>
-              <p className="text-sm text-[#7A6B9E]">{fileName || 'No document attached'}</p>
-              <p className="text-xs text-[#7A6B9E]">The document is generated automatically from the company base template using the fee fields above - there's nothing to upload here.</p>
+            <div id="proposal-document" data-testid="proposal-document-section" className="space-y-3 border-t border-[#E4DCF0] pt-5">
+              <div>
+                <Label>Review &amp; Edit Proposal Document</Label>
+                <p className="text-xs text-[#7A6B9E] mt-1">
+                  Current document: {fileName || 'No document attached'}. Generate the populated Word file, edit it in Microsoft Word, and upload the final .docx. DealPath will preserve your manual edits when the proposal is submitted.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-3 items-center">
+                <Button
+                  type="button"
+                  onClick={handleGenerateDocument}
+                  disabled={documentGenerationLoading || documentUploadLoading || loading}
+                  className="text-white"
+                  style={{background: 'linear-gradient(135deg, #9B30FF 0%, #E64AD1 100%)'}}
+                  data-testid="generate-word-document-button"
+                >
+                  {documentGenerationLoading ? 'Generating...' : generatedDocumentCurrent ? 'Regenerate Word Document' : 'Generate & Download Word Document'}
+                </Button>
+                {generatedDocument && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => downloadDocument(generatedDocument.id, generatedDocument.filename).catch(() => toast.error('Could not download the generated document'))}
+                    disabled={documentGenerationLoading || documentUploadLoading}
+                    data-testid="download-generated-word-document-button"
+                    className="border-[#9B30FF] text-[#7A28C7]"
+                  >
+                    Download Generated Document
+                  </Button>
+                )}
+              </div>
+              {generatedDocument && (
+                <div className="rounded-lg border border-[#E4DCF0] bg-[#F7F4FC] p-4 space-y-3">
+                  <p className="text-sm font-semibold text-[#1E1533]">Generated: {generatedDocument.filename}</p>
+                  {!generatedDocumentCurrent && (
+                    <p className="text-sm text-amber-800">Proposal details have changed since generation. Regenerate the document before uploading your edited copy.</p>
+                  )}
+                  <div className="space-y-1">
+                    <Label htmlFor="edited-proposal-document">Upload Edited Word Document (.docx) <span className="text-red-700">*</span></Label>
+                    <input
+                      id="edited-proposal-document"
+                      type="file"
+                      accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                      onChange={handleUploadEditedDocument}
+                      disabled={!generatedDocumentCurrent || documentGenerationLoading || documentUploadLoading || loading}
+                      data-testid="edited-proposal-document-input"
+                      className="block w-full text-sm text-[#5B4B7A] file:mr-3 file:rounded-md file:border-0 file:bg-[#EDE4F8] file:px-4 file:py-2 file:font-semibold file:text-[#5B238E] hover:file:bg-[#E3D4F4]"
+                    />
+                  </div>
+                  {documentUploadLoading && <p className="text-sm text-[#7A6B9E]">Uploading and validating your edited document...</p>}
+                  {editedDocument && (
+                    <div className={`rounded-md p-3 text-sm ${editedDocumentCurrent ? 'bg-emerald-50 border border-emerald-200 text-emerald-800' : 'bg-amber-50 border border-amber-200 text-amber-800'}`}>
+                      {editedDocumentCurrent
+                        ? `Final document ready: ${editedDocument.filename}`
+                        : 'The proposal details changed after this document was uploaded. Regenerate and upload the edited document again.'}
+                      {editedDocumentCurrent && (
+                        <Button
+                          type="button"
+                          variant="link"
+                          onClick={() => downloadDocument(editedDocument.id, editedDocument.filename).catch(() => toast.error('Could not download the final document'))}
+                          className="ml-2 h-auto p-0 text-emerald-800 underline"
+                        >
+                          Download final document
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div id="approval-workflow" data-testid="approval-workflow-card" className="space-y-2 border-t border-[#E4DCF0] pt-5">
@@ -596,7 +758,7 @@ const EditProposal = () => {
               </Button>
               <Button
                 type="submit"
-                disabled={loading}
+                disabled={loading || !editedDocumentCurrent}
                 data-testid="submit-proposal-button"
                 className="text-white font-semibold shadow-md"
                 style={{background: 'linear-gradient(135deg, #F72585 0%, #7209B7 100%)'}}
