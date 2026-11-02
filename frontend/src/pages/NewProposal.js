@@ -45,6 +45,10 @@ const NewProposal = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [documentGenerationLoading, setDocumentGenerationLoading] = useState(false);
+  const [documentUploadLoading, setDocumentUploadLoading] = useState(false);
+  const [generatedDocument, setGeneratedDocument] = useState(null);
+  const [editedDocument, setEditedDocument] = useState(null);
   const [validationError, setValidationError] = useState(null);
   const [baseTemplate, setBaseTemplate] = useState(null); // { configured, filename, updated_at, row_defaults }
   const [rowDefaults, setRowDefaults] = useState({});
@@ -144,6 +148,150 @@ const NewProposal = () => {
   const totalDealValue = oneTimeTotal + recurringOverTenure;
   const fmt = (n) => `₹${(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 
+  const buildProposalPayload = () => {
+    // Map dynamic rows back into fixed fields (presets) / freeform lists (custom).
+    const oneTimeFixed = {};
+    const oneTimeLineItemText = {};
+    const additionalFeesData = [];
+    oneTimeRows.forEach((r) => {
+      const amount = r.amount !== '' ? parseFloat(r.amount) : null;
+      if (r.presetKey && r.presetKey !== 'custom') {
+        oneTimeFixed[r.presetKey] = amount;
+        oneTimeLineItemText[r.presetKey] = { description: r.description || null, invoicing: r.invoicing || null };
+      } else if (r.presetKey === 'custom' && r.customName.trim()) {
+        additionalFeesData.push({
+          name: r.customName.trim(),
+          value: amount || 0,
+          description: r.description || null,
+          invoicing: r.invoicing || null,
+        });
+      }
+    });
+
+    const recurringFixed = {};
+    const extraOngoingChargesData = [];
+    recurringRows.forEach((r) => {
+      if (!r.quantity && !r.rate && !r.minBilling) return;
+      const chargeObj = {
+        quantity: r.quantity ? parseFloat(r.quantity) : null,
+        rate_per_user_month: r.rate ? parseFloat(r.rate) : null,
+        monthly_minimum_billing: r.minBilling ? parseFloat(r.minBilling) : null,
+        description: r.description || null,
+        invoicing: r.invoicing || null,
+      };
+      if (r.presetKey && r.presetKey !== 'custom') {
+        recurringFixed[r.presetKey] = chargeObj;
+      } else if (r.presetKey === 'custom' && r.customName.trim()) {
+        extraOngoingChargesData.push({ ...chargeObj, name: r.customName.trim() });
+      }
+    });
+
+    return {
+      title: formData.customer_name,
+      customer_name: formData.customer_name,
+      industry: formData.industry,
+      comments: formData.comments,
+      contract_years: formData.contract_years ? parseInt(formData.contract_years) : null,
+      price_escalation_percent: formData.price_escalation_percent ? parseFloat(formData.price_escalation_percent) : null,
+      one_time_setup_fee: oneTimeFixed.one_time_setup_fee ?? null,
+      integration_fee: oneTimeFixed.integration_fee ?? null,
+      dms_training_fee: oneTimeFixed.dms_training_fee ?? null,
+      sfa_training_fee: oneTimeFixed.sfa_training_fee ?? null,
+      flexidms_deployment_fee: oneTimeFixed.flexidms_deployment_fee ?? null,
+      customization_fee: oneTimeFixed.customization_fee ?? null,
+      workshop_fee: oneTimeFixed.workshop_fee ?? null,
+      one_time_line_item_text: oneTimeLineItemText,
+      additional_fees: additionalFeesData,
+      flexidms_distributor_charge: recurringFixed.flexidms_distributor_charge ?? null,
+      dms_distributor_charge: recurringFixed.dms_distributor_charge ?? null,
+      sfa_user_charge: recurringFixed.sfa_user_charge ?? null,
+      shared_l1_support_charge: recurringFixed.shared_l1_support_charge ?? null,
+      extra_ongoing_charges: extraOngoingChargesData,
+      approver_ids: approverIds,
+    };
+  };
+
+  const getDocumentFingerprint = (payload) => {
+    const { approver_ids, ...documentFields } = payload;
+    return JSON.stringify(documentFields);
+  };
+
+  const currentProposalPayload = buildProposalPayload();
+  const currentDocumentFingerprint = getDocumentFingerprint(currentProposalPayload);
+  const generatedDocumentCurrent = generatedDocument?.fingerprint === currentDocumentFingerprint;
+  const editedDocumentCurrent = editedDocument?.fingerprint === currentDocumentFingerprint;
+
+  const downloadDocument = async (fileId, filename) => {
+    const response = await axios.get(`${API}/files/${fileId}`, {
+      withCredentials: true,
+      responseType: 'blob'
+    });
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  };
+
+  const handleGenerateDocument = async () => {
+    if (!formData.customer_name.trim()) {
+      setValidationError('Customer Name is not filled');
+      return;
+    }
+    if (!baseTemplate?.configured) {
+      setValidationError('A company base Word template must be configured by an Admin before generating the proposal document.');
+      return;
+    }
+    setDocumentGenerationLoading(true);
+    try {
+      const payload = buildProposalPayload();
+      const { data } = await axios.post(`${API}/proposals/prepare-document`, payload, { withCredentials: true });
+      const generated = { ...data, fingerprint: getDocumentFingerprint(payload) };
+      setGeneratedDocument(generated);
+      setEditedDocument(null);
+      try {
+        await downloadDocument(data.id, data.filename);
+        toast.success('Word document generated and downloaded. Edit it in Microsoft Word, then upload the final copy.');
+      } catch (downloadError) {
+        toast.success('Word document generated. Use the download button below to open it in Microsoft Word.');
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to generate the proposal document');
+    } finally {
+      setDocumentGenerationLoading(false);
+    }
+  };
+
+  const handleUploadEditedDocument = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.docx')) {
+      toast.error('Please upload the edited Word document in .docx format');
+      return;
+    }
+    if (!generatedDocumentCurrent) {
+      toast.error('Proposal details have changed. Regenerate and download the Word document before uploading the edited copy.');
+      return;
+    }
+    setDocumentUploadLoading(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      form.append('source_file_id', generatedDocument.id);
+      const { data } = await axios.post(`${API}/proposals/upload-edited-document`, form, { withCredentials: true });
+      setEditedDocument({ ...data, fingerprint: currentDocumentFingerprint });
+      toast.success('Edited Word document uploaded successfully');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to upload the edited Word document');
+    } finally {
+      setDocumentUploadLoading(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -151,76 +299,23 @@ const NewProposal = () => {
       setValidationError('Customer Name is not filled');
       return;
     }
-
     if (approverIds.length !== 1) {
       document.getElementById('approval-workflow')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       setValidationError('Choose exactly one initial approver. That approver can forward the proposal to others or approve it as final.');
       return;
     }
+    if (!editedDocumentCurrent) {
+      document.getElementById('proposal-document')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      toast.error('Generate the Word document, edit it in Microsoft Word, and upload the final .docx before submitting.');
+      return;
+    }
 
     setLoading(true);
     try {
-      // Map dynamic rows back into fixed fields (presets) / freeform lists (custom)
-      const oneTimeFixed = {};
-      const oneTimeLineItemText = {};
-      const additionalFeesData = [];
-      oneTimeRows.forEach((r) => {
-        const amount = r.amount !== '' ? parseFloat(r.amount) : null;
-        if (r.presetKey && r.presetKey !== 'custom') {
-          oneTimeFixed[r.presetKey] = amount;
-          oneTimeLineItemText[r.presetKey] = { description: r.description || null, invoicing: r.invoicing || null };
-        } else if (r.presetKey === 'custom' && r.customName.trim()) {
-          additionalFeesData.push({
-            name: r.customName.trim(),
-            value: amount || 0,
-            description: r.description || null,
-            invoicing: r.invoicing || null,
-          });
-        }
-      });
-
-      const recurringFixed = {};
-      const extraOngoingChargesData = [];
-      recurringRows.forEach((r) => {
-        if (!r.quantity && !r.rate && !r.minBilling) return;
-        const chargeObj = {
-          quantity: r.quantity ? parseFloat(r.quantity) : null,
-          rate_per_user_month: r.rate ? parseFloat(r.rate) : null,
-          monthly_minimum_billing: r.minBilling ? parseFloat(r.minBilling) : null,
-          description: r.description || null,
-          invoicing: r.invoicing || null,
-        };
-        if (r.presetKey && r.presetKey !== 'custom') {
-          recurringFixed[r.presetKey] = chargeObj;
-        } else if (r.presetKey === 'custom' && r.customName.trim()) {
-          extraOngoingChargesData.push({ ...chargeObj, name: r.customName.trim() });
-        }
-      });
-
-      // Create proposal - title is auto-derived from customer name.
-      // deal_value is computed server-side from the charges below, not sent.
       await axios.post(`${API}/proposals`, {
-        title: formData.customer_name,
-        customer_name: formData.customer_name,
-        industry: formData.industry,
-        comments: formData.comments,
-        contract_years: formData.contract_years ? parseInt(formData.contract_years) : null,
-        price_escalation_percent: formData.price_escalation_percent ? parseFloat(formData.price_escalation_percent) : null,
-        one_time_setup_fee: oneTimeFixed.one_time_setup_fee ?? null,
-        integration_fee: oneTimeFixed.integration_fee ?? null,
-        dms_training_fee: oneTimeFixed.dms_training_fee ?? null,
-        sfa_training_fee: oneTimeFixed.sfa_training_fee ?? null,
-        flexidms_deployment_fee: oneTimeFixed.flexidms_deployment_fee ?? null,
-        customization_fee: oneTimeFixed.customization_fee ?? null,
-        workshop_fee: oneTimeFixed.workshop_fee ?? null,
-        one_time_line_item_text: oneTimeLineItemText,
-        additional_fees: additionalFeesData,
-        flexidms_distributor_charge: recurringFixed.flexidms_distributor_charge ?? null,
-        dms_distributor_charge: recurringFixed.dms_distributor_charge ?? null,
-        sfa_user_charge: recurringFixed.sfa_user_charge ?? null,
-        shared_l1_support_charge: recurringFixed.shared_l1_support_charge ?? null,
-        extra_ongoing_charges: extraOngoingChargesData,
-        approver_ids: approverIds,
+        ...buildProposalPayload(),
+        file_id: editedDocument.id,
+        document_finalized: true,
       }, { withCredentials: true });
 
       toast.success('Proposal created successfully!');
@@ -231,7 +326,6 @@ const NewProposal = () => {
       setLoading(false);
     }
   };
-
   return (
     <div className="min-h-screen bg-[#F7F4FC] p-6 animate-fade-in">
       <div className="max-w-5xl mx-auto">
@@ -641,6 +735,76 @@ const NewProposal = () => {
             </div>
           </div>
 
+          {/* Manual Word document editing before submission */}
+          <div id="proposal-document" data-testid="proposal-document-section" className="bg-[#FFFFFF] p-6 shadow-sm border border-[#E4DCF0] card-enter">
+            <h2 className="text-xl font-bold text-[#1E1533] mb-2">Review &amp; Edit Proposal Document</h2>
+            <p className="text-sm text-[#7A6B9E] mb-4">
+              Generate the populated Word document, download and edit it in Microsoft Word, then upload the final .docx copy. The uploaded document will be sent to approvers without DealPath overwriting your manual edits.
+            </p>
+            <div className="flex flex-wrap gap-3 items-center">
+              <Button
+                type="button"
+                onClick={handleGenerateDocument}
+                disabled={documentGenerationLoading || documentUploadLoading || loading || !baseTemplate?.configured}
+                className="text-white"
+                style={{background: 'linear-gradient(135deg, #9B30FF 0%, #E64AD1 100%)'}}
+                data-testid="generate-word-document-button"
+              >
+                {documentGenerationLoading ? 'Generating...' : generatedDocumentCurrent ? 'Regenerate Word Document' : 'Generate & Download Word Document'}
+              </Button>
+              {generatedDocument && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => downloadDocument(generatedDocument.id, generatedDocument.filename).catch(() => toast.error('Could not download the generated document'))}
+                  disabled={documentGenerationLoading || documentUploadLoading}
+                  data-testid="download-generated-word-document-button"
+                  className="border-[#9B30FF] text-[#7A28C7]"
+                >
+                  Download Generated Document
+                </Button>
+              )}
+            </div>
+            {generatedDocument && (
+              <div className="mt-4 rounded-lg border border-[#E4DCF0] bg-[#F7F4FC] p-4 space-y-3">
+                <p className="text-sm font-semibold text-[#1E1533]">Generated: {generatedDocument.filename}</p>
+                {!generatedDocumentCurrent && (
+                  <p className="text-sm text-amber-800">Proposal details have changed since generation. Regenerate the document before uploading your edited copy.</p>
+                )}
+                <div className="space-y-1">
+                  <Label htmlFor="edited-proposal-document">Upload Edited Word Document (.docx) <span className="text-red-700">*</span></Label>
+                  <input
+                    id="edited-proposal-document"
+                    type="file"
+                    accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    onChange={handleUploadEditedDocument}
+                    disabled={!generatedDocumentCurrent || documentGenerationLoading || documentUploadLoading || loading}
+                    data-testid="edited-proposal-document-input"
+                    className="block w-full text-sm text-[#5B4B7A] file:mr-3 file:rounded-md file:border-0 file:bg-[#EDE4F8] file:px-4 file:py-2 file:font-semibold file:text-[#5B238E] hover:file:bg-[#E3D4F4]"
+                  />
+                </div>
+                {documentUploadLoading && <p className="text-sm text-[#7A6B9E]">Uploading and validating your edited document...</p>}
+                {editedDocument && (
+                  <div className={`rounded-md p-3 text-sm ${editedDocumentCurrent ? 'bg-emerald-50 border border-emerald-200 text-emerald-800' : 'bg-amber-50 border border-amber-200 text-amber-800'}`}>
+                    {editedDocumentCurrent
+                      ? `Final document ready: ${editedDocument.filename}`
+                      : 'The proposal details changed after this document was uploaded. Regenerate and upload the edited document again.'}
+                    {editedDocumentCurrent && (
+                      <Button
+                        type="button"
+                        variant="link"
+                        onClick={() => downloadDocument(editedDocument.id, editedDocument.filename).catch(() => toast.error('Could not download the final document'))}
+                        className="ml-2 h-auto p-0 text-emerald-800 underline"
+                      >
+                        Download final document
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Approval workflow - set up by the creator; there is no default chain */}
           <div id="approval-workflow" data-testid="approval-workflow-card" className="bg-[#FFFFFF] p-6 shadow-sm border border-[#E4DCF0] card-enter" style={{ animationDelay: '0.25s' }}>
             <h2 className="text-xl font-bold text-[#1E1533] mb-1 flex items-center gap-2">
@@ -665,7 +829,7 @@ const NewProposal = () => {
             </Button>
             <Button
               type="submit"
-              disabled={loading}
+              disabled={loading || !editedDocumentCurrent}
               className="text-white shadow-md"
               style={{ background: 'linear-gradient(135deg, #9B30FF 0%, #E64AD1 100%)' }}
             >

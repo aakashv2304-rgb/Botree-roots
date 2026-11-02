@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Header, Query, UploadFile, File, Depends
+from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Header, Query, UploadFile, File, Form, Depends
 from fastapi.responses import Response as FastAPIResponse, StreamingResponse, RedirectResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -19,6 +19,7 @@ import requests
 import asyncio
 import secrets
 import smtplib
+import zipfile
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from reportlab.lib.pagesizes import letter, A4
@@ -599,7 +600,8 @@ class LineItemText(BaseModel):
 class ProposalCreate(BaseModel):
     title: str
     description: Optional[str] = None
-    file_id: Optional[str] = None  # base proposal document upload is optional
+    file_id: Optional[str] = None  # manually edited final Word document for submission
+    document_finalized: Optional[bool] = False
     products: Optional[List[Product]] = []
     customer_name: Optional[str] = None
     industry: Optional[str] = None
@@ -1107,6 +1109,51 @@ async def upload_proposal_file(file: UploadFile, request: Request):
         "path": result["path"]
     }
 
+# Upload the manually edited final Word document.
+@api_router.post("/proposals/upload-edited-document")
+async def upload_edited_proposal_document(
+    request: Request,
+    file: UploadFile = File(...),
+    source_file_id: str = Form(...)
+):
+    current_user = await get_current_user(request)
+    filename = file.filename or ""
+    if not filename.lower().endswith(".docx"):
+        raise HTTPException(status_code=400, detail="Please upload the edited proposal as a .docx Word document")
+
+    data = await file.read()
+    try:
+        with zipfile.ZipFile(BytesIO(data)) as archive:
+            if "word/document.xml" not in archive.namelist():
+                raise ValueError("Not a Word document")
+    except Exception:
+        raise HTTPException(status_code=400, detail="The uploaded file is not a valid .docx Word document")
+
+    source_doc = await db.files.find_one({
+        "id": source_file_id, "uploaded_by": current_user["id"], "is_deleted": False
+    })
+    if not source_doc:
+        raise HTTPException(status_code=404, detail="Generated source document not found")
+
+    path = f"{APP_NAME}/proposals/{current_user['id']}/{uuid.uuid4()}_edited.docx"
+    content_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    result = await put_object(path, data, content_type)
+    file_doc = {
+        "id": str(uuid.uuid4()),
+        "storage_path": result["path"],
+        "original_filename": filename,
+        "content_type": content_type,
+        "size": result["size"],
+        "uploaded_by": current_user["id"],
+        "source_file_id": source_file_id,
+        "document_manually_edited": True,
+        "is_deleted": False,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.files.insert_one(file_doc)
+    return {"id": file_doc["id"], "filename": filename, "size": result["size"], "source_file_id": source_file_id}
+
+
 # File download
 @api_router.get("/files/{file_id}")
 async def download_file(file_id: str, request: Request):
@@ -1284,6 +1331,90 @@ async def users_directory(request: Request):
     await get_current_user(request)
     return sorted((await _active_users()).values(), key=lambda u: (u["name"] or "").lower())
 
+@api_router.post("/proposals/prepare-document")
+async def prepare_proposal_document(
+    proposal: ProposalCreate,
+    request: Request,
+    proposal_id: Optional[str] = None,
+    revision_version: Optional[int] = None
+):
+    """Generate a populated Word file for Sales to edit before proposal submission."""
+    current_user = await get_current_user(request)
+    source_snapshot = None
+
+    if proposal_id:
+        try:
+            oid = ObjectId(proposal_id)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid proposal ID")
+        existing = await db.proposals.find_one({"_id": oid})
+        if not existing:
+            raise HTTPException(status_code=404, detail="Proposal not found")
+        if existing.get("is_closed", False):
+            raise HTTPException(status_code=400, detail="Cannot prepare a document for a closed proposal")
+
+        if existing.get("status") == "approved":
+            if current_user["role"] != "Admin" and str(existing.get("created_by")) != str(current_user["id"]):
+                raise HTTPException(status_code=403, detail="Only the proposal owner or an Admin can revise this proposal")
+            if revision_version is None or revision_version != existing.get("draft_version"):
+                raise HTTPException(status_code=409, detail="The active revision draft was not found. Refresh and try again.")
+            source_snapshot = next(
+                (v for v in existing.get("versions", []) if v.get("version_number") == revision_version and v.get("approval_status") == "draft"),
+                None
+            )
+            if not source_snapshot:
+                raise HTTPException(status_code=404, detail="Revision draft not found")
+        elif existing.get("status") == "needs_revision":
+            if revision_version is not None:
+                raise HTTPException(status_code=400, detail="This proposal is not an approved-proposal revision")
+            if current_user["role"] not in ("User", "Admin"):
+                raise HTTPException(status_code=403, detail="You are not authorized to edit this proposal")
+            source_snapshot = existing
+        else:
+            raise HTTPException(status_code=400, detail="Only proposals needing revision or approved-proposal drafts can prepare a document")
+    else:
+        if current_user["role"] != "Admin" and not current_user.get("can_create_proposals", False):
+            raise HTTPException(status_code=403, detail="You are not authorized to create proposals. Contact an Admin.")
+        if revision_version is not None:
+            raise HTTPException(status_code=400, detail="A revision version requires a proposal ID")
+
+    source_file_doc = None
+    source_file_info = (source_snapshot or {}).get("file_info") or {}
+    if source_file_info.get("id"):
+        source_file_doc = await db.files.find_one({"id": source_file_info["id"], "is_deleted": False})
+    if not source_file_doc:
+        source_file_doc = await get_base_template_file_doc()
+    if not source_file_doc:
+        raise HTTPException(status_code=400, detail="No company base proposal template is configured. Ask an Admin to upload one.")
+    if not (source_file_doc.get("original_filename") or "").lower().endswith(".docx"):
+        raise HTTPException(status_code=400, detail="The company proposal template must be a .docx Word document")
+
+    generated_file = await apply_commercials_to_file(
+        source_file_doc, _build_commercial_data(proposal), current_user["id"]
+    )
+    if generated_file.get("id") == source_file_doc.get("id"):
+        raise HTTPException(status_code=500, detail="Could not populate the Word template. Please contact the DealPath Admin.")
+
+    now = datetime.now(timezone.utc)
+    version_number = (
+        revision_version if revision_version is not None
+        else ((source_snapshot or {}).get("current_version", 1) + 1 if proposal_id else 1)
+    )
+    filename = build_proposal_filename(
+        proposal.customer_name or (source_snapshot or {}).get("customer_name"),
+        version_number,
+        now,
+        generated_file["original_filename"]
+    )
+    return {
+        "id": generated_file["id"],
+        "filename": filename,
+        "size": generated_file["size"],
+        "source_file_id": source_file_doc["id"],
+        "message": "Word document generated. Download it, edit it in Microsoft Word, and upload the final .docx before submitting."
+    }
+
+
 @api_router.post("/proposals")
 async def create_proposal(proposal: ProposalCreate, request: Request):
     current_user = await get_current_user(request)
@@ -1298,30 +1429,24 @@ async def create_proposal(proposal: ProposalCreate, request: Request):
         raise HTTPException(status_code=400, detail="Choose exactly one initial approver. Additional approvers are selected during review.")
     workflow = await _build_workflow(approver_ids, current_user["id"])
 
-    file_info = None
-    if proposal.file_id:
-        file_doc = await db.files.find_one({"id": proposal.file_id, "is_deleted": False})
-        if not file_doc:
-            raise HTTPException(status_code=404, detail="File not found")
-    else:
-        # No document attached to this proposal - fall back to the shared
-        # base template (Admin-configured), if one has been set up.
-        file_doc = await get_base_template_file_doc()
+    if not proposal.document_finalized or not proposal.file_id:
+        raise HTTPException(status_code=400, detail="Generate the Word document, edit it in Microsoft Word, and upload the final .docx before submitting.")
 
-    if file_doc:
-        # Auto-fill sales-entered commercial numbers into the source
-        # document (Table B.1/B.2). No-op if it's not a .docx or the merge
-        # fails - the source document is used as a safe fallback either way.
-        file_doc = await apply_commercials_to_file(file_doc, _build_commercial_data(proposal), current_user["id"])
-
-        file_info = {
-            "id": file_doc["id"],
-            "filename": build_proposal_filename(proposal.customer_name, 1, datetime.now(timezone.utc), file_doc["original_filename"]),
-            "size": file_doc["size"],
-            "storage_path": file_doc["storage_path"]
-        }
+    file_doc = await db.files.find_one({
+        "id": proposal.file_id, "is_deleted": False, "uploaded_by": current_user["id"],
+        "document_manually_edited": True
+    })
+    if not file_doc or not file_doc.get("source_file_id") or not (file_doc.get("original_filename") or "").lower().endswith(".docx"):
+        raise HTTPException(status_code=400, detail="Upload your manually edited final .docx document generated from DealPath before submitting.")
 
     now = datetime.now(timezone.utc)
+    file_info = {
+        "id": file_doc["id"],
+        "filename": build_proposal_filename(proposal.customer_name, 1, now, file_doc["original_filename"]),
+        "size": file_doc["size"],
+        "storage_path": file_doc["storage_path"]
+    }
+
     version_label = f"v1_{now.strftime('%Y-%m-%d')}"
 
     def _charge_dict(line):
@@ -1364,9 +1489,25 @@ async def create_proposal(proposal: ProposalCreate, request: Request):
         "created_by": current_user["id"],
         "created_at": now.isoformat(),
         "change_note": "Initial version",
-        "approval_status": "in_review"
+        "approval_status": "in_review",
+        "document_manually_edited": True,
+        "document_source_file_id": file_doc.get("source_file_id")
     }
     
+    initial_history = [{
+        "action": "created",
+        "by": {"id": current_user["id"], "name": current_user["name"], "role": current_user["role"]},
+        "comment": "Proposal submitted with manually edited Word document",
+        "version": 1,
+        "timestamp": now.isoformat()
+    }, {
+        "action": "document_finalized",
+        "by": {"id": current_user["id"], "name": current_user["name"], "role": current_user["role"]},
+        "comment": f"Final Word document uploaded: {file_doc['original_filename']}",
+        "version": 1,
+        "timestamp": now.isoformat()
+    }]
+
     new_proposal = {
         "title": proposal.title,
         "description": proposal.description,
@@ -1401,13 +1542,7 @@ async def create_proposal(proposal: ProposalCreate, request: Request):
         "shared_l1_support_charge": version_data["shared_l1_support_charge"],
         "extra_ongoing_charges": extra_ongoing_dict,
         "versions": [version_data],
-        "history": [{
-            "action": "created",
-            "by": {"id": current_user["id"], "name": current_user["name"], "role": current_user["role"]},
-            "comment": "Proposal submitted",
-            "version": 1,
-            "timestamp": now.isoformat()
-        }],
+        "history": initial_history,
         "created_at": now.isoformat(),
         "updated_at": now.isoformat()
     }
@@ -2160,25 +2295,22 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
     }
     computed_deal_value = _compute_deal_value(resolved_commercial_data)
 
-    if proposal.file_id:
-        source_file_doc = await db.files.find_one({"id": proposal.file_id, "is_deleted": False})
-        if not source_file_doc:
-            raise HTTPException(status_code=404, detail="File not found")
-    elif base_proposal.get("file_info", {}) and existing_proposal["file_info"].get("id"):
-        source_file_doc = await db.files.find_one({"id": base_proposal["file_info"]["id"], "is_deleted": False})
-    else:
-        source_file_doc = await get_base_template_file_doc()
+    if not proposal.document_finalized or not proposal.file_id:
+        raise HTTPException(status_code=400, detail="Generate the Word document, edit it in Microsoft Word, and upload the final .docx before submitting.")
 
-    if source_file_doc:
-        file_doc = await apply_commercials_to_file(source_file_doc, resolved_commercial_data, current_user["id"])
-        file_info = {
-            "id": file_doc["id"],
-            "filename": build_proposal_filename(proposal.customer_name or base_proposal.get("customer_name"), new_version_number, now, file_doc["original_filename"]),
-            "size": file_doc["size"],
-            "storage_path": file_doc["storage_path"]
-        }
-    else:
-        file_info = None
+    file_doc = await db.files.find_one({
+        "id": proposal.file_id, "is_deleted": False, "uploaded_by": current_user["id"],
+        "document_manually_edited": True
+    })
+    if not file_doc or not file_doc.get("source_file_id") or not (file_doc.get("original_filename") or "").lower().endswith(".docx"):
+        raise HTTPException(status_code=400, detail="Upload your manually edited final .docx document generated from DealPath before submitting.")
+
+    file_info = {
+        "id": file_doc["id"],
+        "filename": build_proposal_filename(proposal.customer_name or base_proposal.get("customer_name"), new_version_number, now, file_doc["original_filename"]),
+        "size": file_doc["size"],
+        "storage_path": file_doc["storage_path"]
+    }
 
     # Create new version
     new_version = {
@@ -2215,16 +2347,18 @@ async def update_proposal(proposal_id: str, proposal: ProposalCreate, request: R
         "change_note": proposal.change_note or "Revised after review feedback",
         "revision_reason": proposal.change_note or "Revised after review feedback",
         "based_on_version": draft_version.get("based_on_version") if is_approved_revision else existing_proposal.get("current_version", 1),
-        "approval_status": "in_review"
+        "approval_status": "in_review",
+        "document_manually_edited": True,
+        "document_source_file_id": file_doc.get("source_file_id")
     }
     
     history_entry = {
         "action": "revision_submitted" if is_approved_revision else "updated",
         "by": {"id": current_user["id"], "name": current_user["name"], "role": current_user["role"]},
         "comment": (
-            f"Approved proposal revised to {version_label} and resubmitted. Reason: {proposal.change_note.strip()}"
+            f"Approved proposal revised to {version_label} and resubmitted with manually edited Word document. Reason: {proposal.change_note.strip()}"
             if is_approved_revision
-            else f"Proposal updated to {version_label} and resubmitted"
+            else f"Proposal updated to {version_label} and resubmitted with manually edited Word document"
         ),
         "version": new_version_number,
         "timestamp": now.isoformat()
