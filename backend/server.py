@@ -17,9 +17,14 @@ import jwt
 from bson import ObjectId
 import requests
 import asyncio
+import difflib
 import secrets
 import smtplib
 import zipfile
+from docx import Document as DocxDocument
+from docx.text.paragraph import Paragraph as DocxParagraph
+from docx.table import Table as DocxTable
+from docx.oxml.ns import qn
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from reportlab.lib.pagesizes import letter, A4
@@ -637,6 +642,12 @@ class ProposalCreate(BaseModel):
     # Required when creating; when resubmitting it is optional (keeps the current chain).
     approver_ids: Optional[List[str]] = None
 
+class DocumentCompareRequest(BaseModel):
+    source_file_id: str
+    edited_file_id: str
+    proposal_id: Optional[str] = None
+    version_number: Optional[int] = None
+
 class ProposalAction(BaseModel):
     comment: Optional[str] = None
     target_stage: Optional[str] = None  # used only by the admin stage-override endpoint
@@ -1152,6 +1163,144 @@ async def upload_edited_proposal_document(
     }
     await db.files.insert_one(file_doc)
     return {"id": file_doc["id"], "filename": filename, "size": result["size"], "source_file_id": source_file_id}
+
+
+def _extract_docx_compare_blocks(document_bytes: bytes) -> list:
+    """Extract ordered text blocks from Word body paragraphs, table rows, headers and footers."""
+    document = DocxDocument(BytesIO(document_bytes))
+    blocks = []
+
+    def add_paragraph(paragraph, label):
+        value = re.sub(r"\s+", " ", paragraph.text or "").strip()
+        if value:
+            blocks.append({"label": label, "text": value})
+
+    def add_table(table, label):
+        for row_number, row in enumerate(table.rows, 1):
+            cells = [re.sub(r"\s+", " ", cell.text or "").strip() for cell in row.cells]
+            value = " | ".join(cells).strip(" |")
+            if value:
+                blocks.append({"label": f"{label}, row {row_number}", "text": value})
+
+    paragraph_number = 0
+    table_number = 0
+    for child in document.element.body.iterchildren():
+        if child.tag == qn("w:p"):
+            paragraph_number += 1
+            add_paragraph(DocxParagraph(child, document), f"Paragraph {paragraph_number}")
+        elif child.tag == qn("w:tbl"):
+            table_number += 1
+            add_table(DocxTable(child, document), f"Table {table_number}")
+
+    for section_number, section in enumerate(document.sections, 1):
+        for area_name, area in (("Header", section.header), ("Footer", section.footer)):
+            for paragraph_number, paragraph in enumerate(area.paragraphs, 1):
+                add_paragraph(paragraph, f"{area_name} {section_number}, paragraph {paragraph_number}")
+            for table_number, table in enumerate(area.tables, 1):
+                add_table(table, f"{area_name} {section_number}, table {table_number}")
+
+    return blocks
+
+
+def _build_docx_text_diff(original_blocks: list, edited_blocks: list) -> dict:
+    """Return an ordered block-level diff. Replaced blocks are shown side by side."""
+    original_text = [re.sub(r"\s+", " ", block["text"]).strip() for block in original_blocks]
+    edited_text = [re.sub(r"\s+", " ", block["text"]).strip() for block in edited_blocks]
+    matcher = difflib.SequenceMatcher(a=original_text, b=edited_text, autojunk=False)
+    changes = []
+    unchanged = 0
+
+    def add_change(status, original=None, edited=None):
+        reference = original or edited or {}
+        changes.append({
+            "status": status,
+            "section": reference.get("label", "Document"),
+            "original": (original or {}).get("text", ""),
+            "edited": (edited or {}).get("text", "")
+        })
+
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag == "equal":
+            unchanged += i2 - i1
+        elif tag == "delete":
+            for block in original_blocks[i1:i2]:
+                add_change("removed", original=block)
+        elif tag == "insert":
+            for block in edited_blocks[j1:j2]:
+                add_change("added", edited=block)
+        elif tag == "replace":
+            old_items = original_blocks[i1:i2]
+            new_items = edited_blocks[j1:j2]
+            paired = min(len(old_items), len(new_items))
+            for index in range(paired):
+                add_change("modified", original=old_items[index], edited=new_items[index])
+            for block in old_items[paired:]:
+                add_change("removed", original=block)
+            for block in new_items[paired:]:
+                add_change("added", edited=block)
+
+    summary = {
+        "added": sum(1 for change in changes if change["status"] == "added"),
+        "removed": sum(1 for change in changes if change["status"] == "removed"),
+        "modified": sum(1 for change in changes if change["status"] == "modified"),
+        "unchanged": unchanged,
+        "total_changes": len(changes)
+    }
+    return {"summary": summary, "changes": changes}
+
+
+@api_router.post("/proposals/compare-documents")
+async def compare_proposal_documents(payload: DocumentCompareRequest, request: Request):
+    current_user = await get_current_user(request)
+
+    source_doc = await db.files.find_one({"id": payload.source_file_id, "is_deleted": False})
+    edited_doc = await db.files.find_one({"id": payload.edited_file_id, "is_deleted": False})
+    if not source_doc or not edited_doc:
+        raise HTTPException(status_code=404, detail="One of the documents could not be found")
+
+    if payload.proposal_id:
+        try:
+            proposal_oid = ObjectId(payload.proposal_id)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid proposal ID")
+        proposal = await db.proposals.find_one({"_id": proposal_oid})
+        if not proposal:
+            raise HTTPException(status_code=404, detail="Proposal not found")
+        version_number = payload.version_number or proposal.get("current_version", 1)
+        version = next(
+            (item for item in proposal.get("versions", []) if item.get("version_number") == version_number),
+            None
+        )
+        if not version:
+            raise HTTPException(status_code=404, detail="Proposal version not found")
+        version_file_id = (version.get("file_info") or {}).get("id")
+        if version.get("document_source_file_id") != source_doc["id"] or version_file_id != edited_doc["id"]:
+            raise HTTPException(status_code=403, detail="These documents are not the generated and submitted pair for this proposal version")
+    else:
+        if source_doc.get("uploaded_by") != current_user["id"] or edited_doc.get("uploaded_by") != current_user["id"]:
+            raise HTTPException(status_code=403, detail="You can only compare documents you uploaded")
+
+    if edited_doc.get("source_file_id") != source_doc["id"] or not edited_doc.get("document_manually_edited"):
+        raise HTTPException(status_code=400, detail="The uploaded document is not linked to the selected generated document")
+    if not (source_doc.get("original_filename") or "").lower().endswith(".docx") or not (edited_doc.get("original_filename") or "").lower().endswith(".docx"):
+        raise HTTPException(status_code=400, detail="Only Word .docx documents can be compared")
+
+    try:
+        original_bytes, _ = await get_object(source_doc["storage_path"])
+        edited_bytes, _ = await get_object(edited_doc["storage_path"])
+        original_blocks = _extract_docx_compare_blocks(original_bytes)
+        edited_blocks = _extract_docx_compare_blocks(edited_bytes)
+        result = _build_docx_text_diff(original_blocks, edited_blocks)
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Proposal document comparison failed")
+        raise HTTPException(status_code=400, detail="Could not read one of the Word documents. Please verify both files and try again.")
+
+    result["scope"] = "Text in document paragraphs, tables, headers and footers. Formatting, images, page layout, tracked changes and comments are not compared."
+    result["original_filename"] = source_doc.get("original_filename")
+    result["edited_filename"] = edited_doc.get("original_filename")
+    return result
 
 
 # File download

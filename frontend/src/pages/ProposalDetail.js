@@ -10,6 +10,7 @@ import { Badge } from '../components/ui/badge';
 import DspBadge, { dspDate } from '../components/DspBadge';
 import DealStatusSection, { DealStageChip } from '../components/DealStatus';
 import ReassignApprovers from '../components/ReassignApprovers';
+import DocumentComparison from '../components/DocumentComparison';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { toast } from 'sonner';
@@ -536,6 +537,10 @@ const ProposalDetail = () => {
     );
   }
 
+  const currentVersionDocument = (proposal.versions || []).find(
+    (version) => Number(version.version_number) === Number(proposal.current_version)
+  );
+
   // The stepper: who submitted it, each approval stage in order, then Approved. All of it comes from the
   // server's workflow_view, so it is right for a proposal's own chain and for an old role-based one alike.
   const stepperNodes = (() => {
@@ -714,6 +719,14 @@ const ProposalDetail = () => {
                   <span className="text-xs text-[#8577A3] italic">No document attached</span>
                 )}
               </div>
+              {currentVersionDocument?.document_source_file_id && currentVersionDocument?.file_info?.id && (
+                <DocumentComparison
+                  sourceFileId={currentVersionDocument.document_source_file_id}
+                  editedFileId={currentVersionDocument.file_info.id}
+                  proposalId={id}
+                  versionNumber={proposal.current_version}
+                />
+              )}
             </div>
 
             {/* Extended Fields */}
