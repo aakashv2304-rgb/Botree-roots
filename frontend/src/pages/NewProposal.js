@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import ValidationModal from '../components/ValidationModal';
 import { ArrowLeft, Plus, X, CurrencyInr, Package, UsersThree } from '@phosphor-icons/react';
 import WorkflowBuilder from '../components/WorkflowBuilder';
+import DocumentComparison from '../components/DocumentComparison';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -800,6 +801,9 @@ const NewProposal = () => {
                       </Button>
                     )}
                   </div>
+                )}
+                {editedDocumentCurrent && (
+                  <DocumentComparison sourceFileId={generatedDocument.id} editedFileId={editedDocument.id} />
                 )}
               </div>
             )}

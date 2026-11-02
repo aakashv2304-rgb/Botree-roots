@@ -10,6 +10,7 @@ import { Textarea } from '../components/ui/textarea';
 import { toast } from 'sonner';
 import WorkflowBuilder from '../components/WorkflowBuilder';
 import DspBadge from '../components/DspBadge';
+import DocumentComparison from '../components/DocumentComparison';
 import { ArrowLeft } from '@phosphor-icons/react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -729,6 +730,9 @@ const EditProposal = () => {
                         </Button>
                       )}
                     </div>
+                  )}
+                  {editedDocumentCurrent && (
+                    <DocumentComparison sourceFileId={generatedDocument.id} editedFileId={editedDocument.id} />
                   )}
                 </div>
               )}
