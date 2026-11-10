@@ -642,3 +642,21 @@ html.dark-theme ::-webkit-scrollbar-thumb:hover { background: #4A3A66; }
 html.dark-theme .bottleneck-row {
   background-color: #3A1E2C !important;
 }
+
+
+/* DealPath compact typography. Keep layout dimensions and line heights unchanged. */
+:root { --dealpath-font-scale: 0.9; }
+body { font-size: 14px; }
+#root .text-xs { font-size: calc(0.75rem * var(--dealpath-font-scale)); }
+#root .text-sm { font-size: calc(0.875rem * var(--dealpath-font-scale)); }
+#root .text-base { font-size: calc(1rem * var(--dealpath-font-scale)); }
+#root .text-lg { font-size: calc(1.125rem * var(--dealpath-font-scale)); }
+#root .text-xl { font-size: calc(1.25rem * var(--dealpath-font-scale)); }
+#root .text-2xl { font-size: calc(1.5rem * var(--dealpath-font-scale)); }
+#root .text-3xl { font-size: calc(1.875rem * var(--dealpath-font-scale)); }
+#root .text-4xl { font-size: calc(2.25rem * var(--dealpath-font-scale)); }
+#root .text-5xl { font-size: calc(3rem * var(--dealpath-font-scale)); }
+#root .text-6xl { font-size: calc(3.75rem * var(--dealpath-font-scale)); }
+#root .text-7xl { font-size: calc(4.5rem * var(--dealpath-font-scale)); }
+#root .text-8xl { font-size: calc(6rem * var(--dealpath-font-scale)); }
+#root .text-9xl { font-size: calc(8rem * var(--dealpath-font-scale)); }
