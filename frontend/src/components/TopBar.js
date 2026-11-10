@@ -1,12 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import DspBadge from './DspBadge';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import {
-  House, ClockCounterClockwise, CheckCircle, Users, SignOut, FileText,
-  Plus, Calculator, MagnifyingGlass, Bell, GearSix
-} from '@phosphor-icons/react';
+import { SignOut, Plus, MagnifyingGlass, Bell, GearSix, List } from '@phosphor-icons/react';
 import { Button } from './ui/button';
 import AccountSettingsModal from './AccountSettingsModal';
 import ThemeToggle from './ThemeToggle';
@@ -14,7 +11,7 @@ import ThemeToggle from './ThemeToggle';
 const BOTREE_LOGO = "https://customer-assets-7cd3h4nn.emergentagent.net/job_proposal-tracker-app/artifacts/12kvgckj_Botree%20Logo-white-bg.webp";
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
-const TopBar = () => {
+const TopBar = ({ onMenuToggle }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [profileOpen, setProfileOpen] = useState(false);
@@ -79,17 +76,6 @@ const TopBar = () => {
     return 'updated';
   };
 
-  const navItems = [
-    { path: '/dashboard', icon: House, label: 'Dashboard', testId: 'nav-dashboard' },
-    { path: '/dashboard/my-proposals', icon: FileText, label: 'My Proposals', testId: 'nav-my-proposals' },
-    { path: '/dashboard/pending', icon: ClockCounterClockwise, label: 'Pending', testId: 'nav-pending' },
-    { path: '/dashboard/approved', icon: CheckCircle, label: 'Approved', testId: 'nav-approved' },
-    { path: '/dashboard/profitability-analyzer', icon: Calculator, label: 'Profitability', testId: 'nav-profitability-analyzer' },
-  ];
-  if (user?.role === 'Admin') {
-    navItems.push({ path: '/dashboard/users', icon: Users, label: 'Users', testId: 'nav-users' });
-  }
-
   const initials = (user?.name || '?')
     .split(' ')
     .map((p) => p[0])
@@ -102,6 +88,9 @@ const TopBar = () => {
       {/* Row 1: logo, search, actions */}
       <div className="h-16 px-6 flex items-center gap-6">
         <div className="flex items-center gap-3 shrink-0">
+          <button type="button" onClick={onMenuToggle} className="flex h-9 w-9 items-center justify-center rounded-lg text-[#5B4B7A] hover:bg-[#F1EBFA] md:hidden" aria-label="Open navigation" aria-controls="dealpath-sidebar" data-testid="mobile-menu-toggle">
+            <List size={22} />
+          </button>
           <div className="bg-white rounded-lg p-1.5 inline-flex">
             <img src={BOTREE_LOGO} alt="Botree Software" className="h-7 w-auto" />
           </div>
@@ -233,28 +222,6 @@ const TopBar = () => {
           </div>
         </div>
       </div>
-
-      {/* Row 2: section nav */}
-      <nav className="px-6 flex items-center gap-1 overflow-x-auto">
-        {navItems.map((item) => (
-          <NavLink
-            key={item.path}
-            to={item.path}
-            end={item.path === '/dashboard'}
-            data-testid={item.testId}
-            className={({ isActive }) =>
-              `flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
-                isActive
-                  ? 'border-[#9B30FF] text-[#9B30FF]'
-                  : 'border-transparent text-[#5B4B7A] hover:text-[#1E1533] hover:border-[#B9A0D9]'
-              }`
-            }
-          >
-            <item.icon size={17} weight="regular" />
-            {item.label}
-          </NavLink>
-        ))}
-      </nav>
 
       <AccountSettingsModal
         open={accountSettingsOpen}
