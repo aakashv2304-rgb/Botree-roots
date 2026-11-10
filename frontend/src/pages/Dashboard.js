@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
+import { Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import TopBar from '../components/TopBar';
+import Sidebar from '../components/Sidebar';
 import PageTransition from '../components/PageTransition';
 import Overview from './Overview';
 import MyProposals from './MyProposals';
@@ -16,11 +17,14 @@ import ProfitabilityHub from './ProfitabilityHub';
 const Dashboard = () => {
   const { user } = useAuth();
   const location = useLocation();
-  const navigate = useNavigate();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-[#F7F4FC]">
-      <TopBar />
+      <TopBar onMenuToggle={() => setMobileMenuOpen((open) => !open)} />
+      <div className="flex min-h-[calc(100vh-4rem)] items-start">
+        <Sidebar mobileOpen={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} />
+        <main id="main-content" className="min-w-0 flex-1 w-full">
       <PageTransition key={location.pathname}>
         <Routes location={location}>
           <Route path="/" element={<Overview />} />
@@ -34,6 +38,8 @@ const Dashboard = () => {
           <Route path="/profitability-analyzer" element={<ProfitabilityHub />} />
         </Routes>
       </PageTransition>
+        </main>
+      </div>
     </div>
   );
 };
