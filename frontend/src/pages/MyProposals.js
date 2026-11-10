@@ -46,15 +46,15 @@ const MyProposals = () => {
           className="flex items-center gap-2 rounded-lg bg-[#9B30FF] text-white px-4 py-2 font-semibold"
           data-testid="my-proposals-create"><Plus size={17} /> New Proposal</button>}
       </div>
-      <div className="bg-white border border-[#E4DCF0] rounded-xl shadow-sm overflow-hidden">
+      <div className="bg-[#FFFFFF] border border-[#E4DCF0] rounded-xl shadow-sm overflow-hidden">
         <div className="flex flex-wrap gap-3 items-center p-4 border-b border-[#E4DCF0]">
           <div className="flex items-center gap-2 flex-1 min-w-[190px] rounded-lg bg-[#F7F4FC] px-3 py-2">
             <MagnifyingGlass size={17} className="text-[#8577A3]" />
             <input type="search" aria-label="Search my proposals" value={search} onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search proposals or customers" className="bg-transparent outline-none flex-1 text-sm min-w-0" />
+              placeholder="Search proposals or customers" className="bg-transparent outline-none flex-1 text-sm min-w-0 text-[#1E1533] placeholder:text-[#8577A3]" />
           </div>
           <select aria-label="Filter proposal status" value={status} onChange={(e) => setStatus(e.target.value)}
-            className="border border-[#E4DCF0] rounded-lg px-3 py-2 text-sm bg-white">
+            className="border border-[#E4DCF0] rounded-lg px-3 py-2 text-sm bg-[#FFFFFF] text-[#1E1533]">
             <option value="all">All Statuses</option>
             {[...new Set(proposals.map((p) => p.status))].map((value) =>
               <option key={value} value={value}>{statusLabel(value)}</option>)}
@@ -71,7 +71,7 @@ const MyProposals = () => {
             </thead>
             <tbody className="divide-y divide-[#E4DCF0]">
               {visible.map((proposal) => (
-                <tr key={proposal.id} className="hover:bg-[#FAF8FD]" data-testid={`my-proposal-${proposal.id}`}>
+                <tr key={proposal.id} className="hover:bg-[#F7F4FC]" data-testid={`my-proposal-${proposal.id}`}>
                   <td className="p-4"><button type="button" onClick={() => navigate(`/dashboard/proposal/${proposal.id}`)} aria-label={`Open proposal ${proposal.title}`} className="font-semibold text-[#1E1533] text-left hover:text-[#8126DB] hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8126DB]">{proposal.title}</button>
                     <div className="text-xs text-[#7A6B9E]">{proposal.customer_name || '—'}</div></td>
                   <td className="p-4">{statusLabel(proposal.status)}</td>
