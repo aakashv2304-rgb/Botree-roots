@@ -1,22 +1,19 @@
-import React from 'react';
-import { NavLink } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { House, ClockCounterClockwise, CheckCircle, Users, SignOut, Plus, Calculator } from '@phosphor-icons/react';
-import { Button } from './ui/button';
-import { useNavigate } from 'react-router-dom';
-import BotreeLogo from './BotreeLogo';
+import { House, FileText, ClockCounterClockwise, CheckCircle, Users, Calculator } from '@phosphor-icons/react';
 
-const Sidebar = () => {
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
-
-  const handleLogout = async () => {
-    await logout();
-    navigate('/login');
-  };
+const Sidebar = ({ mobileOpen = false, onClose = () => {} }) => {
+  const location = useLocation();
+  useEffect(() => {
+    if (mobileOpen) onClose();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname]);
+  const { user } = useAuth();
 
   const navItems = [
     { path: '/dashboard', icon: House, label: 'Dashboard', testId: 'nav-dashboard' },
+    { path: '/dashboard/my-proposals', icon: FileText, label: 'My Proposals', testId: 'nav-my-proposals' },
     { path: '/dashboard/pending', icon: ClockCounterClockwise, label: 'Pending', testId: 'nav-pending' },
     { path: '/dashboard/approved', icon: CheckCircle, label: 'Approved', testId: 'nav-approved' },
     { path: '/dashboard/profitability-analyzer', icon: Calculator, label: 'Profitability Analyzer', testId: 'nav-profitability-analyzer' },
@@ -27,61 +24,32 @@ const Sidebar = () => {
   }
 
   return (
-    <div className="w-64 text-white flex flex-col shadow-lg" style={{background: 'linear-gradient(180deg, #F72585 0%, #7209B7 100%)'}}>
-      <div className="p-6 border-b border-white/20">
-        <div className="text-white">
-          <BotreeLogo size="sm" />
+    <>
+      {mobileOpen && (
+        <button type="button" className="fixed inset-0 z-40 bg-black/40 md:hidden" onClick={onClose} aria-label="Close navigation" />
+      )}
+      <aside id="dealpath-sidebar" aria-label="Main navigation"
+        className={`fixed inset-y-0 left-0 z-50 flex w-60 shrink-0 flex-col overflow-y-auto border-r border-[#E4DCF0] bg-white shadow-lg transition-transform duration-200 md:sticky md:top-16 md:z-20 md:h-[calc(100vh-4rem)] md:translate-x-0 md:shadow-none ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="flex items-center justify-between px-5 pb-3 pt-6">
+          <span className="text-xs font-bold uppercase tracking-widest text-[#8577A3]">Workspace</span>
+          <button type="button" className="rounded-lg p-1 text-[#5B4B7A] md:hidden" onClick={onClose} aria-label="Close menu">✕</button>
         </div>
-        <div className="mt-4 pt-4 border-t border-white/20">
-          <p className="text-white/90 text-sm font-semibold">{user?.name}</p>
-          <p className="text-white/70 text-xs uppercase tracking-widest mt-1 font-bold">{user?.role}</p>
+        <nav className="flex-1 space-y-1 px-3 pb-5">
+          {navItems.map((item) => (
+            <NavLink key={item.path} to={item.path} end={item.path === '/dashboard'} data-testid={item.testId}
+              onClick={onClose}
+              className={({ isActive }) => `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${isActive ? 'bg-[#F1EBFA] text-[#7A28C7] font-semibold' : 'text-[#5B4B7A] hover:bg-[#F7F4FC] hover:text-[#1E1533]'}`}>
+              <item.icon size={19} weight="regular" />
+              <span>{item.label}</span>
+            </NavLink>
+          ))}
+        </nav>
+        <div className="border-t border-[#E4DCF0] px-5 py-4">
+          <p className="truncate text-xs font-semibold text-[#1E1533]">{user?.name}</p>
+          <p className="mt-1 text-xs text-[#8577A3]">{user?.role}</p>
         </div>
-      </div>
-
-      <nav className="flex-1 p-4 space-y-2">
-        {navItems.map((item) => (
-          <NavLink
-            key={item.path}
-            to={item.path}
-            end={item.path === '/dashboard'}
-            data-testid={item.testId}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-4 py-3 transition-all ${
-                isActive
-                  ? 'bg-white/25 text-white border-l-4 border-white font-semibold shadow-md'
-                  : 'text-white/80 hover:bg-white/15 hover:text-white'
-              }`
-            }
-          >
-            <item.icon size={20} weight="regular" />
-            <span className="text-sm font-medium">{item.label}</span>
-          </NavLink>
-        ))}
-
-        {user?.role === 'User' && (
-          <Button
-            onClick={() => navigate('/dashboard/new')}
-            data-testid="new-proposal-button"
-            className="w-full justify-start gap-3 bg-white/20 hover:bg-white/30 text-white mt-4 font-semibold shadow-md"
-          >
-            <Plus size={20} weight="regular" />
-            <span>New Proposal</span>
-          </Button>
-        )}
-      </nav>
-
-      <div className="p-4 border-t border-white/20">
-        <Button
-          onClick={handleLogout}
-          data-testid="logout-button"
-          variant="ghost"
-          className="w-full justify-start gap-3 text-white/80 hover:bg-white/15 hover:text-white"
-        >
-          <SignOut size={20} weight="regular" />
-          <span>Sign Out</span>
-        </Button>
-      </div>
-    </div>
+      </aside>
+    </>
   );
 };
 
