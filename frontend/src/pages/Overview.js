@@ -1,507 +1,162 @@
-import React, { useState, useEffect } from 'react';
-import LoadingSpinner from '../components/LoadingSpinner';
+import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { MagnifyingGlass, FileText, Clock, Warning, CheckCircle, Funnel, CurrencyInr, CalendarBlank, CaretLeft, CaretRight, Table, SquaresFour, Timer } from '@phosphor-icons/react';
+import { useAuth } from '../context/AuthContext';
+import LoadingSpinner from '../components/LoadingSpinner';
 import DspBadge from '../components/DspBadge';
-import { DealStageChip } from '../components/DealStatus';
-import { Input } from '../components/ui/input';
-import { Badge } from '../components/ui/badge';
-import { Button } from '../components/ui/button';
+import { FileText, Clock, CheckCircle, CurrencyInr, MagnifyingGlass, ArrowRight, WarningCircle, Plus, ArrowClockwise } from '@phosphor-icons/react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+const currency = (amount) => typeof amount === 'number' ? `₹${amount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}` : '—';
+const date = (value) => {
+  if (!value) return '—';
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? '—' : parsed.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+};
+const statusLabel = (value) => ({
+  approved: 'Approved', needs_revision: 'Needs revision', rejected: 'Rejected',
+  sales_submitted: 'Submitted', in_review: 'In review', cgo_review: 'In review',
+  finance_review: 'In review', legal_review: 'In review', cfo_review: 'In review'
+}[value] || String(value || 'Unknown').replace(/_/g, ' '));
+const isUnderReview = (p) => p.status === 'in_review' || Boolean(p.workflow_view?.awaiting) ||
+  ['cgo_review', 'finance_review', 'legal_review', 'cfo_review'].includes(p.status);
 
 const Overview = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [proposals, setProposals] = useState([]);
-  const [analytics, setAnalytics] = useState({
-    stageCounts: null,
-    approvalRate: null,
-    bottlenecks: null,
-    activityFeed: null,
-    slaHealth: null,
-    dealValue: null,
-    monthlyData: null
-  });
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [viewMode, setViewMode] = useState('table'); // 'table' | 'pipeline'
+  const [analytics, setAnalytics] = useState({});
   const [loading, setLoading] = useState(true);
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState('all');
 
-  useEffect(() => {
-    fetchAll();
-  }, [selectedMonth, selectedYear]);
-
-  const fetchAll = async () => {
+  const load = async () => {
+    setLoading(true);
+    setError('');
+    const requests = [
+      axios.get(`${API}/proposals?dashboard_only=true`, { withCredentials: true }),
+      axios.get(`${API}/analytics/deal-value-summary?dashboard_only=true`, { withCredentials: true }).catch(() => ({ data: null })),
+      axios.get(`${API}/analytics/bottlenecks?dashboard_only=true`, { withCredentials: true }).catch(() => ({ data: null })),
+      axios.get(`${API}/analytics/dsp-summary?dashboard_only=true`, { withCredentials: true }).catch(() => ({ data: null })),
+      axios.get(`${API}/analytics/activity-feed?dashboard_only=true`, { withCredentials: true }).catch(() => ({ data: null })),
+    ];
     try {
-      const [proposalsRes, stageRes, approvalRes, bottleneckRes, activityRes, slaRes, dealValueRes, monthlyRes, dspRes] = await Promise.all([
-        axios.get(`${API}/proposals?dashboard_only=true`, { withCredentials: true }),
-        axios.get(`${API}/analytics/stage-counts?dashboard_only=true`, { withCredentials: true }),
-        axios.get(`${API}/analytics/approval-rate?dashboard_only=true`, { withCredentials: true }),
-        axios.get(`${API}/analytics/bottlenecks?dashboard_only=true`, { withCredentials: true }),
-        axios.get(`${API}/analytics/activity-feed?dashboard_only=true`, { withCredentials: true }),
-        axios.get(`${API}/analytics/sla-health?dashboard_only=true`, { withCredentials: true }),
-        axios.get(`${API}/analytics/deal-value-summary?dashboard_only=true`, { withCredentials: true }),
-        axios.get(`${API}/analytics/monthly-proposals?year=${selectedYear}&month=${selectedMonth}&dashboard_only=true`, { withCredentials: true }),
-        axios.get(`${API}/analytics/dsp-summary?dashboard_only=true`, { withCredentials: true }).catch(() => ({ data: null })),
-      ]);
-
-      setProposals(proposalsRes.data);
-      setAnalytics({
-        stageCounts: stageRes.data,
-        approvalRate: approvalRes.data,
-        bottlenecks: bottleneckRes.data,
-        activityFeed: activityRes.data,
-        slaHealth: slaRes.data,
-        dealValue: dealValueRes.data,
-        monthlyData: monthlyRes.data,
-        dspSummary: dspRes.data,
-      });
-    } catch (error) {
-      console.error('Error fetching data:', error);
+      const [proposalResult, dealValue, bottlenecks, dsp, activity] = await Promise.all(requests);
+      setProposals(Array.isArray(proposalResult.data) ? proposalResult.data : []);
+      setAnalytics({ dealValue: dealValue.data, bottlenecks: bottlenecks.data, dsp: dsp.data, activity: activity.data });
+    } catch (e) {
+      setError('Unable to load dashboard data. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  const filteredProposals = proposals.filter(p => {
-    const matchesSearch = (p.title || '').toLowerCase().includes(search.toLowerCase()) ||
-                          (p.description || '').toLowerCase().includes(search.toLowerCase()) ||
-                          (p.customer_name && p.customer_name.toLowerCase().includes(search.toLowerCase()));
-    const matchesStatus = statusFilter === 'all'
-      || (statusFilter === 'in_approval' ? !!p.workflow_view?.awaiting : p.status === statusFilter);
-    return matchesSearch && matchesStatus;
-  });
+  useEffect(() => { load(); }, []);
 
-  // Functional status colors per the Botree design system
-  const getStatusColor = (status) => {
-    if (status === 'approved') return { backgroundColor: '#D1FAE5', color: '#059669' };
-    if (status === 'needs_revision') return { backgroundColor: '#FFE4E6', color: '#E11D48' };
-    if (status === 'sales_submitted') return { backgroundColor: '#FEF3C7', color: '#D97706' };
-    return { backgroundColor: '#F3E8FF', color: '#7209B7' }; // *_review states = Under Review
-  };
-
-  const getStatusLabel = (status) => {
-    const labels = {
-      sales_submitted: 'Draft',
-      cgo_review: 'Under Review · CGO',
-      finance_review: 'Under Review · Finance',
-      legal_review: 'Under Review · Legal',
-      cfo_review: 'Under Review · CFO',
-      approved: 'Approved',
-      rejected: 'Rejected',
-      needs_revision: 'Needs Revision'
-    };
-    return labels[status] || status;
-  };
-
-  // A proposal waiting on a named approver says who ("Stage 2 of 3 · Priya Sharma"); old ones keep their old labels.
-  const getProposalLabel = (p) => (p.status === 'in_review' ? p.workflow_view.status_label : getStatusLabel(p.status));
-
-  const formatCurrency = (value) => {
-    if (!value) return '₹0';
-    return `₹${(value / 100000).toFixed(1)}L`;
-  };
-
-  const formatTimestamp = (timestamp) => {
-    const date = new Date(timestamp);
-    const hours = date.getHours().toString().padStart(2, '0');
-    const minutes = date.getMinutes().toString().padStart(2, '0');
-    return `${hours}:${minutes}`;
-  };
-
-  const navigateMonth = (direction) => {
-    let newMonth = selectedMonth + direction;
-    let newYear = selectedYear;
-
-    if (newMonth > 12) {
-      newMonth = 1;
-      newYear += 1;
-    } else if (newMonth < 1) {
-      newMonth = 12;
-      newYear -= 1;
-    }
-
-    setSelectedMonth(newMonth);
-    setSelectedYear(newYear);
-  };
-
-  const goToCurrentMonth = () => {
-    const now = new Date();
-    setSelectedMonth(now.getMonth() + 1);
-    setSelectedYear(now.getFullYear());
-  };
-
-  const winRate = analytics.approvalRate?.approval_percentage || 0;
-  const underReviewCount = analytics.stageCounts?.under_review || 0;
-  const activeCount = analytics.monthlyData?.active_proposals ?? filteredProposals.length;
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[calc(100vh-113px)] bg-[#F7F4FC]">
-        <LoadingSpinner label="Loading dashboard..." />
-      </div>
-    );
-  }
-
-  const dsp = analytics.dspSummary;
-  const kpiCards = [
-    {
-      label: 'Total Active Proposals',
-      value: activeCount,
-      sub: `${formatCurrency(analytics.dealValue?.active_pipeline_value)} in value`,
-      icon: FileText,
-      accent: '#9B30FF'
-    },
-    {
-      label: 'Proposals Under Review',
-      value: underReviewCount,
-      sub: analytics.slaHealth?.critical_count > 0 ? `${analytics.slaHealth.critical_count} critical` : 'Healthy',
-      icon: Clock,
-      accent: '#C026D3'
-    },
-    {
-      label: 'Total Pipeline Value',
-      value: formatCurrency(analytics.dealValue?.active_pipeline_value),
-      sub: 'Active deals',
-      icon: CurrencyInr,
-      accent: '#E64AD1'
-    },
-    {
-      label: 'Avg. Days in Sales Pipeline',
-      value: dsp && dsp.avg_days_closed !== null ? `${dsp.avg_days_closed} days` : '—',
-      sub: dsp
-        ? `${dsp.closed_count} closed (${dsp.won_count} won) · ${dsp.open_count} open${dsp.oldest_open ? ` (oldest ${dsp.oldest_open.days}d)` : ''}`
-        : 'First proposal to deal closed',
-      icon: Timer,
-      accent: '#7C3AED',
-      testId: 'kpi-dsp',
-    }
+  const active = proposals.filter(p => p.status !== 'approved' && p.status !== 'rejected' && !p.is_closed);
+  const reviewing = proposals.filter(isUnderReview);
+  const approved = proposals.filter(p => p.status === 'approved');
+  const alerts = analytics.bottlenecks?.bottlenecks || [];
+  const filtered = proposals.filter(p => {
+    const q = search.trim().toLowerCase();
+    const matchesText = !q || `${p.title || ''} ${p.customer_name || ''} ${p.description || ''}`.toLowerCase().includes(q);
+    const matchesFilter = filter === 'all' || (filter === 'review' ? isUnderReview(p) : p.status === filter);
+    return matchesText && matchesFilter;
+  }).sort((a, b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0));
+  const canCreate = user?.role === 'Admin' || user?.can_create_proposals === true;
+  const stats = [
+    { label: 'Active proposals', value: active.length, icon: FileText, detail: 'Currently in progress' },
+    { label: 'Under review', value: reviewing.length, icon: Clock, detail: 'Awaiting approvals' },
+    { label: 'Approved', value: approved.length, icon: CheckCircle, detail: 'Across your workspace' },
+    { label: 'Active pipeline value', value: currency(analytics.dealValue?.active_pipeline_value), icon: CurrencyInr, detail: 'Value of active deals' },
   ];
 
-  return (
-    <div className="min-h-screen bg-[#F7F4FC]" data-testid="overview-page">
-      <div className="px-6 py-6 max-w-[1600px] mx-auto space-y-6">
+  if (loading) return <div className="min-h-[65vh] flex items-center justify-center bg-[#F7F4FC]"><LoadingSpinner label="Loading dashboard..." /></div>;
 
-        {/* Month selector */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <CalendarBlank size={20} className="text-[#9B30FF]" />
-            <span className="text-sm font-semibold text-[#5B4B7A]">Monthly Stats:</span>
-            <span className="text-lg font-bold text-[#1E1533]">{analytics.monthlyData?.month_name || 'Loading...'}</span>
+  return (
+    <div className="min-h-screen bg-[#F7F4FC] px-4 py-6 sm:px-6 lg:px-8" data-testid="overview-page">
+      <div className="mx-auto max-w-[1480px] space-y-6">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-[#8577A3]">Workspace overview</p>
+            <h1 className="text-2xl font-bold tracking-tight text-[#1E1533]">Dashboard</h1>
+            <p className="mt-1 text-sm text-[#5B4B7A]">Your proposals, approvals and priorities in one place.</p>
           </div>
           <div className="flex items-center gap-2">
-            <Button onClick={() => navigateMonth(-1)} size="sm" variant="ghost" className="text-[#5B4B7A] hover:text-[#1E1533]">
-              <CaretLeft size={18} weight="bold" />
-            </Button>
-            {!analytics.monthlyData?.is_current_month && (
-              <Button onClick={goToCurrentMonth} size="sm" variant="outline" className="text-xs border-[#9B30FF] text-[#9B30FF] hover:bg-[#9B30FF]/5">
-                Current Month
-              </Button>
-            )}
-            <Button
-              onClick={() => navigateMonth(1)}
-              size="sm"
-              variant="ghost"
-              className="text-[#5B4B7A] hover:text-[#1E1533]"
-              disabled={analytics.monthlyData?.is_current_month}
-            >
-              <CaretRight size={18} weight="bold" />
-            </Button>
+            <button type="button" onClick={load} className="inline-flex items-center gap-2 rounded-lg border border-[#E4DCF0] bg-[#FFFFFF] px-3 py-2 text-sm font-medium text-[#5B4B7A] hover:bg-[#F1EBFA]"><ArrowClockwise size={16} /> Refresh</button>
+            {canCreate && <button type="button" onClick={() => navigate('/dashboard/new')} className="inline-flex items-center gap-2 rounded-lg bg-[#9B30FF] px-4 py-2 text-sm font-semibold text-white hover:opacity-90"><Plus size={16} /> New Proposal</button>}
           </div>
         </div>
 
-        {/* KPI Metric Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {kpiCards.map((card) => (
-            <div key={card.label} data-testid={card.testId} className="bg-[#FFFFFF] rounded-xl border border-[#E4DCF0] shadow-sm p-5 hover:shadow-md transition-shadow">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-semibold text-[#5B4B7A] uppercase tracking-wider">{card.label}</span>
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${card.accent}1A` }}>
-                  <card.icon size={16} style={{ color: card.accent }} />
-                </div>
-              </div>
-              <div className="text-2xl font-bold text-[#1E1533] mb-1">{card.value}</div>
-              <div className="text-xs text-[#8577A3]">{card.sub}</div>
+        {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
+
+        <section aria-label="Key metrics" className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {stats.map(item => <div key={item.label} className="rounded-xl border border-[#E4DCF0] bg-[#FFFFFF] p-5">
+            <div className="flex items-center justify-between gap-2"><span className="text-xs font-semibold text-[#5B4B7A]">{item.label}</span><item.icon size={19} className="text-[#8577A3]" /></div>
+            <p className="mt-3 text-2xl font-bold tabular-nums text-[#1E1533]">{item.value}</p>
+            <p className="mt-1 text-xs text-[#8577A3]">{item.detail}</p>
+          </div>)}
+        </section>
+
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.65fr)_minmax(280px,1fr)]">
+          <section className="overflow-hidden rounded-xl border border-[#E4DCF0] bg-[#FFFFFF]">
+            <div className="flex items-center justify-between border-b border-[#E4DCF0] px-5 py-4">
+              <div><h2 className="text-base font-semibold text-[#1E1533]">Needs attention</h2><p className="mt-0.5 text-xs text-[#8577A3]">Proposals with reported bottlenecks</p></div>
+              <span className="rounded-full bg-[#F7F4FC] px-2.5 py-1 text-xs font-semibold text-[#5B4B7A]">{alerts.length}</span>
             </div>
-          ))}
+            {alerts.length ? <div className="divide-y divide-[#E4DCF0]">
+              {alerts.slice(0, 5).map(item => <button type="button" key={item.id} onClick={() => navigate(`/dashboard/proposal/${item.id}`)} className="flex w-full items-center justify-between gap-4 px-5 py-3 text-left hover:bg-[#F7F4FC]">
+                <div className="min-w-0"><p className="truncate text-sm font-semibold text-[#1E1533]">{item.title}</p><p className="mt-1 text-xs text-[#8577A3]">{item.status_label || statusLabel(item.status)}</p></div>
+                <span className="shrink-0 text-xs font-semibold text-[#D97706]">{item.days_stuck} days waiting</span>
+              </button>)}
+            </div> : <div className="flex items-center gap-3 px-5 py-8 text-sm text-[#5B4B7A]"><CheckCircle size={20} className="text-[#059669]" /> No bottlenecks reported.</div>}
+          </section>
+          <section className="rounded-xl border border-[#E4DCF0] bg-[#FFFFFF]">
+            <div className="border-b border-[#E4DCF0] px-5 py-4"><h2 className="text-base font-semibold text-[#1E1533]">Recent activity</h2><p className="mt-0.5 text-xs text-[#8577A3]">Latest proposal updates</p></div>
+            <div className="divide-y divide-[#E4DCF0]">
+              {(analytics.activity?.activities || []).slice(0, 5).map((item, index) => <div key={index} className="px-5 py-3">
+                <p className="text-sm text-[#1E1533]"><span className="font-semibold">{item.by?.name || 'Team member'}</span> {String(item.action || 'updated').replace(/_/g, ' ')} <span className="font-medium">{item.proposal_title || 'a proposal'}</span></p>
+                <p className="mt-1 text-xs text-[#8577A3]">{date(item.timestamp)}</p>
+              </div>)}
+              {!(analytics.activity?.activities || []).length && <p className="px-5 py-8 text-sm text-[#8577A3]">No recent activity.</p>}
+            </div>
+          </section>
         </div>
 
-        {/* Filters + View Switcher */}
-        <div className="bg-[#FFFFFF] rounded-xl border border-[#E4DCF0] shadow-sm p-4">
-          <div className="flex flex-col md:flex-row md:items-center gap-3">
-            <div className="flex-1 flex items-center gap-2 bg-[#F7F4FC] border border-[#E4DCF0] rounded-lg px-3 py-2">
+        <section className="overflow-hidden rounded-xl border border-[#E4DCF0] bg-[#FFFFFF]">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#E4DCF0] px-5 py-4">
+            <div><h2 className="text-base font-semibold text-[#1E1533]">Proposals</h2><p className="mt-0.5 text-xs text-[#8577A3]">{filtered.length} matching proposals</p></div>
+            <button type="button" onClick={() => navigate('/dashboard/my-proposals')} className="inline-flex items-center gap-1 text-sm font-semibold text-[#8126DB] hover:underline">My Proposals <ArrowRight size={15} /></button>
+          </div>
+          <div className="flex flex-wrap items-center gap-3 border-b border-[#E4DCF0] px-5 py-3">
+            <label className="flex min-w-[210px] flex-1 items-center gap-2 rounded-lg border border-[#E4DCF0] bg-[#F7F4FC] px-3 py-2">
               <MagnifyingGlass size={16} className="text-[#8577A3]" />
-              <Input
-                type="text"
-                placeholder="Search proposals by title, client, or description..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                data-testid="search-input"
-                className="flex-1 bg-transparent border-none shadow-none focus-visible:ring-0 text-sm text-[#1E1533] placeholder:text-[#A99BC7] p-0 h-auto"
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <Funnel size={16} className="text-[#8577A3]" />
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="bg-[#F7F4FC] border border-[#E4DCF0] text-[#1E1533] text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#9B30FF]/30 focus:border-[#9B30FF]"
-              >
-                <option value="all" className="bg-[#F7F4FC] text-[#1E1533]">All Status</option>
-                <option value="in_approval" className="bg-[#F7F4FC] text-[#1E1533]">In Approval</option>
-                <option value="needs_revision" className="bg-[#F7F4FC] text-[#1E1533]">Needs Revision</option>
-                <option value="approved" className="bg-[#F7F4FC] text-[#1E1533]">Approved</option>
-                <option value="rejected" className="bg-[#F7F4FC] text-[#1E1533]">Rejected</option>
-              </select>
-            </div>
-            <div className="flex items-center bg-[#F7F4FC] border border-[#E4DCF0] rounded-lg p-1">
-              <button
-                onClick={() => setViewMode('table')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold transition-colors ${
-                  viewMode === 'table' ? 'bg-[#FFFFFF] text-[#9B30FF] shadow-sm' : 'text-[#5B4B7A]'
-                }`}
-              >
-                <Table size={14} /> Table
-              </button>
-              <button
-                onClick={() => setViewMode('pipeline')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold transition-colors ${
-                  viewMode === 'pipeline' ? 'bg-[#FFFFFF] text-[#9B30FF] shadow-sm' : 'text-[#5B4B7A]'
-                }`}
-              >
-                <SquaresFour size={14} /> Pipeline
-              </button>
-            </div>
+              <input type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search proposals or customers" aria-label="Search dashboard proposals" className="w-full min-w-0 bg-transparent text-sm text-[#1E1533] outline-none" data-testid="search-input" />
+            </label>
+            <select value={filter} onChange={e => setFilter(e.target.value)} aria-label="Filter dashboard proposals" className="rounded-lg border border-[#E4DCF0] bg-[#FFFFFF] px-3 py-2 text-sm text-[#1E1533]">
+              <option value="all">All statuses</option><option value="review">Under review</option><option value="approved">Approved</option><option value="needs_revision">Needs revision</option><option value="sales_submitted">Submitted</option><option value="rejected">Rejected</option>
+            </select>
           </div>
-        </div>
-
-        <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-6">
-          {/* Main data table / pipeline */}
-          <div className="bg-[#FFFFFF] rounded-xl border border-[#E4DCF0] shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-[#E4DCF0]">
-              <h2 className="text-base font-bold text-[#1E1533]">Proposal Pipeline</h2>
-              <span className="text-sm text-[#5B4B7A]">{filteredProposals.length} proposals</span>
-            </div>
-
-            {viewMode === 'table' ? (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-[#F7F4FC] border-b border-[#E4DCF0]">
-                    <tr>
-                      <th className="text-left py-3 px-5 text-xs font-semibold text-[#5B4B7A] uppercase tracking-wider">Proposal ID</th>
-                      <th className="text-left py-3 px-5 text-xs font-semibold text-[#5B4B7A] uppercase tracking-wider">Client Name</th>
-                      <th className="text-left py-3 px-5 text-xs font-semibold text-[#5B4B7A] uppercase tracking-wider">Deal Value</th>
-                      <th className="text-left py-3 px-5 text-xs font-semibold text-[#5B4B7A] uppercase tracking-wider">Stage / Status</th>
-                      <th className="text-left py-3 px-5 text-xs font-semibold text-[#5B4B7A] uppercase tracking-wider">Days in Pipeline / Deal Stage</th>
-                      <th className="text-left py-3 px-5 text-xs font-semibold text-[#5B4B7A] uppercase tracking-wider">Commercial Lead</th>
-                      <th className="text-left py-3 px-5 text-xs font-semibold text-[#5B4B7A] uppercase tracking-wider">Last Updated</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#E4DCF0]">
-                    {filteredProposals.length === 0 ? (
-                      <tr>
-                        <td colSpan="7" className="py-10 text-center text-[#8577A3] text-sm">
-                          No proposals found
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredProposals.map((proposal, index) => {
-                        const isBottleneck = analytics.bottlenecks?.bottlenecks.some(b => b.id === proposal.id);
-                        return (
-                          <tr
-                            key={proposal.id}
-                            onClick={() => navigate(`/dashboard/proposal/${proposal.id}`)}
-                            data-testid={`proposal-${proposal.id}`}
-                            className="hover:bg-[#F7F4FC] cursor-pointer transition-colors"
-                          >
-                            <td className="py-3 px-5 text-[#5B4B7A] font-mono text-xs">#{String(index + 1).padStart(3, '0')}</td>
-                            <td className="py-3 px-5">
-                              <div className="text-[#1E1533] font-semibold text-sm mb-0.5 truncate max-w-[240px]">{proposal.title}</div>
-                              {proposal.customer_name && (
-                                <div className="text-xs text-[#8577A3]">{proposal.customer_name}</div>
-                              )}
-                            </td>
-                            <td className="py-3 px-5">
-                              <span className="text-[#059669] font-semibold">{formatCurrency(proposal.deal_value)}</span>
-                            </td>
-                            <td className="py-3 px-5">
-                              <div className="flex items-center gap-2">
-                                {isBottleneck && <Warning size={14} className="text-[#E11D48]" />}
-                                <Badge
-                                  className="text-xs font-semibold px-2.5 py-1 border-0"
-                                  style={getStatusColor(proposal.status)}
-                                  data-testid={`status-${proposal.id}`}
-                                >
-                                  {getProposalLabel(proposal)}
-                                </Badge>
-                              </div>
-                            </td>
-                            <td className="py-3 px-5">
-                              <div className="flex flex-col items-start gap-1">
-                                <DspBadge dsp={proposal.dsp} testId={`dsp-${proposal.id}`} />
-                                <DealStageChip deal={proposal.deal_status} testId={`stage-${proposal.id}`} />
-                              </div>
-                            </td>
-                            <td className="py-3 px-5">
-                              <div className="flex items-center gap-2">
-                                <div
-                                  className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0"
-                                  style={{ backgroundColor: '#9B30FF' }}
-                                >
-                                  {proposal.created_by.name[0]}
-                                </div>
-                                <span className="text-[#5B4B7A] text-xs">{proposal.created_by.name.split(' ')[0]}</span>
-                              </div>
-                            </td>
-                            <td className="py-3 px-5 text-[#8577A3] text-xs">
-                              {new Date(proposal.updated_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {[
-                  ...Array.from({ length: Math.max(1, ...filteredProposals.map((p) => p.workflow_view?.stage_count || 0)) }, (_, i) => ({
-                    key: `stage-${i + 1}`, title: `Approval stage ${i + 1}`, color: getStatusColor('in_review'),
-                    holds: (p) => p.workflow_view?.awaiting?.stage === i + 1,
-                  })),
-                  { key: 'approved', title: 'Approved', color: getStatusColor('approved'), holds: (p) => p.status === 'approved' },
-                ].map((column) => {
-                  const stageProposals = filteredProposals.filter(column.holds);
-                  return (
-                    <div key={column.key} data-testid={`board-column-${column.key}`} className="bg-[#F7F4FC] border border-[#E4DCF0] rounded-lg p-3 min-h-[120px]">
-                      <div className="flex items-center justify-between mb-3">
-                        <Badge className="text-xs font-semibold px-2 py-1 border-0" style={column.color}>
-                          {column.title}
-                        </Badge>
-                        <span className="text-xs text-[#8577A3] font-semibold">{stageProposals.length}</span>
-                      </div>
-                      <div className="space-y-2">
-                        {stageProposals.slice(0, 5).map((p) => (
-                          <div
-                            key={p.id}
-                            onClick={() => navigate(`/dashboard/proposal/${p.id}`)}
-                            className="bg-[#FFFFFF] border border-[#E4DCF0] rounded-lg p-2.5 cursor-pointer hover:shadow-sm transition-shadow"
-                          >
-                            <div className="text-xs font-semibold text-[#1E1533] truncate">{p.title}</div>
-                            {p.workflow_view?.awaiting && <div className="text-[10px] text-[#8577A3] truncate">Waiting on {p.workflow_view.awaiting.label}</div>}
-                            <div className="flex items-center justify-between mt-1">
-                              <span className="text-xs text-[#059669] font-semibold">{formatCurrency(p.deal_value)}</span>
-                              <DspBadge dsp={p.dsp} variant="compact" testId={`board-dsp-${p.id}`} />
-                            </div>
-                          </div>
-                        ))}
-                        {stageProposals.length === 0 && (
-                          <p className="text-xs text-[#CBD5E1] text-center py-4">No proposals</p>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-[#F7F4FC] text-xs font-semibold uppercase tracking-wide text-[#5B4B7A]"><tr>
+                <th className="px-5 py-3">Proposal / Customer</th><th className="px-5 py-3">Status</th><th className="px-5 py-3">Deal value</th><th className="px-5 py-3">Days in pipeline</th><th className="px-5 py-3">Updated</th>
+              </tr></thead>
+              <tbody className="divide-y divide-[#E4DCF0]">
+                {filtered.slice(0, 12).map(p => <tr key={p.id} data-testid={`proposal-${p.id}`} className="hover:bg-[#F7F4FC]">
+                  <td className="px-5 py-3"><button type="button" onClick={() => navigate(`/dashboard/proposal/${p.id}`)} className="max-w-[260px] truncate text-left font-semibold text-[#1E1533] hover:text-[#8126DB] hover:underline">{p.title}</button><p className="text-xs text-[#8577A3]">{p.customer_name || '—'}</p></td>
+                  <td className="px-5 py-3"><span className="inline-flex rounded-md bg-[#F1EBFA] px-2 py-1 text-xs font-medium text-[#5B4B7A]">{p.status === 'in_review' ? p.workflow_view?.status_label || 'In review' : statusLabel(p.status)}</span></td>
+                  <td className="whitespace-nowrap px-5 py-3 font-medium text-[#1E1533]">{currency(p.deal_value)}</td>
+                  <td className="px-5 py-3"><DspBadge dsp={p.dsp} variant="compact" /></td>
+                  <td className="whitespace-nowrap px-5 py-3 text-xs text-[#8577A3]">{date(p.updated_at)}</td>
+                </tr>)}
+                {!filtered.length && <tr><td colSpan={5} className="px-5 py-10 text-center text-sm text-[#8577A3]">{proposals.length ? 'No proposals match your search.' : 'No proposals yet.'}</td></tr>}
+              </tbody>
+            </table>
           </div>
-
-          {/* Quick Analytics Panel */}
-          <div className="space-y-4">
-            {/* Live Activity Feed */}
-            <div className="bg-[#FFFFFF] rounded-xl border border-[#E4DCF0] shadow-sm p-4">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-xs font-bold text-[#1E1533] uppercase tracking-wider">Live System Activity</h3>
-                <Clock size={16} className="text-[#8577A3]" />
-              </div>
-              <div className="max-h-[280px] overflow-y-auto space-y-3">
-                {analytics.activityFeed?.activities?.length === 0 ? (
-                  <p className="text-[#8577A3] text-xs text-center py-4">No recent activity</p>
-                ) : (
-                  analytics.activityFeed?.activities?.map((activity, idx) => (
-                    <div key={idx} className="flex gap-3 pb-3 border-b border-[#F1F5F9] last:border-0">
-                      <div
-                        className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0"
-                        style={{ backgroundColor: '#9B30FF' }}
-                      >
-                        {activity.by.name[0]}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs text-[#5B4B7A] mb-1">
-                          <span className="font-semibold text-[#1E1533]">{activity.by.name}</span>
-                          <span className="text-[#8577A3] mx-1">
-                            {activity.action === 'approved' ? 'approved' : activity.action === 'rejected' ? 'rejected' : 'updated'}
-                          </span>
-                          <span className="text-[#5B4B7A] truncate inline-block max-w-[160px] align-bottom">{activity.proposal_title}</span>
-                          <DspBadge dsp={activity.dsp} variant="inline" className="ml-1.5 align-middle" />
-                        </div>
-                        <div className="text-[10px] text-[#CBD5E1]">{formatTimestamp(activity.timestamp)}</div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            {/* Bottleneck Alerts */}
-            <div className="bg-[#FFFFFF] rounded-xl border border-[#E4DCF0] shadow-sm p-4">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-xs font-bold text-[#1E1533] uppercase tracking-wider">Bottleneck Alerts</h3>
-                <Warning size={16} className="text-[#D97706]" />
-              </div>
-              {analytics.bottlenecks?.bottlenecks?.length === 0 ? (
-                <div className="flex items-center gap-2 text-[#059669] text-sm">
-                  <CheckCircle size={18} weight="fill" />
-                  <span>All proposals flowing smoothly</span>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {analytics.bottlenecks?.bottlenecks?.slice(0, 5).map((bottleneck) => (
-                    <div
-                      key={bottleneck.id}
-                      onClick={() => navigate(`/dashboard/proposal/${bottleneck.id}`)}
-                      className="bottleneck-row flex items-center justify-between p-2 rounded-lg cursor-pointer hover:opacity-80 transition-opacity"
-                      style={{ backgroundColor: '#FFE4E6' }}
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs font-semibold text-[#1E1533] truncate">{bottleneck.title}</div>
-                        <div className="text-[10px] text-[#5B4B7A] flex items-center gap-1.5 flex-wrap">
-                          {bottleneck.status === 'in_review' ? bottleneck.status_label : getStatusLabel(bottleneck.status)}
-                          <DspBadge dsp={bottleneck.dsp} variant="inline" testId={`bottleneck-dsp-${bottleneck.id}`} />
-                        </div>
-                      </div>
-                      <div className="text-xs font-bold text-[#E11D48] shrink-0 ml-2">{bottleneck.days_stuck}d stuck</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* System Health / Approval Rate */}
-            <div className="rounded-xl border p-4" style={{ backgroundColor: '#D1FAE5', borderColor: '#A7F3D0' }}>
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-semibold text-[#065F46]">Approval Rate</span>
-                <span className="text-2xl font-bold text-[#059669]">{winRate}%</span>
-              </div>
-              <div className="h-2 bg-[#FFFFFF]/60 rounded-full overflow-hidden">
-                <div
-                  className="h-full rounded-full"
-                  style={{ width: `${winRate}%`, backgroundColor: '#059669' }}
-                ></div>
-              </div>
-              <div className="mt-3 text-[10px] text-[#065F46]">
-                {analytics.approvalRate?.approved_count} of {analytics.approvalRate?.total_proposals} proposals approved
-              </div>
-            </div>
-
-          </div>
-        </div>
+          {filtered.length > 12 && <div className="border-t border-[#E4DCF0] px-5 py-3 text-xs text-[#8577A3]">Showing 12 of {filtered.length} matching proposals. Use My Proposals for your full list.</div>}
+        </section>
       </div>
     </div>
   );
