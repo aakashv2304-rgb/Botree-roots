@@ -29,7 +29,7 @@ const Sidebar = ({ mobileOpen = false, onClose = () => {} }) => {
         <button type="button" className="fixed inset-0 z-40 bg-black/40 md:hidden" onClick={onClose} aria-label="Close navigation" />
       )}
       <aside id="dealpath-sidebar" aria-label="Main navigation"
-        className={`fixed inset-y-0 left-0 z-50 flex w-60 shrink-0 flex-col overflow-y-auto border-r border-[#E4DCF0] bg-white shadow-lg transition-transform duration-200 md:sticky md:top-16 md:z-20 md:h-[calc(100vh-4rem)] md:translate-x-0 md:shadow-none ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        className={`fixed inset-y-0 left-0 z-50 flex w-60 shrink-0 flex-col overflow-y-auto border-r border-[#E4DCF0] bg-[#FFFFFF] shadow-lg transition-transform duration-200 md:sticky md:top-16 md:z-20 md:h-[calc(100vh-4rem)] md:translate-x-0 md:shadow-none ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex items-center justify-between px-5 pb-3 pt-6">
           <span className="text-xs font-bold uppercase tracking-widest text-[#8577A3]">Workspace</span>
           <button type="button" className="rounded-lg p-1 text-[#5B4B7A] md:hidden" onClick={onClose} aria-label="Close menu">✕</button>
@@ -38,7 +38,7 @@ const Sidebar = ({ mobileOpen = false, onClose = () => {} }) => {
           {navItems.map((item) => (
             <NavLink key={item.path} to={item.path} end={item.path === '/dashboard'} data-testid={item.testId}
               onClick={onClose}
-              className={({ isActive }) => `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${isActive ? 'bg-[#F1EBFA] text-[#7A28C7] font-semibold' : 'text-[#5B4B7A] hover:bg-[#F7F4FC] hover:text-[#1E1533]'}`}>
+              className={({ isActive }) => `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${isActive ? 'bg-[#F1EBFA] text-[#8126DB] font-semibold' : 'text-[#5B4B7A] hover:bg-[#F7F4FC] hover:text-[#1E1533]'}`}>
               <item.icon size={19} weight="regular" />
               <span>{item.label}</span>
             </NavLink>

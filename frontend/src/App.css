@@ -660,3 +660,58 @@ body { font-size: 14px; }
 #root .text-7xl { font-size: calc(4.5rem * var(--dealpath-font-scale)); }
 #root .text-8xl { font-size: calc(6rem * var(--dealpath-font-scale)); }
 #root .text-9xl { font-size: calc(8rem * var(--dealpath-font-scale)); }
+
+
+/* ============ Consistent DealPath dark-mode surfaces ============ */
+/* Use the same themed surface and text colors in sidebar, dashboard, and lists.
+   Explicit selectors avoid altering brand buttons, logos, and status meanings. */
+html.dark-theme #dealpath-sidebar {
+  background-color: #1E1830 !important;
+  border-color: #362B4D !important;
+}
+html.dark-theme #dealpath-sidebar nav a {
+  color: #C7B8E8;
+}
+html.dark-theme #dealpath-sidebar nav a:hover {
+  background-color: #2A2140 !important;
+  color: #F3EEFF !important;
+}
+html.dark-theme #dealpath-sidebar nav a[aria-current="page"] {
+  background-color: #36294F !important;
+  color: #E4C7FF !important;
+}
+html.dark-theme #dealpath-sidebar nav a[aria-current="page"] svg {
+  color: #C792FF !important;
+}
+/* The existing theme mapping covers bg-[#FFFFFF], not generic bg-white. */
+html.dark-theme #main-content .bg-white {
+  background-color: #1E1830 !important;
+}
+html.dark-theme #main-content .bg-\\[\\#F1EBFA\\] {
+  background-color: #2A2140 !important;
+}
+html.dark-theme #main-content .bg-\\[\\#F7F4FC\\] {
+  background-color: #130F1F !important;
+}
+/* Status labels and links must remain legible on dark surfaces. */
+html.dark-theme #main-content .text-\\[\\#8126DB\\],
+html.dark-theme #main-content .text-\\[\\#7A28C7\\] {
+  color: #C792FF !important;
+}
+html.dark-theme #main-content .hover\\:bg-\\[\\#FAF8FD\\]:hover {
+  background-color: #2A2140 !important;
+}
+html.dark-theme #main-content input,
+html.dark-theme #main-content select {
+  color-scheme: dark;
+}
+html.dark-theme #main-content input::placeholder {
+  color: #9C8DB8;
+}
+html.dark-theme #main-content .divide-\\[\\#E4DCF0\\] > :not([hidden]) ~ :not([hidden]) {
+  border-color: #362B4D !important;
+}
+/* Keep brand logo on its intended white plate in both themes. */
+html.dark-theme header .bg-white {
+  background-color: #FFFFFF !important;
+}
