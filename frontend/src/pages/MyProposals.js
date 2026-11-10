@@ -67,19 +67,17 @@ const MyProposals = () => {
           <div className="overflow-x-auto"><table className="w-full text-sm text-left">
             <thead className="bg-[#F7F4FC] text-[#5B4B7A] text-xs uppercase">
               <tr><th className="p-4">Proposal / Customer</th><th className="p-4">Status</th>
-                <th className="p-4">Deal Value</th><th className="p-4">Submitted</th><th className="p-4">Action</th></tr>
+                <th className="p-4">Deal Value</th><th className="p-4">Submitted</th></tr>
             </thead>
             <tbody className="divide-y divide-[#E4DCF0]">
               {visible.map((proposal) => (
                 <tr key={proposal.id} className="hover:bg-[#FAF8FD]" data-testid={`my-proposal-${proposal.id}`}>
-                  <td className="p-4"><div className="font-semibold text-[#1E1533]">{proposal.title}</div>
+                  <td className="p-4"><button type="button" onClick={() => navigate(`/dashboard/proposal/${proposal.id}`)} aria-label={`Open proposal ${proposal.title}`} className="font-semibold text-[#1E1533] text-left hover:text-[#8126DB] hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8126DB]">{proposal.title}</button>
                     <div className="text-xs text-[#7A6B9E]">{proposal.customer_name || '—'}</div></td>
                   <td className="p-4">{statusLabel(proposal.status)}</td>
                   <td className="p-4">{typeof proposal.deal_value === 'number'
                     ? `₹${proposal.deal_value.toLocaleString('en-IN')}` : '—'}</td>
                   <td className="p-4">{proposal.created_at ? new Date(proposal.created_at).toLocaleDateString('en-IN') : '—'}</td>
-                  <td className="p-4"><button type="button" className="text-[#8126DB] font-semibold hover:underline"
-                    onClick={() => navigate(`/dashboard/proposal/${proposal.id}`)}>Open Proposal</button></td>
                 </tr>
               ))}
             </tbody>
